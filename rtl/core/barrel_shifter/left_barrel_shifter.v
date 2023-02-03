@@ -29,11 +29,11 @@ module left_barrel_shifter
 
     genvar i, j;
     generate
-        for(i = 0; i < $clog2(XLEN); i = i + 1) begin
+        for(i = 1; i < $clog2(XLEN); i = i + 1) begin
             for(j = 0; j < XLEN; j = j + 1) begin
                 mux_2to1
                 #(
-                    .DATA_SIZE(XLEN)
+                    .DATA_SIZE(1)
                 )
                 O_i_j
                 (
