@@ -1,14 +1,3 @@
-module mux2to1
-(   input a_in,
-    input b_in,
-    input sel,
-    output wire out
-);
-
-   assign out = sel ? b_in : a_in;
-
-endmodule
-
 module full_barrel_shifter
 #(
     parameter XLEN=32
