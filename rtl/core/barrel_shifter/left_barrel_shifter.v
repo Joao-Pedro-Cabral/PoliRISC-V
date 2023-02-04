@@ -38,7 +38,7 @@ module left_barrel_shifter
                 O_i_j
                 (
                     .a_in(O[i-1][j]),
-                    .b_in(j < $pow(2,i) ? 0 : O[i-1][j-$pow(2,i)]),
+                    .b_in(j < ('b01 << (i-1)) ? 0 : O[i-1][j-('b01 << (i-1))]),
                     .sel(shamt[i]),
                     .out(O[i][j])
                 );
