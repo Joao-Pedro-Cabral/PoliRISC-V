@@ -12,10 +12,12 @@ module full_barrel_shifter
 
     wire [XLEN-1:0] O [$clog2(XLEN):0];
     wire [XLEN-1:0] b_in_wire [$clog2(XLEN)-1:0];
+    wire msb;
 
 
     assign O[0] = in_data;
     assign out_data = O[$clog2(XLEN)];
+    assign msb = arithmetic_right_shift & O[0][XLEN-1];
 
 
     genvar i, j;
@@ -23,7 +25,11 @@ module full_barrel_shifter
 
         for(i = 0; i < $clog2(XLEN); i = i + 1) begin : b_columns
             for(j = 0; j < XLEN; j = j + 1) begin : b_rows
-                mux2to1 b_i_j // decides b_in signal of main shift muxes
+                mux2to1  // decides b_in signal of main shift muxes
+                #(
+                    .size(1)
+                )
+                b_i_j
                 (
                     .a_in
                     (
@@ -37,7 +43,7 @@ module full_barrel_shifter
                     (
                         ((j + ('b01 << i)) >= XLEN)
                         ?
-                            (arithmetic_right_shift & O[0][XLEN-1])
+                            msb
                         :
                             O[i][j+('b01 << i)]
                     ),
@@ -50,7 +56,11 @@ module full_barrel_shifter
 
         for(i = 1; i <= $clog2(XLEN); i = i + 1) begin : columns
             for(j = 0; j < XLEN; j = j + 1) begin : rows
-                mux2to1 O_i_j // main shift muxes
+                mux2to1 // main shift muxes
+                #(
+                    .size(1)
+                )
+                O_i_j
                 (
                     .a_in(O[i-1][j]),
                     .b_in(b_in_wire[i-1][j]),
