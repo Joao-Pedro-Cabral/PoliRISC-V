@@ -1,3 +1,10 @@
+//
+//! @file   barrel_shifter_r.v
+//! @brief  Barrel Shifter para direita (aritmético e lógico)
+//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
+//! @date   2023-02-12
+//
+
 
 module barrel_shifter_r(A, shamt, Y, arithmetic);
     parameter N = 4;

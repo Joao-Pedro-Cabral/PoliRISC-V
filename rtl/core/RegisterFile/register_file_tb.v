@@ -1,3 +1,9 @@
+//
+//! @file   register_file_tb.v
+//! @brief  Testbench para Register File com x0 = 0
+//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
+//! @date   2023-02-12
+//
 
 `timescale 1ns / 1ns
 

@@ -1,5 +1,12 @@
+//
+//! @file   gen_mux_tb.v
+//! @brief  Testbench para Multiplexador genérico(2^N para 1)
+//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
+//! @date   2023-02-12
+//
 
 `timescale 1ns / 100ps
+
 module gen_mux_tb();
     // portas do DUT
     wire [3:0] A [7:0];

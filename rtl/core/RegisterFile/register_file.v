@@ -1,3 +1,9 @@
+//
+//! @file   register_file.v
+//! @brief  Register File com x0 = 0
+//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
+//! @date   2023-02-12
+//
 
 module register_file(clock, reset, write_enable, read_address1, read_address2,
                     write_address, write_data, read_data1, read_data2);

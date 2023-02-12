@@ -1,4 +1,11 @@
 
+//
+//! @file   barrel_shifter_r_tb.v
+//! @brief  Testbench para Barrel Shifter para direita (aritmético e lógico)
+//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
+//! @date   2023-02-12
+//
+
 `timescale 1ns / 100 ps
 
 module barrel_shifter_r_tb();
@@ -9,7 +16,7 @@ module barrel_shifter_r_tb();
     reg  arithmetic;
     wire [7:0] Y;
     // auxiliares
-    wire signed [7:0] B[7:0]; 
+    wire [7:0] B[7:0]; 
     // variáveis de iteração
     genvar  i;
     integer j;
@@ -27,6 +34,7 @@ module barrel_shifter_r_tb();
     initial begin
         $display("SOT!");
         $display("0!");
+        #2;
         arithmetic = 1'b0;  // SRL
         for(j = 0; j < 8; j = j + 1) begin
             A = B[j];
@@ -42,7 +50,7 @@ module barrel_shifter_r_tb();
             A = B[j];
             shamt = j;
             #1;
-            if(Y !== (B[j][7:0] >>> j)) // fazer signed aaaaaaa
+            if($signed(Y) !== ($signed(B[j][7:0]) >>> $signed(j))) // fazer signed aaaaaaa
                 $display("Error: B[%d] = %b, Y = %b", j, B[j], Y);
             #1;
         end 

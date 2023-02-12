@@ -1,3 +1,9 @@
+//
+//! @file   decoderN.v
+//! @brief  Decoder genérico(N para 2^N)
+//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
+//! @date   2023-02-12
+//
 
 module decoderN(A, enable, Y);
     parameter N    = 5;

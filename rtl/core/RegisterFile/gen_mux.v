@@ -1,3 +1,9 @@
+//
+//! @file   gen_mux.v
+//! @brief  Multiplexador genérico(2^N para 1)
+//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
+//! @date   2023-02-12
+//
 
 module gen_mux(A, S, Y);
     parameter size = 4;     // tamanho dos vetores

@@ -1,3 +1,9 @@
+//
+//! @file   register_d_tb.v
+//! @brief  Testbench para register D com reset assíncrono
+//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
+//! @date   2023-02-12
+//
 
 `timescale 1ns / 100ps
 
