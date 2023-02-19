@@ -17,23 +17,28 @@ A seguir, definiram-se as interfaces iniciais de cada componente. Salvo menção
 ## Banco de Registradores
 
 Entradas:
+
     - Entrada de dados `rs1`;
     - Entrada de dados `rs2`.
 
 Saídas:
+
     - Saída de dados `rsd`.
 
 ## Contador de Programa
 
 Entradas:
+
     - Entrada de dados `pc_in`.
 
 Saídas:
+
     - Saída de dados `pc_out`.
 
 ## Memória de Dados
 
 Entradas:
+
     - Entrada de endereçamento `data_addr`;
     - Entrada de dados `data_in`;
     - Entrada de tamanho de transferência `transf_size`, de __3 bits__.
@@ -41,6 +46,7 @@ Entradas:
 `transf_size` define se a escrita ou leitura será de um byte, meia palavra (16 bytes), uma palavra (32 bits) ou uma dupla palavra (64 bits).
 
 Saídas:
+
     - Saída de dados `data_out`.
 
 
@@ -49,11 +55,13 @@ Saídas:
 Dado que é comum que haja muitos multiplexadores em um circuito digital, pode-se nomeá-los de acordo com suas funções. Esse será nomeado de `alu_out` por motivos explicados [aqui](interconexoes_do_fluxo_de_dados.md).
 
 Entradas:
+
     - Entrada de dados `a`.
     - Entrada de dados `b`;
     - seletor `s`, de __1 bit__.
 
 Saídas:
+
     - Saída de dados `y`.
 
 O seletor escolhe qual entrada será direcionada a saída `y` do multiplexador.
@@ -63,6 +71,7 @@ O seletor escolhe qual entrada será direcionada a saída `y` do multiplexador.
 Multiplexador `mem_in`
 
 Entradas:
+
     - Entrada de dados `a`;
     - Entrada de dados `b`;
     - Entrada de dados `c`;
@@ -71,6 +80,7 @@ Entradas:
 
 
 Saídas:
+
     - Saída de dados `y`.
 
 ## Multiplexador 8x1
@@ -78,6 +88,7 @@ Saídas:
 Multiplexador `mem_out`
 
 Entradas:
+
     - Entrada de dados `a`;
     - Entrada de dados `b`;
     - Entrada de dados `c`;
@@ -90,16 +101,19 @@ Entradas:
 
 
 Saídas:
+
     - Saída de dados `y`.
 
 ## Somador
 
 Entradas:
+
     - Entrada de dados `a`;
     - Entrada de dados `b`.
     - Entrada de _carry_ `c_in`, de __1 bit__.
 
 Saídas:
+
     - Saída de dados `y`
     - Saída de _carry_ `c_out`, de __1 bit__.
 
@@ -107,11 +121,13 @@ Saídas:
 ## ULA com Flags
 
 Entradas:
+
     - Entrada de dados `a`;
     - Entrada de dados `b`;
     - Seletor de operação `seletor`, de __4 bits__.
 
 Saídas:
+
     - Saída de dados `y`;
     - Saída de _carry_/_flag_ `c_out`, de __1 bit__;
     - Saída de _flag_ `zero`, de __1 bit__;
@@ -121,7 +137,9 @@ Saídas:
 ## Unidade de Estensão de Sinal
 
 Entradas:
+
     - Entrada para a instrução `instruction`, de __32 bits__;
 
 Saídas:
+
     - Saída para o imediato da instrução com sinal estendido `immediate`.
