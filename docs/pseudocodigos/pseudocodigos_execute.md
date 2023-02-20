@@ -139,7 +139,13 @@ switch(funct3)
     case 011:  // LD
         RegFile[rd] = signExt(DataMem[ULA(0b0000, RegFile[rs1], signExt(Imm[11:0])).result])
 
-    case 100: // LWU
+    case 100: // LBU
+        RegFile[rd] = DataMem[ULA(0b0000, RegFile[rs1], signExt(Imm[11:0])).result][7:0]
+
+    case 101: // LHU
+        RegFile[rd] = DataMem[ULA(0b0000, RegFile[rs1], signExt(Imm[11:0])).result][15:0]
+
+    case 110: // LWU
         RegFile[rd] = DataMem[ULA(0b0000, RegFile[rs1], signExt(Imm[11:0])).result][31:0]
 }
 
