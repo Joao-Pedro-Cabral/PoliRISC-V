@@ -10,7 +10,7 @@ Os pseudocódigos se dividem por categoria de instrução. Atente-se ao fato de 
 if( opcode[3] == 0 )
     RegFile[rd] = ULA(funct7[5] & funct3, RegFile[rs1], RegFile[rs2]).result
 else
-    RegFile[rd] = ULA(funct7[5] & funct3, RegFile[rs1], RegFile[rs2]).result[31:0]
+    RegFile[rd] = signExt(ULA(funct7[5] & funct3, RegFile[rs1], RegFile[rs2]).result[31:0])
 
 PC = PC + 4
 ```
@@ -22,6 +22,7 @@ PC = PC + 4
 - Somador
 - Contador de Programa (PC)
 - Multiplexador 2x1
+- Unidade de Extensão de Sinal (signExt)
 
 ## Registrador-Immediato
 
@@ -45,7 +46,7 @@ PC = PC + 4
 if( opcode[3] == 0 )
     RegFile[rd] = ULA(funct7[5] & funct3, RegFile[rs1], signExt(Imm[11:0])).result
 else
-    RegFile[rd] = ULA(funct7[5] & funct3, RegFile[rs1], signExt(Imm[11:0])).result[31:0]
+    RegFile[rd] = signExt(ULA(funct7[5] & funct3, RegFile[rs1], signExt(Imm[11:0])).result[31:0])
 
 PC = PC + 4
 ```
