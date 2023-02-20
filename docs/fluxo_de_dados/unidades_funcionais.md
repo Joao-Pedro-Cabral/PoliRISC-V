@@ -10,7 +10,7 @@ A partir do [pseudocódigo do estado de Execute](../pseudocodigos/pseudocodigos_
 - Multiplexador 8x1
 - Somador
 - ULA com flags
-- Unidade de Estensão de Sinal (signExt)
+- Unidade de Extensão de Sinal (signExt)
 
 A seguir, definiram-se as interfaces iniciais de cada componente. Salvo menção em contrário, todos as entradas e saídas são de 64 bits para as arquiteturas RV64 e de 32 bits para as arquiteturas RV32.
 
@@ -134,7 +134,7 @@ Saídas:
     - Saída de _flag_ `negative`, de __1 bit__;
     - Saída de _flag_ `overflow`, de __1 bit__.
 
-## Unidade de Estensão de Sinal
+## Unidade de Extensão de Sinal
 
 Entradas:
 

@@ -53,7 +53,7 @@ PC = PC + 4
 ### Unidades Funcionais Identificadas
 
 - Banco de Registradores (RegFile)
-- Unidade de Estensão de Sinal (signExt)
+- Unidade de Extensão de Sinal (signExt)
 - ULA
 - Somador
 - Contador de Programa (PC)
@@ -78,7 +78,7 @@ PC = ULA(0b0000, RegFile[rs1], signExt(Imm[11:0])).result[63:1] & 0b0
 ### Unidades Funcionais Identificadas
 
 - Banco de Registradores (RegFile)
-- Unidade de Estensão de Sinal (signExt)
+- Unidade de Extensão de Sinal (signExt)
 - ULA
 - Somador
 - Contador de Programa (PC)
@@ -118,7 +118,7 @@ PC = PC + (Cond ? signExt(Imm[12:1] & 0b0) : 4)
 - Banco de Registradores (RegFile)
 - ULA com flags
 - Somador
-- Unidade de Estensão de Sinal (signExt)
+- Unidade de Extensão de Sinal (signExt)
 - Contador de Programa (PC)
 - Multiplexador 8x1
 
@@ -151,7 +151,7 @@ PC = PC + 4
 - Banco de Registradores (RegFile)
 - ULA
 - Somador
-- Unidade de Estensão de Sinal (signExt)
+- Unidade de Extensão de Sinal (signExt)
 - Contador de Programa (PC)
 - Memória de Dados (DataMem)
 - Multiplexador 4x1
@@ -183,7 +183,7 @@ PC = PC + 4
 - Banco de Registradores (RegFile)
 - ULA
 - Somador
-- Unidade de Estensão de Sinal (signExt)
+- Unidade de Extensão de Sinal (signExt)
 - Contador de Programa (PC)
 - Memória de Dados (DataMem)
 - Multiplexador 4x1
