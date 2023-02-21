@@ -22,7 +22,7 @@ module barrel_shifter_r(A, shamt, Y, arithmetic);
     assign Y    = B[N];
 
     // decide se é aritmético ou lógico
-    assign shift = (arithmetic == 1'b1) ? A[2**N - 1] : 1'b0;
+    assign shift = arithmetic & A[2**N - 1];
 
     // generate para criar o barrel shifter p/ direita usando muxes
     generate
