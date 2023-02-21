@@ -1,0 +1,11 @@
+# arquivos do quartus
+**/**/**/db
+**/**/**/incremental_db
+**/**/**/output_files
+**/**/**/*.qpf
+**/**/**/*.qsf
+
+# arquivos de simulação (QuestaSim ou ModelSim)
+**/**/**/modelsim.ini
+**/**/**/work/
+**/**/**/transcript
