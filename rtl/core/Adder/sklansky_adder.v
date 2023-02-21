@@ -28,26 +28,25 @@ module sklansky_adder
     assign P[0][0] = 1'b0;
 
 
-    genvar i, m, n_index;
+    genvar i, m, n;
     generate
 
+        // prefixos (propagates e generates) iniciais
         for(i = 1; i <= INPUT_SIZE; i = i + 1) begin : precomputation
             and(G[i][i], A[i-1], B[i-1]);
             or(P[i][i], A[i-1], B[i-1]);
         end
 
-        for(i=0; i < $clog2(INPUT_SIZE); i = i + 1) begin : levels
-            //localparam m_index = 0;
-            for(m=2**i -1; m < INPUT_SIZE; m = m + 2**(i+1)) begin : blocks
-                for(n_index = m + 1; n_index < m + 1 + 2**i; n_index = n_index + 1) begin : prefixes
-                    prefix_operator propagate_generate
+        for(i=0; i < $clog2(INPUT_SIZE); i = i + 1) begin : levels // camadas de computação dos prefixos
+            for(m=2**i -1; m < INPUT_SIZE; m = m + 2**(i+1)) begin : blocks // blocos de prefixos
+                for(n = m + 1; n < m + 1 + 2**i; n = n + 1) begin : prefixes // prefixos
+                    prefix_operator propagate_generate // cálculo dos prefixos
                     (
-                        .g_i(G[n_index][m+1]), .g_j(G[m][m-2**i+1]),
-                        .p_i(P[n_index][m+1]), .p_j(P[m][m-2**i+1]),
-                        .g(G[n_index][m-2**i+1]), .p(P[n_index][m-2**i+1])
+                        .g_i(G[n][m+1]), .g_j(G[m][m-2**i+1]),
+                        .p_i(P[n][m+1]), .p_j(P[m][m-2**i+1]),
+                        .g(G[n][m-2**i+1]), .p(P[n][m-2**i+1])
                     );
                 end
-                //localparam m_index = m_index + 2**(i+1);
             end
         end
 
@@ -56,6 +55,7 @@ module sklansky_adder
         end
     endgenerate
 
+    // cálculo do carry out
     and(generate_carry_out, A[INPUT_SIZE-1], B[INPUT_SIZE-1]);
     xor(half_sum_carry_out, A[INPUT_SIZE-1], B[INPUT_SIZE-1]);
     and(propagate_carry_out, half_sum_carry_out, G[INPUT_SIZE-1][0]);
