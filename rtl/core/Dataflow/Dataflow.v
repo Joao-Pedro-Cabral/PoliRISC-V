@@ -1,5 +1,5 @@
 
-module dataflow(clock, reset, instruction, instruction_address, read_data, write_data, data_address,
+module Dataflow(clock, reset, instruction, instruction_address, read_data, write_data, data_address,
                 alua_src, alub_src, aluy_src, alu_src, carry_in, arithmetic, alupc_src, pc_src, pc_enable, 
                 write_register_src, write_register_enable, opcode, func3, zero, negative, carry_out, overflow);
     // Common
@@ -16,17 +16,19 @@ module dataflow(clock, reset, instruction, instruction_address, read_data, write
     input  wire alua_src;
     input  wire alub_src;
     input  wire aluy_src;
-    input  wire alu_src;
+    input  wire [2:0] alu_src;
     input  wire carry_in;
     input  wire arithmetic;
     input  wire alupc_src;
     input  wire pc_src;
     input  wire pc_enable;
+    input  wire [2:0] read_data_src;
     input  wire [1:0] write_register_src;
     input  wire write_register_enable;
     // To Control Unit
     output wire [6:0] opcode;
-    output wire [2:0] func3;
+    output wire [2:0] funct3;
+    output wire funct7;
     output wire zero;
     output wire negative;
     output wire carry_out;
@@ -56,11 +58,13 @@ module dataflow(clock, reset, instruction, instruction_address, read_data, write
     wire [63:0] muxpc_out;
         // PC
     wire [63:0] pc;
+        // Data Memory
+    wire [63:0] read_data_extend;
 
 
     // Instanciação de Componentes
         // Register File
-    mux2to1        #(.size(64))              muxpc4_data     (.A(read_data), .B(pc_plus_4), .S(write_register_src[0]), .Y(muxpc4_data_out));
+    mux2to1        #(.size(64))              muxpc4_data     (.A(read_data_extend), .B(pc_plus_4), .S(write_register_src[0]), .Y(muxpc4_data_out));
     mux2to1        #(.size(64))              muxreg_destiny  (.A(muxpc4_data_out), .B(muxaluY_out), .S(write_register_src[1]), .Y(reg_data_destiny));
     register_file  #(.size(64), .N(5))       int_reg_state   (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(reg_addr_source_1), 
         .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data_destiny), .read_data1(reg_data_source_1), .read_data2(reg_data_source_2));
@@ -77,10 +81,19 @@ module dataflow(clock, reset, instruction, instruction_address, read_data, write
         // PC
     mux2to1       #(.size(64))               muxpc           (.A(pc_plus_4), .B(pc_plus_immediate), .S(pc_src), .Y(muxpc_out));
     register_d    #(.N(64), .reset_value(0)) pc_register     (.clock(clock), .reset(reset), .enable(pc_enable), .D(muxpc_out), .Q(pc));
+        // Data Memory
+    gen_mux       #(.size(32) .N(2))         mux_read_data (.A({read_data[63:33], {32{read_data[31] & read_data_src[2]}},
+        {32{read_data[15] & read_data_src[2]}}, {32{read_data[7] & read_data_src[2]}}}), .S(read_data_src[1:0]), .Y(read_data_extend[63:32]));
 
     // Atribuições intermediárias
+        // Mascarar LUI np Rs1
     assign reg_addr_source_1 = instruction[19:15] & {4{(~(instruction[4] & instruction[2]))}};
     assign muxaluY_out[31:0] = aluY[31:0];
+        // Estender com/sem sinal 
+    assign read_data_extend[7:0]   = read_data[7:0];
+    assign read_data_extend[15:8]  = (read_data_src[1] | read_data_src[0]) ? read_data[15:8] : ({8{read_data[7] & read_data_src[2]}});
+    assign read_data_extend[31:16] = read_data_src[1] ? read_data[32:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
+    
 
     // Saídas
         // Instruction Memory
@@ -90,6 +103,7 @@ module dataflow(clock, reset, instruction, instruction_address, read_data, write
     assign data_address = aluY;
         // Control Unit
     assign opcode = instruction[6:0];
-    assign func3  = instruction[14:12];
+    assign funct3 = instruction[14:12];
+    assign funct7 = instruction[30];
 
 endmodule
