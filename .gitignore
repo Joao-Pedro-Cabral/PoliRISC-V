@@ -6,6 +6,6 @@
 **/**/**/*.qsf
 
 # arquivos de simulação (QuestaSim ou ModelSim)
-**/**/**/modelsim.ini
-**/**/**/work/
-**/**/**/transcript
+simulation/modelsim.ini
+simulation/work/
+simulation/transcript
