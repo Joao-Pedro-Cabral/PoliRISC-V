@@ -9,3 +9,5 @@
 simulation/modelsim.ini
 simulation/work/
 simulation/transcript
+simulation/*.wlf
+simulation/Makefile
