@@ -68,7 +68,7 @@ module dataflow(clock, reset, instruction, instruction_address, read_data, write
     mux2to1        #(.size(64))              muxaluA (.A(reg_data_source_1), .B(pc), .S(alua_src), .Y(aluA));
     mux2to1        #(.size(64))              muxaluB (.A(immediate), .B(reg_data_source_2), .S(alub_src), .Y(aluB)); 
     mux2to1        #(.size(32))              muxaluY (.A(aluY[63:32]), .B({32{aluY[31]}}), .S(aluy_src), .Y(muxaluY_out[63:32]));
-    ULA            #(.N(64))                 alu     (.A(aluA), .B(aluB ^ {64{carry_in}}), .seletor(alu_src), .carry_in(carry_in), .arithmetic(arithmetic), 
+    ULA            #(.N(64))                 alu     (.A(aluA), .B(aluB), .seletor(alu_src), .carry_in(carry_in), .arithmetic(arithmetic), 
         .Y(aluY), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow));
         // Somador PC + 4
         // Somador PC + Imediato

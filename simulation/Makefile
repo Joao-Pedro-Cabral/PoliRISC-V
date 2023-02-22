@@ -3,24 +3,32 @@
 #  http://ohwr.org/projects/hdl-make/  #
 ########################################
 
-TOP_MODULE := sklansky_adder_tb
+TOP_MODULE := ULA_tb
 
 MODELSIM_INI_PATH := /home/joao/intelFPGA_lite/21.1/questa_fse/bin/..
 
 VCOM_FLAGS := -quiet -modelsimini modelsim.ini 
 VSIM_FLAGS := 
-VLOG_FLAGS := -quiet -modelsimini modelsim.ini 
+VLOG_FLAGS := -quiet -modelsimini modelsim.ini  -vlog01compat
 VMAP_FLAGS := -modelsimini modelsim.ini 
 #target for performing local simulation
 local: sim_pre_cmd simulation sim_post_cmd
 
 VERILOG_SRC := ../rtl/core/Adder/prefix_operator.v \
 ../rtl/core/Adder/sklansky_adder.v \
-../testbench/core/Adder/sklansky_adder_tb.v \
+../rtl/core/RegisterFile/gen_mux.v \
+../rtl/core/RegisterFile/mux2to1.v \
+../rtl/core/ULA/ULA.v \
+../rtl/core/ULA/barrel_shifter_r.v \
+../testbench/core/ULA/ULA_tb.v \
 
 VERILOG_OBJ := work/prefix_operator/.prefix_operator_v \
 work/sklansky_adder/.sklansky_adder_v \
-work/sklansky_adder_tb/.sklansky_adder_tb_v \
+work/gen_mux/.gen_mux_v \
+work/mux2to1/.mux2to1_v \
+work/ULA/.ULA_v \
+work/barrel_shifter_r/.barrel_shifter_r_v \
+work/ULA_tb/.ULA_tb_v \
 
 VHDL_SRC := 
 VHDL_OBJ := 
@@ -48,8 +56,33 @@ work/prefix_operator/.prefix_operator_v
 		@mkdir -p $(dir $@) && touch $@
 
 
-work/sklansky_adder_tb/.sklansky_adder_tb_v: ../testbench/core/Adder/sklansky_adder_tb.v \
-work/sklansky_adder/.sklansky_adder_v
+work/gen_mux/.gen_mux_v: ../rtl/core/RegisterFile/gen_mux.v \
+work/mux2to1/.mux2to1_v
+		vlog -work work $(VLOG_FLAGS)  $(INCLUDE_DIRS) $<
+		@mkdir -p $(dir $@) && touch $@
+
+
+work/mux2to1/.mux2to1_v: ../rtl/core/RegisterFile/mux2to1.v
+		vlog -work work $(VLOG_FLAGS)  $(INCLUDE_DIRS) $<
+		@mkdir -p $(dir $@) && touch $@
+
+
+work/ULA/.ULA_v: ../rtl/core/ULA/ULA.v \
+work/sklansky_adder/.sklansky_adder_v \
+work/gen_mux/.gen_mux_v \
+work/barrel_shifter_r/.barrel_shifter_r_v
+		vlog -work work $(VLOG_FLAGS)  $(INCLUDE_DIRS) $<
+		@mkdir -p $(dir $@) && touch $@
+
+
+work/barrel_shifter_r/.barrel_shifter_r_v: ../rtl/core/ULA/barrel_shifter_r.v \
+work/mux2to1/.mux2to1_v
+		vlog -work work $(VLOG_FLAGS)  $(INCLUDE_DIRS) $<
+		@mkdir -p $(dir $@) && touch $@
+
+
+work/ULA_tb/.ULA_tb_v: ../testbench/core/ULA/ULA_tb.v \
+work/ULA/.ULA_v
 		vlog -work work $(VLOG_FLAGS)  $(INCLUDE_DIRS) $<
 		@mkdir -p $(dir $@) && touch $@
 
@@ -58,7 +91,7 @@ work/sklansky_adder/.sklansky_adder_v
 sim_pre_cmd:
 		
 sim_post_cmd:
-		vsim -do vsim.do -voptargs=+acc sklansky_adder_tb
+		vsim -do vsim.do -voptargs=+acc ULA_tb
 
 CLEAN_TARGETS := $(LIBS) modelsim.ini transcript
 

@@ -35,7 +35,7 @@ module ULA(A, B, seletor, carry_in, arithmetic, Y, zero, negative, carry_out, ov
 
     // operações da ULA
         // operações aritméticas
-    assign add_sub = (carry_in == 1) ? (A - B) : (A + B); // substituto para o somador
+    sklansky_adder #(.INPUT_SIZE(N)) adder (.A(A), .B(B ^ {N{carry_in}}), .c_in(carry_in), .c_out(carry_out_), .S(add_sub));
     assign sll     = A << B[$clog2(N)-1:0];                              // substituto para o shift left
     assign slt     = negative_ ^ overflow_;
     assign sltu    = ~ carry_out_;
@@ -51,8 +51,7 @@ module ULA(A, B, seletor, carry_in, arithmetic, Y, zero, negative, carry_out, ov
 
     // flags da ULA
     assign negative_  = add_sub[N-1];
-    assign carry_out_ = carry_in ^ A[N-1] ^ B[N-1];
-    assign overflow_  = (A[N-1] ^ B[N-1]) & (A[N-1] ^ add_sub[N-1]);
+    assign overflow_  = (~(A[N-1] ^ B[N-1])) & (A[N-1] ^ add_sub[N-1]);
     assign zero       = ~(|add_sub);
     assign negative   = negative_;
     assign carry_out  = carry_out_;

@@ -29,6 +29,7 @@ module ULA_tb();
     wire negative_;
     wire carry_out_;
     wire overflow_;
+    wire [7:0] xorB;
 
     // variáveis de iteração
     genvar  j;
@@ -43,11 +44,11 @@ module ULA_tb();
     endgenerate
 
     // gerando flags auxiliares
-    assign add_sub    = (carry_in == 1) ? A - B : A + B; 
-    assign zero_      = ~(|add_sub);
-    assign negative_  = add_sub[7];
-    assign carry_out_ = carry_in ^ A[7] ^ B[7];
-    assign overflow_  = (A[7] ^ B[7]) & (A[7] ^ add_sub[7]);
+    assign xorB                  = B ^ 8'b11111111;
+    assign {carry_out_, add_sub} = (carry_in == 1) ? A + xorB + 8'b01 : A + B; 
+    assign zero_                 = ~(|add_sub);
+    assign negative_             = add_sub[7];
+    assign overflow_             = (~(A[7] ^ B[7])) & (A[7] ^ add_sub[7]);
 
     // instanciando o DUT
     ULA #(.N(8)) DUT (.A(A), .B(B), .seletor(seletor), .carry_in(carry_in), .arithmetic(arithmetic), .Y(Y),
