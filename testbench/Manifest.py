@@ -1,0 +1,6 @@
+modules = {
+    "local" : [
+        "Memory",
+        "core"
+    ],
+}

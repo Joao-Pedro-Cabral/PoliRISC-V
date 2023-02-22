@@ -1,4 +1,4 @@
-TOPLEVEL = "ULA"
+TOPLEVEL = "ROM"
 
 action   = "simulation"
 sim_tool = "modelsim"
@@ -10,9 +10,6 @@ sim_post_cmd = "vsim -do vsim.do -voptargs=+acc " + sim_top
 
 modules = {
     "local" : [
-        "../testbench/core/Adder",
-        "../testbench/core/RegisterFile",
-        "../testbench/core/ULA",
-        "../testbench/core/ImmediateExtender"
+        "../testbench"
     ],
 }
