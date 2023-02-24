@@ -1,4 +1,4 @@
-TOPLEVEL = "ROM"
+TOPLEVEL = "single_port_ram"
 
 action   = "simulation"
 sim_tool = "modelsim"
