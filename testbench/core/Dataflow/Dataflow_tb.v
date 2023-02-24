@@ -91,7 +91,12 @@ module Dataflow_tb();
            opcode === 7'b0010011 || opcode === 7'b0011011) begin
             for(i = 0; i < 56; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7])
-                    source = LUT_uc[i][25:11];
+                    // SRLI e SRAI: funct7
+                    if(funct3 === 3'b101)
+                        if(funct7 === LUT_uc[i][10])
+                            source = LUT_uc[i][25:11]
+                    else
+                        source = LUT_uc[i][25:11];
             end
         end
         // R: opcode, funct3 e funct7
