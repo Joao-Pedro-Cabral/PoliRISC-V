@@ -5,6 +5,6 @@ files = [
 
 modules = {
     "local" : [
-        "../../rtl/Memory"
+        "../../rtl/memory"
     ]
 }

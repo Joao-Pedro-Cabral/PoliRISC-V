@@ -1,6 +1,6 @@
 modules = {
     "local" : [
         "core",
-        "Memory"
+        "memory"
     ],
 }

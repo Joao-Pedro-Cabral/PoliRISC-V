@@ -5,6 +5,6 @@ files = [
 
 modules = {
     "local" : [
-        "../core/RegisterFile"
+        "../../core/RegisterFile"
     ],
 }
