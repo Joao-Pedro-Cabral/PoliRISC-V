@@ -45,8 +45,8 @@ module Dataflow_tb();
     wire instruction_busy;
     // Sinais da Memória de Dados
     // Sinais intermediários de teste
-    wire [25:0] LUT_uc [55:0]; // UC simulada com tabela : Consertar o tamanho
-    wire [14:0] df_src;
+    wire [26:0] LUT_uc [48:0]; // UC simulada com tabela : Consertar o tamanho
+    wire [15:0] df_src;
     integer program_size = 50; // tamanho do programa que será executado
     integer i;
 
@@ -72,38 +72,38 @@ module Dataflow_tb();
     end
 
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function find_instruction;
+    function [15:0] find_instruction;
         input wire [6:0] opcode;
         input wire [2:0] funct3;
         input wire funct7;
-        input wire [25:0] LUT_uc [55:0];
-        wire [14:0] source;
+        input wire [26:0] LUT_uc [48:0];
+        wire [15:0] source;
         integer i;
         // U,J : apenas opcode
         if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
-            for(i = 0; i < 56; i = i + 1) begin
+            for(i = 0; i < 3; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0])
-                    source = LUT_uc[i][25:11];
+                    source = LUT_uc[i][26:11];
             end
         end
         // I, S, B: opcode e funct3
         else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 || 
            opcode === 7'b0010011 || opcode === 7'b0011011) begin
-            for(i = 0; i < 56; i = i + 1) begin
+            for(i = 3; i < 34; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7])
                     // SRLI e SRAI: funct7
                     if(funct3 === 3'b101)
                         if(funct7 === LUT_uc[i][10])
-                            source = LUT_uc[i][25:11]
+                            source = LUT_uc[i][26:11];
                     else
-                        source = LUT_uc[i][25:11];
+                        source = LUT_uc[i][26:11];
             end
         end
         // R: opcode, funct3 e funct7
         else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
-            for(i = 0; i < 56; i = i + 1) begin
+            for(i = 34; i < 49; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][10])
-                    source = LUT_uc[i][25:11];
+                    source = LUT_uc[i][26:11];
             end
         end
         else
@@ -176,6 +176,7 @@ module Dataflow_tb();
                     opcode === 7'b0011011 || opcode === 7'b0111011) begin
                 pc_src    = df_src[9];
                 pc_enable = 1'b1;
+                write_register_enable = df_src[15];
                 #6;
             end
             else begin
