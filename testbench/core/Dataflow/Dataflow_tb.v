@@ -57,11 +57,11 @@ module Dataflow_tb();
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow));
 
     // Instruction Memory
-    ROM #(.rom_init_file("rom_init_file.mif"), .word_size(8), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), .enable(instruction_memory_enable), 
-        .addr(instruction_address), .data(instruction), .busy(instruction_busy));
+    ROM #(.rom_init_file("rom_init_file.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), .enable(instruction_memory_enable), 
+        .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_busy));
 
     // Data Memory
-    
+    // single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), .output_enable());
 
     // geração do clock
     always begin
