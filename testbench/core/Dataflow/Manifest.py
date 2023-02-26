@@ -5,6 +5,8 @@ files = [
 
 modules = {
     "local" : [
+    	"../../../rtl/core/RegisterFile"
+    	"../../../rtl/core/ImmediateExtender"
         "../../../rtl/core/Dataflow"
     ],
 }

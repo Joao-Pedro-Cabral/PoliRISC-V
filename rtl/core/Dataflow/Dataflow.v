@@ -1,7 +1,7 @@
 
 module Dataflow(clock, reset, instruction, instruction_address, read_data, write_data, data_address,
                 alua_src, alub_src, aluy_src, alu_src, carry_in, arithmetic, alupc_src, pc_src, pc_enable, 
-                write_register_src, write_register_enable, opcode, func3, zero, negative, carry_out, overflow);
+                write_register_src, write_register_enable, opcode, func3, zero, negative, carry_out, overflow, db_reg_data);
     // Common
     input  wire clock;
     input  wire reset;
@@ -33,6 +33,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     output wire negative;
     output wire carry_out;
     output wire overflow;
+    output wire [63:0] db_reg_data; // depuracao
     // Fios intermediários
         // Register File
     wire [4:0]  reg_addr_source_1;
@@ -105,5 +106,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
     assign funct7 = instruction[30];
+        // Depuracao
+    assign db_reg_data = reg_data_destiny;
 
 endmodule
