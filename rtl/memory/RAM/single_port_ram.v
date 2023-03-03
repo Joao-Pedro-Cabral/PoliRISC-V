@@ -9,7 +9,8 @@ module single_port_ram
 #(
     parameter ADDR_SIZE=2,
     parameter BYTE_SIZE=4,
-    parameter DATA_SIZE=4
+    parameter DATA_SIZE=4,
+    parameter BUSY_TIME=3
 )
 (
     input clk,
@@ -18,7 +19,9 @@ module single_port_ram
     input output_enable,
     input chip_select,
     input [DATA_SIZE/BYTE_SIZE-1:0] byte_write_enable,
-    output wire [DATA_SIZE-1:0] read_data
+    output wire [DATA_SIZE-1:0] read_data,
+    output reg busy
+
 );
     function automatic [ADDR_SIZE-1:0] offset_and_truncate_address(input [DATA_SIZE-1:0] addr, input integer offset);
       offset_and_truncate_address = addr + offset;
@@ -38,8 +41,19 @@ module single_port_ram
     genvar j;
     generate
         for(j = 0; j < DATA_SIZE/BYTE_SIZE; j = j + 1) begin : out_data
-            assign read_data[(j+1)*BYTE_SIZE-1:j*BYTE_SIZE] = chip_select & output_enable ? ram[offset_and_truncate_address(address, j)] : 'hz;
+            assign read_data[(j+1)*BYTE_SIZE-1:j*BYTE_SIZE] = chip_select & output_enable ? ram[offset_and_truncate_address(address, j)] : 0;
         end
     endgenerate
+
+    always @ (posedge clk) begin
+        if(chip_select == 1)
+            if(output_enable == 1 || byte_write_enable != 0) begin
+                busy = 1'b1;
+                #(BUSY_TIME);
+                busy = 1'b0;
+            end
+            else
+                busy = 1'b0;
+    end
 
 endmodule
