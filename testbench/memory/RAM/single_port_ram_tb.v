@@ -1,3 +1,10 @@
+//
+//! @file   single_port_ram_tb.v
+//! @brief  Testbench da ram de porta única com byte enable write
+//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
+//! @date   2023-03-01
+//
+
 module single_port_ram_tb;
 
     reg  clk;
@@ -9,13 +16,15 @@ module single_port_ram_tb;
     reg  chip_select;
     reg  [3:0] byte_write_enable;
     wire [31:0] read_data;
+    wire busy;
 
 
     single_port_ram
     #(
         .ADDR_SIZE(4),
         .BYTE_SIZE(8),
-        .DATA_SIZE(32)
+        .DATA_SIZE(32),
+        .BUSY_TIME(3)
     )
     DUT
     (
@@ -25,7 +34,8 @@ module single_port_ram_tb;
         .output_enable(output_enable),
         .chip_select(chip_select),
         .byte_write_enable(byte_write_enable),
-        .read_data(read_data)
+        .read_data(read_data),
+        .busy(busy)
     );
 
     always #10 clk = ~clk;
@@ -34,8 +44,8 @@ module single_port_ram_tb;
     integer i;
     initial begin
         {clk, address, tb_data, output_enable, chip_select, byte_write_enable} = 0;
-        // gerando valores aleatórios
 
+        // gerando valores aleatórios
         for(i = 0; i < 4; i = i + 1) begin
             tb_mem[i] = $random;
             $display("dado %d: 0x%h", i, tb_mem[i]);
@@ -50,10 +60,10 @@ module single_port_ram_tb;
             tb_data = tb_mem[i];
             chip_select = 1'b1;
             byte_write_enable = 4'b1111;
-            @(posedge clk);
+            @(negedge busy);
             byte_write_enable = 4'b0000;
             output_enable = 1'b1;
-            @(posedge clk);
+            @(negedge busy);
             if(read_data != tb_data) begin
                 $display("ERRO NA LEITURA: recebeu: 0x%h --- esperava: 0x%h", read_data, tb_data);
             end
@@ -68,10 +78,10 @@ module single_port_ram_tb;
         for(i = 0; i < 4; i = i + 1) begin
             address = 4*i;
             byte_write_enable = 4'b1000;
-            @(posedge clk);
+            @(negedge busy);
             byte_write_enable = 4'b0000;
             output_enable = 1'b1;
-            @(posedge clk);
+            @(negedge busy);
             if(read_data != {8'b0, tb_mem[i][23:0]}) begin
                 $display("ERRO NA LEITURA: recebeu: 0x%h --- esperava: 0x%h", read_data, {8'b0, tb_mem[i][23:0]});
             end
@@ -85,10 +95,10 @@ module single_port_ram_tb;
         tb_data = 0;
         address = 4*3 + 2;
         byte_write_enable = 4'b1111;
-        @(posedge clk);
+        @(negedge busy);
         byte_write_enable = 4'b0000;
         output_enable = 1'b1;
-        @(posedge clk);
+        @(negedge busy);
         if(read_data != tb_data) begin
             $display("ERRO NA LEITURA: recebeu: 0x%h --- esperava: 0x%h", read_data, tb_mem[4*3 + 2]);
         end
