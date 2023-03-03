@@ -47,15 +47,18 @@ module Dataflow_tb();
     // Sinais da Memória de Dados
     wire data_mem_enable;
     wire data_mem_write_enable;
+    wire [7:0] byte_write_enable;
+    wire data_mem_busy;
     // Sinais intermediários de teste
-    wire [28:0] LUT_uc [48:0]; // UC simulada com tabela : Consertar o tamanho
+    wire [28:0] LUT_uc [48:0];    // UC simulada com tabela : Consertar o tamanho
     wire [17:0] df_src;
     wire [63:0] immediate;
-    reg  [63:0] reg_data;      // write data do banco de registradores
-    wire [63:0] A;             // read data 1 do banco de registradores
-    wire [63:0] B;             // read data 2 do banco de registradores
-    reg  [63:0] pc_imm;        // pc + imediato
-    reg  [63:0] pc_4;          // pc + 4
+    reg  [63:0] reg_data;         // write data do banco de registradores
+    wire [63:0] A;                // read data 1 do banco de registradores
+    wire [63:0] B;                // read data 2 do banco de registradores
+    reg  [63:0] pc_imm;           // pc + imediato
+    reg  [63:0] pc_4;             // pc + 4
+    wire [63:0] read_data_extend; // dado lido após aplicação da extensão de sinal
     // flags da ULA
     wire zero_;
     wire negative_;
@@ -78,12 +81,26 @@ module Dataflow_tb();
         .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_busy));
 
     // Data Memory
-    // single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), .output_enable());
+    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
+                        .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
 
     // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
-    RegisterFile #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]), .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
+    RegisterFile #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
+                                .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 
+    // geração do byte_write_enable
+    assign byte_write_enable[0]   = data_mem_write_enable;                                              // SB -> read_src = 00
+    assign byte_write_enable[1]   = data_mem_write_enable & (read_data_src[1] | read_data_src[2]);      // SH -> read_src = 01
+    assign byte_write_enable[3:2] = {2{data_mem_write_enable & read_data_src[1]}};                      // SW -> read_src = 10
+    assign byte_write_enable[7:4] = {4{data_mem_write_enable & (read_data_src[1] & read_data_src[0])}}; // SD -> read_src = 11
+
+    // geração do read_data_extended
+    assign read_data_extend[7:0]   = read_data[7:0];
+    assign read_data_extend[15:8]  = (read_data_src[1] | read_data_src[0]) ? read_data[15:8] : ({8{read_data[7] & read_data_src[2]}});
+    assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
+    assign read_data_extend[63:32] = read_data_src[1] ? (read_data_src[0] ? read_data[63:32] : {32{read_data[31]}}) : (read_data_src[0] ? {32{read_data_src[15]}} : {32{read_data_src[7]}});
+    
     // geração do clock
     always begin
         clock = 1'b0;
@@ -216,18 +233,21 @@ module Dataflow_tb();
             data_mem_write_enable = df_src[17];
             // Executa e Testa
             case (opcode)
-                // Store(S*)
-                7'b0100011:
+                // Store(S*) e Load(L*)
+                7'b0100011, 7'b0000011:
                     pc_src = df_src[9];
-                    // interagir com a memória: realizar o teste
+                    #0.5;
+                    if(data_address !== A + immediate)
+                        if(opcode[5] === 1'b1)
+                            $display("Error Store: data_address = %b, A = %b, immediate = %b", data_address, A, immediate);
+                        else
+                            $display("Error Load: data_address = %b, A = %b, immediate = %b", data_address, A, immediate);
+                    if(opcode[5] === 1'b1 && write_data !== B)
+                        $display("Error Store: write_data = %b, B = %b", write_data, B);
+                    #13.5
+                    if(opcode[5] === 1'b0 && db_reg_data !== read_data_extend)
+                        $display("Error Load: db_reg_data = %b, read_data_extend = %b", db_reg_data, read_data_extend);
                     pc_enable = 1'b1;
-                    #4;
-                // Load(L*)
-                7'b0000011:
-                    pc_src = df_src[9];
-                    // interagir com a memória
-                    pc_enable = 1'b1;
-                    write_register_enable = df_src[15];
                     #4;
                 // Branch(B*)
                 7'b1100011:
@@ -277,11 +297,11 @@ module Dataflow_tb();
                         pc_imm    = (A + immediate) << 1;
                     pc_4 = pc + 4;
                     #0.5;
-                    if(reg_data !== db_reg_data)
+                    if(db_reg_data !== pc_4)
                         if(opcode[3] === 1'b1)
-                            $display("Error JAL: reg_data = %b, pc + 4 = %b", reg_data, pc_4);
+                            $display("Error JAL: reg_data = %b, pc + 4 = %b", db_reg_data, pc_4);
                         else
-                            $display("Error JALR: reg_data = %b, pc + 4 = %b", reg_data, pc_4); 
+                            $display("Error JALR: reg_data = %b, pc + 4 = %b", db_reg_data, pc_4); 
                     #1.5;
                     if(pc_imm !== instruction_address)
                         if(opcode[3] === 1'b1)

@@ -83,7 +83,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     mux2to1       #(.size(64))               muxpc           (.A(pc_plus_4), .B(pc_plus_immediate), .S(pc_src), .Y(muxpc_out));
     register_d    #(.N(64), .reset_value(0)) pc_register     (.clock(clock), .reset(reset), .enable(pc_enable), .D(muxpc_out), .Q(pc));
         // Data Memory
-    gen_mux       #(.size(32) .N(2))         mux_read_data (.A({read_data[63:33], {32{read_data[31] & read_data_src[2]}},
+    gen_mux       #(.size(32) .N(2))         mux_read_data (.A({read_data[63:32], {32{read_data[31] & read_data_src[2]}},
         {32{read_data[15] & read_data_src[2]}}, {32{read_data[7] & read_data_src[2]}}}), .S(read_data_src[1:0]), .Y(read_data_extend[63:32]));
 
     // Atribuições intermediárias
@@ -93,7 +93,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
         // Estender com/sem sinal 
     assign read_data_extend[7:0]   = read_data[7:0];
     assign read_data_extend[15:8]  = (read_data_src[1] | read_data_src[0]) ? read_data[15:8] : ({8{read_data[7] & read_data_src[2]}});
-    assign read_data_extend[31:16] = read_data_src[1] ? read_data[32:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
+    assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
     
 
     // Saídas
