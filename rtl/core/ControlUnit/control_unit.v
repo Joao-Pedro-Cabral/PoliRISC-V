@@ -29,18 +29,18 @@ module control_unit
 
     // Sinais de Controle
     input overflow,
-    output wire alua_src,
-    output wire alub_src,
-    output wire aluy_src,
-    output wire [2:0] alu_src,
-    output wire carry_in,
-    output wire arithmetic,
-    output wire alupc_src,
-    output wire pc_src,
-    output wire pc_enable,
-    output wire [2:0] read_data_src,
-    output wire [1:0] write_register_src,
-    output wire write_register_enable
+    output reg alua_src,
+    output reg alub_src,
+    output reg aluy_src,
+    output reg [2:0] alu_src,
+    output reg carry_in,
+    output reg arithmetic,
+    output reg alupc_src,
+    output reg pc_src,
+    output reg pc_enable,
+    output reg [2:0] read_data_src,
+    output reg [1:0] write_register_src,
+    output reg write_register_enable
 );
 
     // sinais úteis
