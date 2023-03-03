@@ -45,9 +45,11 @@ module Dataflow_tb();
     wire instruction_memory_enable;
     wire instruction_busy;
     // Sinais da Memória de Dados
+    wire data_mem_enable;
+    wire data_mem_write_enable;
     // Sinais intermediários de teste
-    wire [26:0] LUT_uc [48:0]; // UC simulada com tabela : Consertar o tamanho
-    wire [15:0] df_src;
+    wire [28:0] LUT_uc [48:0]; // UC simulada com tabela : Consertar o tamanho
+    wire [17:0] df_src;
     wire [63:0] immediate;
     reg  [63:0] reg_data;      // write data do banco de registradores
     wire [63:0] A;             // read data 1 do banco de registradores
@@ -91,18 +93,18 @@ module Dataflow_tb();
     end
 
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [15:0] find_instruction;
+    function [17:0] find_instruction;
         input wire [6:0] opcode;
         input wire [2:0] funct3;
         input wire funct7;
-        input wire [26:0] LUT_uc [48:0];
-        wire [15:0] source;
+        input wire [28:0] LUT_uc [48:0];
+        wire [17:0] source;
         integer i;
         // U,J : apenas opcode
         if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
             for(i = 0; i < 3; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0])
-                    source = LUT_uc[i][26:11];
+                    source = LUT_uc[i][28:11];
             end
         end
         // I, S, B: opcode e funct3
@@ -113,16 +115,16 @@ module Dataflow_tb();
                     // SRLI e SRAI: funct7
                     if(funct3 === 3'b101)
                         if(funct7 === LUT_uc[i][10])
-                            source = LUT_uc[i][26:11];
+                            source = LUT_uc[i][28:11];
                     else
-                        source = LUT_uc[i][26:11];
+                        source = LUT_uc[i][28:11];
             end
         end
         // R: opcode, funct3 e funct7
         else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
             for(i = 34; i < 49; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][10])
-                    source = LUT_uc[i][26:11];
+                    source = LUT_uc[i][28:11];
             end
         end
         else
@@ -201,15 +203,17 @@ module Dataflow_tb();
             // Decode
             df_src = find_instruction(opcode, funct3, funct7, LUT_uc);
             // Execute
-            alua_src           = df_src[0];
-            alub_src           = df_src[1];
-            aluy_src           = df_src[2];
-            alu_src            = df_src[5:3];
-            carry_in           = df_src[6];
-            arithmetic         = df_src[7];
-            alupc_src          = df_src[8];
-            read_data_src      = df_src[12:10];
-            write_register_src = df_src[14:13];
+            alua_src              = df_src[0];
+            alub_src              = df_src[1];
+            aluy_src              = df_src[2];
+            alu_src               = df_src[5:3];
+            carry_in              = df_src[6];
+            arithmetic            = df_src[7];
+            alupc_src             = df_src[8];
+            read_data_src         = df_src[12:10];
+            write_register_src    = df_src[14:13];
+            data_mem_enable       = df_src[16];
+            data_mem_write_enable = df_src[17];
             // Executa e Testa
             case (opcode)
                 // Store(S*)
@@ -223,7 +227,7 @@ module Dataflow_tb();
                     pc_src = df_src[9];
                     // interagir com a memória
                     pc_enable = 1'b1;
-                    write_register_enable = 1'b1;
+                    write_register_enable = df_src[15];
                     #4;
                 // Branch(B*)
                 7'b1100011:
@@ -235,9 +239,10 @@ module Dataflow_tb();
                         pc_src = carry_out ^ funct3[0];
                     else
                         $display("Error B-type: Invalid funct3! Funct3 : %b", funct3);
-                    pc_4   = pc + 4;
-                    pc_imm = pc + immediate;
-                    pc_enable = 1'b1;
+                    pc_4                  = pc + 4;
+                    pc_imm                = pc + immediate;
+                    pc_enable             = 1'b1;
+                    write_register_enable = df_src[15];
                     #0.5;
                     if(overflow !== overflow_ || carry_out !== carry_out_ || negative !== negative_ || zero !== zero_)
                         $display("Error B-type flags: overflow = %b, carry_out = %b, negative = %b, zero = %b", overflow, carry_out, negative, zero);
@@ -270,7 +275,14 @@ module Dataflow_tb();
                         pc_imm    = instruction_address + 4;
                     else
                         pc_imm    = (A + immediate) << 1;
-                    #2;
+                    pc_4 = pc + 4;
+                    #0.5;
+                    if(reg_data !== db_reg_data)
+                        if(opcode[3] === 1'b1)
+                            $display("Error JAL: reg_data = %b, pc + 4 = %b", reg_data, pc_4);
+                        else
+                            $display("Error JALR: reg_data = %b, pc + 4 = %b", reg_data, pc_4); 
+                    #1.5;
                     if(pc_imm !== instruction_address)
                         if(opcode[3] === 1'b1)
                             $display("Error JAL: pc_imm = %b, instruction_address = %b", pc_imm, instruction_address);
