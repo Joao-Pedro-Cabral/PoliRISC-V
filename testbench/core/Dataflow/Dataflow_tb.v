@@ -35,7 +35,7 @@ module Dataflow_tb();
         // To Control Unit
     wire [6:0] opcode;
     wire [2:0] funct3;
-    wire funct7;
+    wire [6:0] funct7;
     wire zero;
     wire negative;
     wire carry_out;
@@ -50,7 +50,7 @@ module Dataflow_tb();
     wire [7:0] data_mem_byte_write_enable;
     wire data_mem_busy;
     // Sinais intermediários de teste
-    wire [35:0] LUT_uc [48:0];    // UC simulada com tabela
+    wire [41:0] LUT_uc [48:0];    // UC simulada com tabela
     wire [24:0] df_src;
     wire [63:0] immediate;
     reg  [63:0] reg_data;         // write data do banco de registradores
@@ -107,15 +107,15 @@ module Dataflow_tb();
     function [24:0] find_instruction;
         input wire [6:0] opcode;
         input wire [2:0] funct3;
-        input wire funct7;
-        input wire [35:0] LUT_uc [48:0];
+        input wire [6:0] funct7;
+        input wire [41:0] LUT_uc [48:0];
         wire [24:0] source;
         integer i;
         // U,J : apenas opcode
         if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
             for(i = 0; i < 3; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0])
-                    source = LUT_uc[i][35:11];
+                    source = LUT_uc[i][41:17];
             end
         end
         // I, S, B: opcode e funct3
@@ -125,17 +125,17 @@ module Dataflow_tb();
                 if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7])
                     // SRLI e SRAI: funct7
                     if(funct3 === 3'b101)
-                        if(funct7 === LUT_uc[i][10])
-                            source = LUT_uc[i][35:11];
+                        if(funct7 === LUT_uc[i][16:10])
+                            source = LUT_uc[i][41:17];
                     else
-                        source = LUT_uc[i][35:11];
+                        source = LUT_uc[i][41:17];
             end
         end
         // R: opcode, funct3 e funct7
         else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
             for(i = 34; i < 49; i = i + 1) begin
-                if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][10])
-                    source = LUT_uc[i][35:11];
+                if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][16:10])
+                    source = LUT_uc[i][41:17];
             end
         end
         else
@@ -311,9 +311,9 @@ module Dataflow_tb();
                     pc_enable = 1'b1;
                     write_register_enable = df_src[15];
                     if(opcode[5] === 1'b1)
-                        reg_data = ULA_function(A, B, {funct7, funct3});
+                        reg_data = ULA_function(A, B, {funct7[5], funct3});
                     else
-                        reg_data = ULA_function(A, immediate, {funct7, funct3});
+                        reg_data = ULA_function(A, immediate, {funct7[5], funct3});
                     if(opcode[3] === 1'b1)
                         reg_data = {{32{reg_data[31]}},reg_data[31:0]};
                     #0.5;

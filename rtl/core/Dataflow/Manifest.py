@@ -7,5 +7,6 @@ modules = {
         "../ImmediateExtender",
         "../RegisterFile",
         "../ULA",
+        "../Adder"
     ],
 }
