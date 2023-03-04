@@ -238,6 +238,7 @@ module control_unit
                     101: pc_src <= bge;
                     110: pc_src <= bltu;
                     111: pc_src <= bgeu;
+                    default: pc_src <= 1'b0; // inalcançável
                 endcase
                 pc_enable <= 1'b1;
 
@@ -273,6 +274,7 @@ module control_unit
                     01: data_mem_byte_write_enable <= 8'h03; // SH
                     10: data_mem_byte_write_enable <= 8'h0F; // SW
                     11: data_mem_byte_write_enable <= 8'hFF; // SD
+                    default: data_mem_byte_write_enable <= 8'h00; // inalcançável
                 endcase
                 espera_data_mem(data_mem_byte_write_enable);
                 pc_enable <= 1'b1;
