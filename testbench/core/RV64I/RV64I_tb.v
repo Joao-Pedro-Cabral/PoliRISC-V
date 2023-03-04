@@ -26,7 +26,6 @@ module RV64I_tb();
         // depuracao
     wire [63:0] db_reg_data
     // Sinais intermediários de teste
-    wire [41:0] LUT_uc [48:0];    // UC simulada com tabela
     wire [6:0]  opcode;
     wire [2:0]  funct3;
     wire [6:0]  funct7;
@@ -143,7 +142,6 @@ module RV64I_tb();
 
     // testar o DUT
     initial begin : Testbench
-        $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         write_register_enable = 1'b0;
         // Idle
