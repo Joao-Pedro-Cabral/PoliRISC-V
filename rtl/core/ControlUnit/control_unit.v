@@ -12,7 +12,9 @@ module control_unit
     input reset,
 
     // Instruction Memory
-    input [31:0] intruction,
+    input [6:0] opcode,
+    input [2:0] funct3,
+    input [6:0] funct7,
     input instruction_mem_busy,
     output reg instruction_mem_enable,
 
@@ -43,9 +45,6 @@ module control_unit
 );
 
     // sinais úteis
-    wire [6:0] opcode = instruction[6:0];
-    wire [2:0] funct3 = instruction[14:12];
-    wire funct7 = instruction[30];
 
     localparam [3:0]
         fetch = 4'h0,
@@ -165,8 +164,8 @@ module control_unit
                 alub_src <= 1'b1;
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
-                carry_in <= funct7;
-                arithmetic <= funct7;
+                carry_in <= funct7[5];
+                arithmetic <= funct7[5];
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;
@@ -184,7 +183,7 @@ module control_unit
             registrador_imediato:
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
-                arithmetic <= funct7;
+                arithmetic <= funct7[5];
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;
