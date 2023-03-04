@@ -24,7 +24,7 @@ module RV64I_tb();
     wire instruction_mem_busy,
     wire instruction_mem_enable,
         // depuracao
-    wire [63:0] db_reg_data
+    wire [63:0] db_reg_data;
     // Sinais intermediários de teste
     wire [6:0]  opcode;
     wire [2:0]  funct3;

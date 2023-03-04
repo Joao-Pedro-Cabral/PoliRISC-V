@@ -135,12 +135,12 @@ module control_unit_tb();
         pc_in = 64'b0;
         #2;
         reset = 1'b1;
-        #0.5
+        #0.5;
         if(db_df_src !== 18'b0)
             $display("Error Idle: db_df_src = %b", db_df_src);
         #5.5;
         reset = 1'b0;
-        #0.5
+        #0.5;
         if(db_df_src !== 18'b0)
             $display("Error Idle: db_df_src = %b", db_df_src);
         #5.5;
@@ -220,7 +220,7 @@ module control_unit_tb();
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011, 7'b0110111, 7'b0010111:
                     if(pc_enable !== 1'b1)
                         $display("PC enable error: pc_enable = %b, opcode = %b", pc_enable, opcode);
-                    pc_in = pc + 4
+                    pc_in = pc + 4;
                     #6;
                 default:
                     $display("Error opcode case: opcode = %b", opcode);
