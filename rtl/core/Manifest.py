@@ -5,6 +5,7 @@ modules = {
         "ImmediateExtender",
         "RegisterFile",
         "ULA",
-        "ControlUnit"
+        "ControlUnit",
+        "RV64I"
     ],
 }

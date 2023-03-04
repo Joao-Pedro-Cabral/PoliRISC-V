@@ -3,6 +3,9 @@ modules = {
         "Adder",
         "ImmediateExtender",
         "RegisterFile",
-        "ULA"
+        "ULA",
+        "RV64I",
+        "Dataflow",
+        "ControlUnit"
     ],
 }

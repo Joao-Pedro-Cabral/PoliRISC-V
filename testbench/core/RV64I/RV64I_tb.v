@@ -1,61 +1,42 @@
 //
-//! @file   Dataflow_tb.v
-//! @brief  Testbench do Dataflow
+//! @file   RV64I_tb.v
+//! @brief  Testbench do RV64I sem FENCE, ECALL e EBREAK
 //! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-23
+//! @date   2023-03-04
 //
 
 `timescale 1 ns / 100 ps
 
-module Dataflow_tb();
+module RV64I_tb();
     // sinais do DUT
-        // Common
-    wire clock;
-    wire reset;
-        // Instruction Memory
-    wire [31:0] instruction;
-    wire [63:0] instruction_address;
+    wire clock,
+    wire reset,
         // Data Memory
-    wire [63:0] read_data;
-    wire [63:0] write_data;
-    wire [63:0] data_address;
-        // From Control Unit
-    wire alua_src;
-    wire alub_src;
-    wire aluy_src;
-    wire [2:0] alu_src;
-    wire carry_in;
-    wire arithmetic;
-    wire alupc_src;
-    wire pc_src;
-    wire pc_enable;
-    wire [2:0] read_data_src;
-    wire [1:0] write_register_src;
-    wire write_register_enable;
-        // To Control Unit
-    wire [6:0] opcode;
-    wire [2:0] funct3;
-    wire [6:0] funct7;
-    wire zero;
-    wire negative;
-    wire carry_out;
-    wire overflow;
-    wire [63:0] db_reg_data;
-    // Sinais da Memória de Instrução
-    wire instruction_mem_enable;
-    wire instruction_mem_busy;
-    // Sinais da Memória de Dados
-    wire data_mem_enable;
-    wire data_mem_write_enable;
-    wire [7:0] data_mem_byte_write_enable;
-    wire data_mem_busy;
+    wire [63:0] read_data,
+    wire [63:0] write_data,
+    wire [63:0] data_address,
+    wire data_mem_busy,
+    wire data_mem_enable,
+    wire [7:0] data_mem_byte_write_enable,
+        // Instruction Memory
+    wire [31:0] instruction,
+    wire [63:0] instruction_address,
+    wire instruction_mem_busy,
+    wire instruction_mem_enable,
+        // depuracao
+    wire [63:0] db_reg_data
     // Sinais intermediários de teste
     wire [41:0] LUT_uc [48:0];    // UC simulada com tabela
-    wire [24:0] df_src;
+    wire [6:0]  opcode;
+    wire [2:0]  funct3;
+    wire [6:0]  funct7;
     wire [63:0] immediate;
+    reg  write_register_enable;   // write enable do banco de registradores
     reg  [63:0] reg_data;         // write data do banco de registradores
     wire [63:0] A;                // read data 1 do banco de registradores
     wire [63:0] B;                // read data 2 do banco de registradores
+    wire [63:0] pc;
+    reg  pc_src;                  // seletor da entrada do registrador PC
     reg  [63:0] pc_imm;           // pc + imediato
     reg  [63:0] pc_4;             // pc + 4
     wire [63:0] read_data_extend; // dado lido após aplicação da extensão de sinal
@@ -71,10 +52,9 @@ module Dataflow_tb();
     integer i;
 
     // DUT
-    Dataflow DUT (.clock(clock), .reset(reset), .instruction(instruction), .instruction_address(instruction_address), .read_data(read_data), .write_data(write_data),
-     .data_address(data_address), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .carry_in(carry_in), .arithmetic(arithmetic), .alupc_src(alupc_src),
-     .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src), .write_register_enable(write_register_enable), .opcode(opcode), 
-     .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
+    RV64I DUT (.clock(clock), .reset(reset), .read_data(read_data), .write_data(write_data), .data_address(data_address), .data_mem_busy(data_mem_busy),
+    .data_mem_enable(data_mem_enable), .data_mem_byte_write_enable(data_mem_byte_write_enable), .instruction(instruction), .instruction_address(instruction_address),
+    .instruction_mem_busy(instruction_mem_busy), .instruction_mem_enable(instruction_mem_enable), .db_reg_data(db_reg_data));
 
     // Instruction Memory
     ROM #(.rom_init_file("./MIFs/core/Dataflow/df_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
@@ -82,9 +62,9 @@ module Dataflow_tb();
 
     // Data Memory
     single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
-                        .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
+                .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));    
 
-    // Componentes auxiliares para a verificação
+   // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
     RegisterFile #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
@@ -95,6 +75,14 @@ module Dataflow_tb();
     assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
     assign read_data_extend[63:32] = read_data_src[1] ? (read_data_src[0] ? read_data[63:32] : {32{read_data[31]}}) : (read_data_src[0] ? {32{read_data_src[15]}} : {32{read_data_src[7]}});
     
+    // geração dos sinais da instrução
+    assign opcode = instruction[6:0];
+    assign funct3 = instruction[14:12];
+    assign funct7 = instruction[31:25];
+
+    // pc
+    assign pc = instruction_address;
+
     // geração do clock
     always begin
         clock = 1'b0;
@@ -102,46 +90,6 @@ module Dataflow_tb();
         clock = 1'b1;
         #3;
     end
-
-    // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [24:0] find_instruction;
-        input wire [6:0] opcode;
-        input wire [2:0] funct3;
-        input wire [6:0] funct7;
-        input wire [41:0] LUT_uc [48:0];
-        wire [24:0] source;
-        integer i;
-        // U,J : apenas opcode
-        if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
-            for(i = 0; i < 3; i = i + 1) begin
-                if(opcode === LUT_uc[i][6:0])
-                    source = LUT_uc[i][41:17];
-            end
-        end
-        // I, S, B: opcode e funct3
-        else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 || 
-           opcode === 7'b0010011 || opcode === 7'b0011011) begin
-            for(i = 3; i < 34; i = i + 1) begin
-                if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7])
-                    // SRLI e SRAI: funct7
-                    if(funct3 === 3'b101)
-                        if(funct7 === LUT_uc[i][16:10])
-                            source = LUT_uc[i][41:17];
-                    else
-                        source = LUT_uc[i][41:17];
-            end
-        end
-        // R: opcode, funct3 e funct7
-        else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
-            for(i = 34; i < 49; i = i + 1) begin
-                if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][16:10])
-                    source = LUT_uc[i][41:17];
-            end
-        end
-        else
-            $display("Function error: opcode = %b", opcode);
-        find_instruction = source;
-    endfunction
 
     function [63:0] ULA_function;
         input wire [63:0] A;
@@ -197,7 +145,6 @@ module Dataflow_tb();
     initial begin : Testbench
         $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
-        pc_enable = 1'b0;
         write_register_enable = 1'b0;
         // Idle
         #2;
@@ -208,30 +155,15 @@ module Dataflow_tb();
         for(i = 0; i < program_size; i = i + 1) begin
             $display("Test: %d", i);
             // Fetch
-            pc_enable = 1'b0;
             write_register_enable = 1'b0;
             instruction_mem_enable = 1'b1;
             #18;
             instruction_mem_enable = 1'b0;
-            // Decode
-            df_src = find_instruction(opcode, funct3, funct7, LUT_uc);
-            // Execute
-            alua_src                    = df_src[0];
-            alub_src                    = df_src[1];
-            aluy_src                    = df_src[2];
-            alu_src                     = df_src[5:3];
-            carry_in                    = df_src[6];
-            arithmetic                  = df_src[7];
-            alupc_src                   = df_src[8];
-            read_data_src               = df_src[12:10];
-            write_register_src          = df_src[14:13];
-            data_mem_enable             = df_src[16];
-            data_mem_byte_write_enable  = df_src[24:17];
-            // Executa e Testa
+            // Decode -> Nada a ser testado
+            // Execute -> Teste
             case (opcode)
                 // Store(S*) e Load(L*)
                 7'b0100011, 7'b0000011:
-                    pc_src = df_src[9];
                     #0.5;
                     if(data_address !== A + immediate)
                         if(opcode[5] === 1'b1)
@@ -243,7 +175,6 @@ module Dataflow_tb();
                     #13.5
                     if(opcode[5] === 1'b0 && db_reg_data !== read_data_extend)
                         $display("Error Load: db_reg_data = %b, read_data_extend = %b", db_reg_data, read_data_extend);
-                    pc_enable = 1'b1;
                     #4;
                 // Branch(B*)
                 7'b1100011:
@@ -258,7 +189,7 @@ module Dataflow_tb();
                     pc_4                  = pc + 4;
                     pc_imm                = pc + immediate;
                     pc_enable             = 1'b1;
-                    write_register_enable = df_src[15];
+                    write_register_enable = 1'b0;
                     #0.5;
                     if(overflow !== overflow_ || carry_out !== carry_out_ || negative !== negative_ || zero !== zero_)
                         $display("Error B-type flags: overflow = %b, carry_out = %b, negative = %b, zero = %b", overflow, carry_out, negative, zero);
@@ -268,9 +199,7 @@ module Dataflow_tb();
                     #4;
                 // LUI e AUIPC
                 7'b0110111, 7'b0010111:
-                    pc_src    = df_src[9];
-                    pc_enable = 1'b1;
-                    write_register_enable = df_src[15];
+                    write_register_enable = 1'b1;
                     if(opcode[5] === 1)
                         reg_data = immediate;
                     else
@@ -284,9 +213,7 @@ module Dataflow_tb();
                     #5.5;
                 // JAL e JALR
                 7'b1101111, 7'b1100111:
-                    pc_src    = df_src[9];
-                    pc_enable = 1'b1;
-                    write_register_enable = df_src[15];
+                    write_register_enable = 1'b1;
                     if(opcode[3] === 1'b1)
                         pc_imm    = instruction_address + 4;
                     else
@@ -307,9 +234,7 @@ module Dataflow_tb();
                     #4;
                 // ULA R/I-type
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011:
-                    pc_src    = df_src[9];
-                    pc_enable = 1'b1;
-                    write_register_enable = df_src[15];
+                    write_register_enable = 1'b1;
                     if(opcode[5] === 1'b1)
                         reg_data = ULA_function(A, B, {funct7[5], funct3});
                     else
