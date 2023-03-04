@@ -126,7 +126,7 @@ module control_unit
 
         zera_sinais;
 
-        case(estado_atual)
+        case(estado_atual) // synthesis parallel_case
             fetch:
             begin
                 espera_instruction_mem;
@@ -231,7 +231,7 @@ module control_unit
             begin
                 alub_src <= 1'b1;
                 carry_in <= 1'b1;
-                case(funct3)
+                case(funct3) // synthesis parallel_case
                     000: pc_src <= beq;
                     001: pc_src <= bne;
                     100: pc_src <= blt;
@@ -269,7 +269,7 @@ module control_unit
 
             store:
             begin
-                case(funct3[1:0])
+                case(funct3[1:0]) // synthesis parallel_case
                     00: data_mem_byte_write_enable <= 8'h01; // SB
                     01: data_mem_byte_write_enable <= 8'h03; // SH
                     10: data_mem_byte_write_enable <= 8'h0F; // SW
