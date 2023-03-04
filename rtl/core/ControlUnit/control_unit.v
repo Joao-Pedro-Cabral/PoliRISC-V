@@ -102,7 +102,7 @@ module control_unit
     end
     endtask
 
-    task espera_data_mem
+    task espera_data_mem;
     begin
         data_mem_enable <= 1'b1;
         wait (data_mem_busy == 1'b1);
@@ -112,12 +112,9 @@ module control_unit
     endtask
 
     // decisores para desvios condicionais baseados nas flags da ULA
-    wire beq = zero;
-    wire bne = ~zero;
-    wire blt = negative ^ overflow;
-    wire bge = negative ~^ overflow;
-    wire bltu = ~carry_out;
-    wire bgeu = carry_out;
+    wire beq_bne = zero ^ funct3[0];
+    wire blt_bge = (negative ^ overflow) ^ funct3[0];
+    wire bltu_bgeu = carry_out ~^ funct3[0];
 
     // máquina de estados principal
     always @(posedge clock) begin
@@ -229,13 +226,10 @@ module control_unit
             begin
                 alub_src <= 1'b1;
                 carry_in <= 1'b1;
-                case(funct3) // synthesis parallel_case
-                    000: pc_src <= beq;
-                    001: pc_src <= bne;
-                    100: pc_src <= blt;
-                    101: pc_src <= bge;
-                    110: pc_src <= bltu;
-                    111: pc_src <= bgeu;
+                case(funct3[2:1]) // synthesis parallel_case
+                    00: pc_src <= beq_bne;
+                    10: pc_src <= blt_bge;
+                    11: pc_src <= bltu_bgeu;
                     default: pc_src <= 1'b0; // inalcançável
                 endcase
                 pc_enable <= 1'b1;
