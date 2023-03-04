@@ -77,7 +77,7 @@ module Dataflow_tb();
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./core/Dataflow/df_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/core/Dataflow/df_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
@@ -195,7 +195,7 @@ module Dataflow_tb();
 
     // testar o DUT
     initial begin : Testbench
-        $readmemb("./core/RV64I/RV64I.mif", LUT_uc);
+        $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         pc_enable = 1'b0;
         write_register_enable = 1'b0;

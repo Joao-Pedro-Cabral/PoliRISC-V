@@ -20,7 +20,7 @@ module ROM_tb();
     integer i;
 
     // instanciar o DUT
-    ROM #(.rom_init_file("./memory/ROM/rom_init_file.mif"), .word_size(8), .addr_size(6), .offset(2), .busy_time(12))
+    ROM #(.rom_init_file("./MIFs/memory/ROM/rom_init_file.mif"), .word_size(8), .addr_size(6), .offset(2), .busy_time(12))
         DUT (.clock(clock), .enable(enable), .addr(addr), .data(data), .busy(busy));
 
     // geração do clock
@@ -33,7 +33,7 @@ module ROM_tb();
 
     // testar o DUT
     initial begin: Testbench
-        $readmemb("./memory/ROM/rom_init_file_tb.mif", memory); // instanciar a memória do tb
+        $readmemb("./MIFs/memory/ROM/rom_init_file_tb.mif", memory); // instanciar a memória do tb
         $display("SOT!");
         #8;
         for(i = 0 ; i < 128; i = i + 1) begin

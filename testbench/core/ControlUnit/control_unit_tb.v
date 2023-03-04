@@ -1,14 +1,14 @@
 
 //
-//! @file   ControlUnit_tb.v
-//! @brief  Testbench da ControlUnit
+//! @file   control_unit_tb.v
+//! @brief  Testbench da control_unit
 //! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
 //! @date   2023-03-03
 //
 
 `timescale 1 ns / 100 ps
 
-module ControlUnit_tb();
+module control_unit_tb();
     // sinais do DUT
         // Common
     wire clock;
@@ -66,7 +66,7 @@ module ControlUnit_tb();
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
 
    // Instruction Memory
-    ROM #(.rom_init_file("./core/ControlUnit/uc_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/core/ControlUnit/uc_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_mem_busy));
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
@@ -129,7 +129,7 @@ module ControlUnit_tb();
 
     // testar o DUT
     initial begin: Testbench
-        $readmemb("./core/RV64I/RV64I.mif", LUT_uc);
+        $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         // Idle
         pc_in = 64'b0;
