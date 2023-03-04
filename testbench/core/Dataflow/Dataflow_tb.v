@@ -42,15 +42,15 @@ module Dataflow_tb();
     wire overflow;
     wire [63:0] db_reg_data;
     // Sinais da Memória de Instrução
-    wire instruction_memory_enable;
-    wire instruction_busy;
+    wire instruction_mem_enable;
+    wire instruction_mem_busy;
     // Sinais da Memória de Dados
     wire data_mem_enable;
     wire data_mem_write_enable;
     wire [7:0] byte_write_enable;
     wire data_mem_busy;
     // Sinais intermediários de teste
-    wire [28:0] LUT_uc [48:0];    // UC simulada com tabela : Consertar o tamanho
+    wire [28:0] LUT_uc [48:0];    // UC simulada com tabela
     wire [17:0] df_src;
     wire [63:0] immediate;
     reg  [63:0] reg_data;         // write data do banco de registradores
@@ -77,8 +77,8 @@ module Dataflow_tb();
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("rom_init_file.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), .enable(instruction_memory_enable), 
-        .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_busy));
+    ROM #(.rom_init_file("df_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+                            .enable(instruction_mem_enable), .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
     single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
@@ -200,23 +200,25 @@ module Dataflow_tb();
     assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
 
     // testar o DUT
-    // Adicionar lógica da Data Memory
     initial begin : Testbench
-        $readmemb("dataflow_tb_bin.mif", LUT_uc);
+        $readmemb("RV64I.mif", LUT_uc);
         $display("SOT!");
+        pc_enable = 1'b0;
+        write_register_enable = 1'b0;
+        // Idle
         #2;
         reset = 1'b1;
         #6;
         reset = 1'b0;
+        #6;
         for(i = 0; i < program_size; i = i + 1) begin
             $display("Test: %d", i);
             // Fetch
             pc_enable = 1'b0;
             write_register_enable = 1'b0;
-            instruction_memory_enable = 1'b1;
-            #6;
-            instruction_memory_enable = 1'b0;
-            #12;
+            instruction_mem_enable = 1'b1;
+            #18;
+            instruction_mem_enable = 1'b0;
             // Decode
             df_src = find_instruction(opcode, funct3, funct7, LUT_uc);
             // Execute
