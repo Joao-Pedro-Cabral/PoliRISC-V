@@ -32,10 +32,13 @@ module full_barrel_shifter
 
         for(i = 0; i < $clog2(XLEN); i = i + 1) begin : b_columns
             for(j = 0; j < XLEN; j = j + 1) begin : b_rows
-                simple_mux2to1  // decides b_in signal of main shift muxes
+                mux2to1  // decides b_in signal of main shift muxes
+                #(
+                    .size(1)
+                )
                 b_i_j
                 (
-                    .a_in
+                    .A
                     (
                         (j < ('b01 << i)) // j < 2^i
                         ?
@@ -43,7 +46,7 @@ module full_barrel_shifter
                         :
                             O[i][j-('sb01 << i)]
                     ),
-                    .b_in
+                    .B
                     (
                         ((j + ('b01 << i)) >= XLEN)
                         ?
@@ -51,8 +54,8 @@ module full_barrel_shifter
                         :
                             O[i][j+('b01 << i)]
                     ),
-                    .sel(left_or_right_shift),
-                    .out(b_in_wire[i][j])
+                    .S(left_or_right_shift),
+                    .Y(b_in_wire[i][j])
                 );
             end
         end
@@ -60,13 +63,16 @@ module full_barrel_shifter
 
         for(i = 1; i <= $clog2(XLEN); i = i + 1) begin : columns
             for(j = 0; j < XLEN; j = j + 1) begin : rows
-                simple_mux2to1 // main shift muxes
+                mux2to1 // main shift muxes
+                #(
+                    .size(1)
+                )
                 O_i_j
                 (
-                    .a_in(O[i-1][j]),
-                    .b_in(b_in_wire[i-1][j]),
-                    .sel(shamt[i-1]),
-                    .out(O[i][j])
+                    .A(O[i-1][j]),
+                    .B(b_in_wire[i-1][j]),
+                    .S(shamt[i-1]),
+                    .Y(O[i][j])
                 );
             end
         end

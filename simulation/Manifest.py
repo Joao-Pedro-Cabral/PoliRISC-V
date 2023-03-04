@@ -1,4 +1,4 @@
-TOPLEVEL="full_barrel_shifter"
+TOPLEVEL= "ROM"
 
 action   = "simulation"
 sim_tool = "modelsim"

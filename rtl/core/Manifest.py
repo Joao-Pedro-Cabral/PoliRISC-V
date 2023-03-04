@@ -4,6 +4,7 @@ modules = {
         "Dataflow",
         "ImmediateExtender",
         "RegisterFile",
-        "ULA"
+        "ULA",
+        "ControlUnit"
     ],
 }

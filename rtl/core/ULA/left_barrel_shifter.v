@@ -1,16 +1,3 @@
-module mux_2to1
-#(
-    parameter DATA_SIZE=32
-)
-(   input [DATA_SIZE-1:0] a_in,
-    input [DATA_SIZE-1:0] b_in,
-    input sel,
-    output wire [DATA_SIZE-1:0] out
-);
-
-   assign out = sel ? a_in : b_in;
-
-endmodule
 
 module left_barrel_shifter
 #(
@@ -19,7 +6,7 @@ module left_barrel_shifter
 (
     input [XLEN-1:0] in_data,
     input [$clog2(XLEN)-1:0] shamt,
-    output wire out_data
+    output wire [XLEN-1:0] out_data
 );
 
     wire [XLEN-1:0] O [$clog2(XLEN)-1:0];
@@ -31,16 +18,16 @@ module left_barrel_shifter
     generate
         for(i = 1; i < $clog2(XLEN); i = i + 1) begin
             for(j = 0; j < XLEN; j = j + 1) begin
-                mux_2to1
+                mux2to1
                 #(
-                    .DATA_SIZE(1)
+                    .size(1)
                 )
                 O_i_j
                 (
-                    .a_in(O[i-1][j]),
-                    .b_in(j < ('b01 << (i-1)) ? 0 : O[i-1][j-('b01 << (i-1))]),
-                    .sel(shamt[i]),
-                    .out(O[i][j])
+                    .B(O[i-1][j]),
+                    .A(j < ('b01 << (i-1)) ? 0 : O[i-1][j-('b01 << (i-1))]),
+                    .S(shamt[i]),
+                    .Y(O[i][j])
                 );
             end
         end

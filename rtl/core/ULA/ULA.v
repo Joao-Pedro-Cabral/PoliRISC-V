@@ -35,11 +35,12 @@ module ULA(A, B, seletor, carry_in, arithmetic, Y, zero, negative, carry_out, ov
 
     // operações da ULA
         // operações aritméticas
-    sklansky_adder #(.INPUT_SIZE(N)) adder (.A(A), .B(B ^ {N{carry_in}}), .c_in(carry_in), .c_out(carry_out_), .S(add_sub));
-    assign sll     = A << B[$clog2(N)-1:0];                              // substituto para o shift left
+    sklansky_adder       #(.INPUT_SIZE(N)) adder (.A(A), .B(B ^ {N{carry_in}}), .c_in(carry_in), .c_out(carry_out_), .S(add_sub));
+    //left_barrel_shifter  #(.XLEN(N))       shifter_left (.in_data(A), .shamt(B[$clog2(N) - 1:0]), .out_data(sll));
+    assign sll     = A << (B[$clog2(N)-1:0]);
     assign slt     = negative_ ^ overflow_;
     assign sltu    = ~ carry_out_;
-    barrel_shifter_r #(.N($clog2(N))) shifter_right (.A(A), .shamt(B[$clog2(N) - 1:0]), .arithmetic(arithmetic), .Y(sr));
+    barrel_shifter_r #(.N($clog2(N)))      shifter_right (.A(A), .shamt(B[$clog2(N) - 1:0]), .arithmetic(arithmetic), .Y(sr));
 
         // operações lógicas
     assign xor_ = A ^ B;

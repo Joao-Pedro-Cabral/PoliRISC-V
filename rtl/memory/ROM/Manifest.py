@@ -1,6 +1,5 @@
 files = [
-    "ROM.v",
-    "rom_init_file.mif"
+    "ROM.v"
 ]
 
 modules = {

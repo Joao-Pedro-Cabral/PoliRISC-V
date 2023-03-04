@@ -1,34 +1,35 @@
 //
-//! @file   control_unit.v
+//! @file   ControlUnit.v
 //! @brief  Implementação da unidade de controle de um processador RV64I
 //! @author Igor Pontes Tresolavy (tresolavy@usp.br)
 //! @date   2023-03-03
 //
 
-module control_unit
+module ControlUnit
 (
-    input clock,
-    input reset,
+    // Common
+    input wire clock,
+    input wire reset,
 
-    // Vindo da Memória
-    input [31:0] intruction,
-    input rom_busy,
-    input ram_busy,
+    // Instruction Memory
+    input  wire instruction_mem_busy,
+    output reg  instruction_mem_enable,
 
-    // Indo para a memória
-    output rom_enable,
-    output ram_output_enable,
-    output ram_chip_select,
-    input [7:0] ram_byte_write_enable,
-
+    // Data Memory 
+    input  wire data_mem_busy,
+    output wire data_mem_enable,
+    output wire [7:0] data_mem_byte_write_enable,
 
     // Vindo do Fluxo de Dados
-    input zero,
-    input negative,
-    input carry_out,
+    input wire opcode,
+    input wire funct3,
+    input wire funct7,
+    input wire zero,
+    input wire negative,
+    input wire carry_out,
+    input wire overflow,
 
-    // Sinais de Controle
-    input overflow,
+    // Sinais de Controle do Fluxo de Dados
     output reg alua_src,
     output reg alub_src,
     output reg aluy_src,
@@ -42,11 +43,6 @@ module control_unit
     output reg [1:0] write_register_src,
     output reg write_register_enable
 );
-
-    // sinais úteis
-    wire [6:0] opcode = instruction[6:0];
-    wire [2:0] funct3 = instruction[14:12];
-    wire funct7 = instruction[30];
 
     localparam [3:0]
         fetch = 4'h0,
@@ -73,22 +69,20 @@ module control_unit
     end
 
     // TODO: verificar se o uso de non-blocking statements causa problemas em simulação
-    task espera_rom;
-        rom_enable <= 1'b1;
-        wait (rom_busy == 1'b1);
-        wait (rom_busy == 1'b0);
-        rom_enable <= 1'b0;
+    task espera_instruction_mem;
+        instruction_mem_enable <= 1'b1;
+        wait (instruction_mem_busy == 1'b1);
+        wait (instruction_mem_busy == 1'b0);
+        instruction_mem_enable <= 1'b0;
     endtask
 
-    task espera_ram(input [7:0] byte_write_enable);
-        ram_output_enable <= 1'b1;
-        ram_byte_write_enable <= byte_write_enable;
-        ram_chip_select <= 1'b1;
-        wait (ram_busy == 1'b1);
-        wait (ram_busy == 1'b0);
-        ram_output_enable <= 1'b0;
-        ram_byte_write_enable <= 8'b0;
-        ram_chip_select <= 1'b0;
+    task espera_data_mem(input [7:0] byte_write_enable);
+        data_mem_byte_write_enable <= byte_write_enable;
+        data_mem_chip_select <= 1'b1;
+        wait (data_mem_busy == 1'b1);
+        wait (data_mem_busy == 1'b0);
+        data_mem_byte_write_enable <= 8'b0;
+        data_mem_chip_select <= 1'b0;
     endtask
 
     // máquina de estados principal

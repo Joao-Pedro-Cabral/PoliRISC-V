@@ -47,11 +47,11 @@ module Dataflow_tb();
     // Sinais da Memória de Dados
     wire data_mem_enable;
     wire data_mem_write_enable;
-    wire [7:0] byte_write_enable;
+    wire [7:0] data_mem_byte_write_enable;
     wire data_mem_busy;
     // Sinais intermediários de teste
-    wire [28:0] LUT_uc [48:0];    // UC simulada com tabela
-    wire [17:0] df_src;
+    wire [35:0] LUT_uc [48:0];    // UC simulada com tabela
+    wire [24:0] df_src;
     wire [63:0] immediate;
     reg  [63:0] reg_data;         // write data do banco de registradores
     wire [63:0] A;                // read data 1 do banco de registradores
@@ -77,23 +77,17 @@ module Dataflow_tb();
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("df_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./core/Dataflow/df_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
     single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
-                        .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
+                        .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
 
     // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
     RegisterFile #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
-
-    // geração do byte_write_enable
-    assign byte_write_enable[0]   = data_mem_write_enable;                                              // SB -> read_src = 00
-    assign byte_write_enable[1]   = data_mem_write_enable & (read_data_src[1] | read_data_src[2]);      // SH -> read_src = 01
-    assign byte_write_enable[3:2] = {2{data_mem_write_enable & read_data_src[1]}};                      // SW -> read_src = 10
-    assign byte_write_enable[7:4] = {4{data_mem_write_enable & (read_data_src[1] & read_data_src[0])}}; // SD -> read_src = 11
 
     // geração do read_data_extended
     assign read_data_extend[7:0]   = read_data[7:0];
@@ -110,18 +104,18 @@ module Dataflow_tb();
     end
 
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [17:0] find_instruction;
+    function [24:0] find_instruction;
         input wire [6:0] opcode;
         input wire [2:0] funct3;
         input wire funct7;
-        input wire [28:0] LUT_uc [48:0];
-        wire [17:0] source;
+        input wire [35:0] LUT_uc [48:0];
+        wire [24:0] source;
         integer i;
         // U,J : apenas opcode
         if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
             for(i = 0; i < 3; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0])
-                    source = LUT_uc[i][28:11];
+                    source = LUT_uc[i][35:11];
             end
         end
         // I, S, B: opcode e funct3
@@ -132,16 +126,16 @@ module Dataflow_tb();
                     // SRLI e SRAI: funct7
                     if(funct3 === 3'b101)
                         if(funct7 === LUT_uc[i][10])
-                            source = LUT_uc[i][28:11];
+                            source = LUT_uc[i][35:11];
                     else
-                        source = LUT_uc[i][28:11];
+                        source = LUT_uc[i][35:11];
             end
         end
         // R: opcode, funct3 e funct7
         else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
             for(i = 34; i < 49; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][10])
-                    source = LUT_uc[i][28:11];
+                    source = LUT_uc[i][35:11];
             end
         end
         else
@@ -201,7 +195,7 @@ module Dataflow_tb();
 
     // testar o DUT
     initial begin : Testbench
-        $readmemb("RV64I.mif", LUT_uc);
+        $readmemb("./core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         pc_enable = 1'b0;
         write_register_enable = 1'b0;
@@ -222,17 +216,17 @@ module Dataflow_tb();
             // Decode
             df_src = find_instruction(opcode, funct3, funct7, LUT_uc);
             // Execute
-            alua_src              = df_src[0];
-            alub_src              = df_src[1];
-            aluy_src              = df_src[2];
-            alu_src               = df_src[5:3];
-            carry_in              = df_src[6];
-            arithmetic            = df_src[7];
-            alupc_src             = df_src[8];
-            read_data_src         = df_src[12:10];
-            write_register_src    = df_src[14:13];
-            data_mem_enable       = df_src[16];
-            data_mem_write_enable = df_src[17];
+            alua_src                    = df_src[0];
+            alub_src                    = df_src[1];
+            aluy_src                    = df_src[2];
+            alu_src                     = df_src[5:3];
+            carry_in                    = df_src[6];
+            arithmetic                  = df_src[7];
+            alupc_src                   = df_src[8];
+            read_data_src               = df_src[12:10];
+            write_register_src          = df_src[14:13];
+            data_mem_enable             = df_src[16];
+            data_mem_byte_write_enable  = df_src[24:17];
             // Executa e Testa
             case (opcode)
                 // Store(S*) e Load(L*)

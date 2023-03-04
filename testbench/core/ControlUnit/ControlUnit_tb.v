@@ -18,7 +18,7 @@ module ControlUnit_tb();
     wire instruction_mem_busy;
         // Data Memory
     wire data_mem_enable;
-    wire data_mem_write_enable;
+    wire [7:0] data_mem_byte_write_enable;
     wire data_mem_busy;
         // From Dataflow
     wire [6:0] opcode;
@@ -43,15 +43,13 @@ module ControlUnit_tb();
     wire write_register_enable;
     // Sinais da Memória de instruções
     wire [31:0] instruction;
-    // Sinais da Memória de Dados
-    wire [7:0] byte_write_enable;
     // Sinais do PC
     wire [63:0] pc_in;
     wire [63:0] pc;
     // Sinais intermediários de teste
-    wire [28:0] LUT_uc [48:0];    // UC simulada com tabela
-    wire [17:0] df_src;           // Produzido pelo LUT
-    wire [17:0] db_df_src;        // Produzido pela UC
+    wire [35:0] LUT_uc [48:0];    // UC simulada com tabela
+    wire [24:0] df_src;           // Produzido pelo LUT
+    wire [24:0] db_df_src;        // Produzido pela UC
     wire [63:0] immediate;        // imediato 
     // variáveis
     integer program_size = 50;    // tamanho do programa que será executado
@@ -59,8 +57,8 @@ module ControlUnit_tb();
 
     // DUT
     ControlUnit DUT (.clock(clock), .reset(reset), .instruction_mem_enable(instruction_mem_enable), .instruction_mem_busy(instruction_mem_busy), .data_mem_enable(data_mem_enable), 
-    .data_mem_write_enable(data_mem_write_enable), .data_mem_busy(data_mem_busy), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), 
-    .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .carry_in(carry_in), 
+    .data_mem_byte_write_enable(data_mem_byte_write_enable), .data_mem_busy(data_mem_busy), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), 
+    .negative(negative), .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .carry_in(carry_in), 
     .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src),
     .write_register_enable(write_register_enable));
 
@@ -68,7 +66,7 @@ module ControlUnit_tb();
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
 
    // Instruction Memory
-    ROM #(.rom_init_file("uc_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./core/ControlUnit/uc_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_mem_busy));
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
@@ -88,18 +86,18 @@ module ControlUnit_tb();
     end
 
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [17:0] find_instruction;
+    function [24:0] find_instruction;
         input wire [6:0] opcode;
         input wire [2:0] funct3;
         input wire funct7;
-        input wire [28:0] LUT_uc [48:0];
-        wire [17:0] source;
+        input wire [35:0] LUT_uc [48:0];
+        wire [24:0] source;
         integer i;
         // U,J : apenas opcode
         if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
             for(i = 0; i < 3; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0])
-                    source = LUT_uc[i][28:11];
+                    source = LUT_uc[i][35:11];
             end
         end
         // I, S, B: opcode e funct3
@@ -110,16 +108,16 @@ module ControlUnit_tb();
                     // SRLI e SRAI: funct7
                     if(funct3 === 3'b101)
                         if(funct7 === LUT_uc[i][10])
-                            source = LUT_uc[i][28:11];
+                            source = LUT_uc[i][35:11];
                     else
-                        source = LUT_uc[i][28:11];
+                        source = LUT_uc[i][35:11];
             end
         end
         // R: opcode, funct3 e funct7
         else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
             for(i = 34; i < 49; i = i + 1) begin
                 if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][10])
-                    source = LUT_uc[i][28:11];
+                    source = LUT_uc[i][35:11];
             end
         end
         else
@@ -127,11 +125,11 @@ module ControlUnit_tb();
         find_instruction = source;
     endfunction
 
-    assign db_df_src = {data_mem_write_enable, data_mem_enable, write_register_enable, write_register_src, read_data_src, pc_src, alupc_src, arithmetic, carry_in, alu_src, aluy_src, alub_src, alua_src};
+    assign db_df_src = {data_mem_byte_write_enable, data_mem_enable, write_register_enable, write_register_src, read_data_src, pc_src, alupc_src, arithmetic, carry_in, alu_src, aluy_src, alub_src, alua_src};
 
     // testar o DUT
     initial begin: Testbench
-        $readmemb("RV64I.mif", LUT_uc);
+        $readmemb("./core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         // Idle
         pc_in = 64'b0;
