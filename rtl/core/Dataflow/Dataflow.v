@@ -6,8 +6,8 @@
 //
 
 module Dataflow(clock, reset, instruction, instruction_address, read_data, write_data, data_address,
-                alua_src, alub_src, aluy_src, alu_src, carry_in, arithmetic, alupc_src, pc_src, pc_enable, 
-                write_register_src, write_register_enable, opcode, func3, zero, negative, carry_out, overflow, db_reg_data);
+                alua_src, alub_src, aluy_src, alu_src, carry_in, arithmetic, alupc_src, pc_src, pc_enable, read_data_src,
+                write_register_src, write_register_enable, opcode, funct3, funct7, zero, negative, carry_out, overflow, db_reg_data);
     // Common
     input  wire clock;
     input  wire reset;
@@ -91,7 +91,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     mux2to1       #(.size(64))               muxpc            (.A(pc_plus_4), .B(pc_plus_immediate), .S(pc_src), .Y(muxpc_out));
     register_d    #(.N(64), .reset_value(0)) pc_register      (.clock(clock), .reset(reset), .enable(pc_enable), .D(muxpc_out), .Q(pc));
         // Data Memory
-    gen_mux       #(.size(32) .N(2))         mux_read_data    (.A({read_data[63:32], {32{read_data[31] & read_data_src[2]}},
+    gen_mux       #(.size(32), .N(2))        mux_read_data    (.A({read_data[63:32], {32{read_data[31] & read_data_src[2]}},
         {32{read_data[15] & read_data_src[2]}}, {32{read_data[7] & read_data_src[2]}}}), .S(read_data_src[1:0]), .Y(read_data_extend[63:32]));
 
     // Atribuições intermediárias

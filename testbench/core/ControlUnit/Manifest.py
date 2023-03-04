@@ -1,5 +1,5 @@
 files = [
-    "ControlUnit_tb.v"
+    "control_unit_tb.v"
 ]
 
 modules = {

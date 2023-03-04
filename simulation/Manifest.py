@@ -1,4 +1,4 @@
-TOPLEVEL= "full_barrel_shifter"
+TOPLEVEL= "Dataflow"
 
 action   = "simulation"
 sim_tool = "modelsim"

@@ -10,8 +10,8 @@
 module Dataflow_tb();
     // sinais do DUT
         // Common
-    wire clock;
-    wire reset;
+    reg clock;
+    reg reset;
         // Instruction Memory
     wire [31:0] instruction;
     wire [63:0] instruction_address;
@@ -20,18 +20,18 @@ module Dataflow_tb();
     wire [63:0] write_data;
     wire [63:0] data_address;
         // From Control Unit
-    wire alua_src;
-    wire alub_src;
-    wire aluy_src;
-    wire [2:0] alu_src;
-    wire carry_in;
-    wire arithmetic;
-    wire alupc_src;
-    wire pc_src;
-    wire pc_enable;
-    wire [2:0] read_data_src;
-    wire [1:0] write_register_src;
-    wire write_register_enable;
+    reg alua_src;
+    reg alub_src;
+    reg aluy_src;
+    reg [2:0] alu_src;
+    reg carry_in;
+    reg arithmetic;
+    reg alupc_src;
+    reg pc_src;
+    reg pc_enable;
+    reg [2:0] read_data_src;
+    reg [1:0] write_register_src;
+    reg write_register_enable;
         // To Control Unit
     wire [6:0] opcode;
     wire [2:0] funct3;
@@ -42,20 +42,21 @@ module Dataflow_tb();
     wire overflow;
     wire [63:0] db_reg_data;
     // Sinais da Memória de Instrução
-    wire instruction_mem_enable;
-    wire instruction_mem_busy;
+    reg instruction_mem_enable;
+    reg instruction_mem_busy;
     // Sinais da Memória de Dados
-    wire data_mem_enable;
-    wire data_mem_write_enable;
-    wire [7:0] data_mem_byte_write_enable;
-    wire data_mem_busy;
+    reg data_mem_enable;
+    reg data_mem_write_enable;
+    reg [7:0] data_mem_byte_write_enable;
+    reg data_mem_busy;
     // Sinais intermediários de teste
     wire [41:0] LUT_uc [48:0];    // UC simulada com tabela
-    wire [24:0] df_src;
+    reg  [24:0] df_src;
     wire [63:0] immediate;
     reg  [63:0] reg_data;         // write data do banco de registradores
     wire [63:0] A;                // read data 1 do banco de registradores
     wire [63:0] B;                // read data 2 do banco de registradores
+    wire [63:0] pc;               // pc
     reg  [63:0] pc_imm;           // pc + imediato
     reg  [63:0] pc_4;             // pc + 4
     wire [63:0] read_data_extend; // dado lido após aplicação da extensão de sinal
@@ -77,16 +78,16 @@ module Dataflow_tb();
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/Dataflow/df_tb.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
-    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
+    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
                         .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
 
     // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
-    RegisterFile #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
+    register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 
     // geração do read_data_extended
@@ -95,6 +96,9 @@ module Dataflow_tb();
     assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
     assign read_data_extend[63:32] = read_data_src[1] ? (read_data_src[0] ? read_data[63:32] : {32{read_data[31]}}) : (read_data_src[0] ? {32{read_data_src[15]}} : {32{read_data_src[7]}});
     
+    // geração do pc
+    assign pc = instruction_address;
+
     // geração do clock
     always begin
         clock = 1'b0;
@@ -104,86 +108,83 @@ module Dataflow_tb();
     end
 
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [24:0] find_instruction;
-        input wire [6:0] opcode;
-        input wire [2:0] funct3;
-        input wire [6:0] funct7;
-        input wire [41:0] LUT_uc [48:0];
-        wire [24:0] source;
+    function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [41:0] LUT_uc [48:0]); 
         integer i;
-        // U,J : apenas opcode
-        if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
-            for(i = 0; i < 3; i = i + 1) begin
-                if(opcode === LUT_uc[i][6:0])
-                    source = LUT_uc[i][41:17];
+        begin
+            // U,J : apenas opcode
+            if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
+                for(i = 0; i < 3; i = i + 1) begin
+                    if(opcode === LUT_uc[i][6:0])
+                        find_instruction = LUT_uc[i][41:17];
+                end
             end
-        end
-        // I, S, B: opcode e funct3
-        else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 || 
-           opcode === 7'b0010011 || opcode === 7'b0011011) begin
-            for(i = 3; i < 34; i = i + 1) begin
-                if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7])
-                    // SRLI e SRAI: funct7
-                    if(funct3 === 3'b101)
-                        if(funct7 === LUT_uc[i][16:10])
-                            source = LUT_uc[i][41:17];
-                    else
-                        source = LUT_uc[i][41:17];
+            // I, S, B: opcode e funct3
+            else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 || 
+               opcode === 7'b0010011 || opcode === 7'b0011011) begin
+                for(i = 3; i < 34; i = i + 1) begin
+                    if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7])
+                        // SRLI e SRAI: funct7
+                        if(funct3 === 3'b101)
+                            if(funct7 === LUT_uc[i][16:10])
+                                find_instruction = LUT_uc[i][41:17];
+                        else
+                            find_instruction = LUT_uc[i][41:17];
+                end
             end
-        end
-        // R: opcode, funct3 e funct7
-        else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
-            for(i = 34; i < 49; i = i + 1) begin
-                if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][16:10])
-                    source = LUT_uc[i][41:17];
+            // R: opcode, funct3 e funct7
+            else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
+               for(i = 34; i < 49; i = i + 1) begin
+                    if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][16:10])
+                        find_instruction = LUT_uc[i][41:17];
+                end
             end
+            else
+                $display("Function error: opcode = %b", opcode);
         end
-        else
-            $display("Function error: opcode = %b", opcode);
-        find_instruction = source;
     endfunction
 
-    function [63:0] ULA_function;
-        input wire [63:0] A;
-        input wire [63:0] B;
-        input wire [3:0] seletor;
+    function [63:0] ULA_function(input [63:0] A, input [63:0] B, input [3:0] seletor);
         reg   [63:0] xorB;
         reg   [63:0] add_sub;
         reg   overflow;
         reg   carry_out;
         reg   negative;
-
-        case (seletor)
-            4'b0000:
-                ULA_function = A + B;
-            4'b0001:
-                ULA_function = A << (B[5:0]);
-            4'b0010:
-                xorB    = B ^ 64'sb11;
-                add_sub  = xorB + A + 64'b01;
-                negative = add_sub[63];
-                overflow = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
-                ULA_function = negative ^ overflow;
-            4'b0011:
-                xorB                  = B ^ 64'sb11;
-                {carry_out, add_sub}  = xorB + A + 64'b01;
-                ULA_function          = ~ carry_out;
-            4'b0100:
-                ULA_function = A ^ B;
-            4'b0101:
-                ULA_function = A >> (B[5:0]);
-            4'b0110:
-                ULA_function = A & B;
-            4'b0111:
-                ULA_function = A | B;
-            4'b1000:
-                ULA_function = A - B;
-            4'b1101:
-                ULA_function = $signed(A) >>> (B[5:0]);
-            default:
-                $display("ULA_function error: opcode = %b", opcode);
-                ULA_function = 0;
-        endcase
+        begin
+            case (seletor)
+                4'b0000:
+                    ULA_function = A + B;
+                4'b0001:
+                    ULA_function = A << (B[5:0]);
+                4'b0010: begin
+                    xorB     = B ^ 64'sb11;
+                    add_sub  = xorB + A + 64'b01;
+                    negative = add_sub[63];
+                    overflow = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
+                    ULA_function = negative ^ overflow;
+                end
+                4'b0011: begin
+                    xorB                  = B ^ 64'sb11;
+                    {carry_out, add_sub}  = xorB + A + 64'b01;
+                    ULA_function          = ~ carry_out;
+                end
+                4'b0100:
+                    ULA_function = A ^ B;
+                4'b0101:
+                    ULA_function = A >> (B[5:0]);
+                4'b0110:
+                    ULA_function = A & B;
+                4'b0111:
+                    ULA_function = A | B;
+                4'b1000:
+                    ULA_function = A - B;
+                4'b1101:
+                    ULA_function = $signed(A) >>> (B[5:0]);
+                default: begin
+                    $display("ULA_function error: opcode = %b", opcode);
+                    ULA_function = 0;
+                end
+            endcase
+        end
     endfunction
 
     // flags da ULA -> B-type
@@ -194,7 +195,7 @@ module Dataflow_tb();
     assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
 
     // testar o DUT
-    initial begin : Testbench
+    initial begin
         $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         pc_enable = 1'b0;
@@ -230,7 +231,7 @@ module Dataflow_tb();
             // Executa e Testa
             case (opcode)
                 // Store(S*) e Load(L*)
-                7'b0100011, 7'b0000011:
+                7'b0100011, 7'b0000011: begin
                     pc_src = df_src[9];
                     #0.5;
                     if(data_address !== A + immediate)
@@ -245,8 +246,9 @@ module Dataflow_tb();
                         $display("Error Load: db_reg_data = %b, read_data_extend = %b", db_reg_data, read_data_extend);
                     pc_enable = 1'b1;
                     #4;
+                end
                 // Branch(B*)
-                7'b1100011:
+                7'b1100011: begin
                     if(funct3[2:1] === 2'b00)
                         pc_src = ~(zero ^ funct3[0]);
                     else if(funct3[2:1] === 2'b10)
@@ -266,8 +268,9 @@ module Dataflow_tb();
                     if((pc_src === 1 && pc_imm !== instruction_address) || (pc_src === 0 && pc_4 !== instruction_address))
                         $display("Error B-type PC: pc_src = %b, pc_imm = %b, pc_4 = %b, pc = %b", pc_src, pc_imm, pc_4, instruction_address);
                     #4;
+                end
                 // LUI e AUIPC
-                7'b0110111, 7'b0010111:
+                7'b0110111, 7'b0010111: begin
                     pc_src    = df_src[9];
                     pc_enable = 1'b1;
                     write_register_enable = df_src[15];
@@ -282,8 +285,9 @@ module Dataflow_tb();
                         else
                             $display("Error AUIPC: reg_data = %b, db_reg_data = %b", reg_data, db_reg_data);
                     #5.5;
+                end
                 // JAL e JALR
-                7'b1101111, 7'b1100111:
+                7'b1101111, 7'b1100111: begin
                     pc_src    = df_src[9];
                     pc_enable = 1'b1;
                     write_register_enable = df_src[15];
@@ -305,8 +309,9 @@ module Dataflow_tb();
                         else
                             $display("Error JALR: pc_imm = %b, instruction_address = %b", pc_imm, instruction_address);   
                     #4;
+                end
                 // ULA R/I-type
-                7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011:
+                7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
                     pc_src    = df_src[9];
                     pc_enable = 1'b1;
                     write_register_enable = df_src[15];
@@ -329,9 +334,11 @@ module Dataflow_tb();
                         else
                             $display("Error ULA: opcode = %b", opcode);
                     #5.5;
-                default:
+                end
+                default: begin
                     $display("Error opcode case: opcode = %b", opcode);
                     #6;
+                end
             endcase
         end
     end
