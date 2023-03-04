@@ -102,13 +102,11 @@ module control_unit
     end
     endtask
 
-    task espera_data_mem(input [7:0] byte_write_enable);
+    task espera_data_mem
     begin
-        data_mem_byte_write_enable <= byte_write_enable;
         data_mem_enable <= 1'b1;
         wait (data_mem_busy == 1'b1);
         wait (data_mem_busy == 1'b0);
-        data_mem_byte_write_enable <= 8'b0;
         data_mem_enable <= 1'b0;
     end
     endtask
@@ -259,7 +257,7 @@ module control_unit
             load:
             begin
                 read_data_src <= funct3 ^ 3'b100;
-                espera_data_mem(data_mem_byte_write_enable);
+                espera_data_mem;
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b00;
                 write_register_enable <= 1'b1;
@@ -276,7 +274,8 @@ module control_unit
                     11: data_mem_byte_write_enable <= 8'hFF; // SD
                     default: data_mem_byte_write_enable <= 8'h00; // inalcançável
                 endcase
-                espera_data_mem(data_mem_byte_write_enable);
+                espera_data_mem;
+                data_mem_byte_write_enable <= 8'b0;
                 pc_enable <= 1'b1;
 
                 proximo_estado <= fetch;
