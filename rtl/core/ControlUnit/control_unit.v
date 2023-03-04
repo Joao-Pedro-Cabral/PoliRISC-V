@@ -20,7 +20,7 @@ module control_unit
 
     // Data Memory
     input data_mem_busy,
-    output data_mem_enable,
+    output reg data_mem_enable,
     output reg [7:0] data_mem_byte_write_enable,
 
     // Vindo do Fluxo de Dados
@@ -63,6 +63,7 @@ module control_unit
     reg [3:0] estado_atual, proximo_estado;
 
     task zera_sinais;
+    begin
         instruction_mem_enable <= 1'b0;
         data_mem_enable <= 1'b0;
         data_mem_byte_write_enable <= 8'b0;
@@ -78,32 +79,38 @@ module control_unit
         read_data_src <= 3'b000;
         write_register_src <= 2'b00;
         write_register_enable <= 1'b0;
+    end
     endtask
 
     // lógica da mudança de estados
     always @(posedge clock, reset) begin
-        if(reset)
+        if(reset) begin
             zera_sinais;
             estado_atual <= fetch;
+        end
         else if(clock == 1'b1)
             estado_atual <= proximo_estado;
     end
 
     // TODO: verificar se o uso de non-blocking statements causa problemas em simulação
     task espera_instruction_mem;
+    begin
         instruction_mem_enable <= 1'b1;
         wait (instruction_mem_busy == 1'b1);
         wait (instruction_mem_busy == 1'b0);
         instruction_mem_enable <= 1'b0;
+    end
     endtask
 
     task espera_data_mem(input [7:0] byte_write_enable);
+    begin
         data_mem_byte_write_enable <= byte_write_enable;
         data_mem_enable <= 1'b1;
         wait (data_mem_busy == 1'b1);
         wait (data_mem_busy == 1'b0);
         data_mem_byte_write_enable <= 8'b0;
         data_mem_enable <= 1'b0;
+    end
     endtask
 
     // decisores para desvios condicionais baseados nas flags da ULA
@@ -121,10 +128,13 @@ module control_unit
 
         case(estado_atual)
             fetch:
+            begin
                 espera_instruction_mem;
                 proximo_estado <= decode;
+            end
 
             decode:
+            begin
                 if(opcode[1:0] != 2'b11)
                     proximo_estado <= halt;
                 else if(opcode[4]==1'b1)
@@ -159,8 +169,10 @@ module control_unit
                             proximo_estado <= store;
                         else
                             proximo_estado <= halt;
+            end
 
             registrador_registrador:
+            begin
                 alub_src <= 1'b1;
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
@@ -171,16 +183,20 @@ module control_unit
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
             lui:
+            begin
                 aluy_src <= 1'b1;
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
             registrador_imediato:
+            begin
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
                 arithmetic <= funct7[5];
@@ -189,24 +205,30 @@ module control_unit
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
             auipc:
+            begin
                 alua_src <= 1'b1;
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
             jal:
+            begin
                 pc_src <= 1'b1;
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b01;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
-            branch_condicional:
+            desvio_condicional:
+            begin
                 alub_src <= 1'b1;
                 carry_in <= 1'b1;
                 case(funct3)
@@ -220,8 +242,10 @@ module control_unit
                 pc_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
             jalr:
+            begin
                 alupc_src <= 1'b1;
                 pc_src <= 1'b1;
                 pc_enable <= 1'b1;
@@ -229,27 +253,32 @@ module control_unit
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
             load:
-                read_data_src <= {~funct3[2], funct3{1:0]};
+            begin
+                read_data_src <= funct3 ^ 3'b100;
                 espera_data_mem(data_mem_byte_write_enable);
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b00;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
             store:
+            begin
                 case(funct3[1:0])
                     00: data_mem_byte_write_enable <= 8'h01; // SB
                     01: data_mem_byte_write_enable <= 8'h03; // SH
                     10: data_mem_byte_write_enable <= 8'h0F; // SW
                     11: data_mem_byte_write_enable <= 8'hFF; // SD
-                endcase;
+                endcase
                 espera_data_mem(data_mem_byte_write_enable);
                 pc_enable <= 1'b1;
 
                 proximo_estado <= fetch;
+            end
 
             halt:
                 proximo_estado <= halt;
