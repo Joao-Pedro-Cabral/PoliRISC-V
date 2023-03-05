@@ -65,7 +65,7 @@ module RV64I_tb();
 
    // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
-    register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
+    register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15] & {5{(~(instruction[4] & instruction[2]))}}),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 
     // geração do read_data_extended
@@ -223,10 +223,10 @@ module RV64I_tb();
                         pc_imm    = instruction_address + immediate;
                     else
                         pc_imm    = (A + immediate) << 1;
-                    pc_4 = pc + 4;
+                    reg_data = pc + 4;
                     #0.5;
-                    if(db_reg_data !== pc_4) begin
-                        $display("Error JAL/JALR: reg_data = %b, pc + 4 = %b, opcode = %b", db_reg_data, pc_4, opcode);
+                    if(db_reg_data !== reg_data) begin
+                        $display("Error JAL/JALR: reg_data = %b, reg_data = %b, opcode = %b", db_reg_data, reg_data, opcode);
                         $stop;
                     end
                     #2.5;
