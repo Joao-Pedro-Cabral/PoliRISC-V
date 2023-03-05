@@ -114,9 +114,10 @@ module control_unit
     wire beq_bne = zero ^ funct3[0];
     wire blt_bge = (negative ^ overflow) ^ funct3[0];
     wire bltu_bgeu = carry_out ~^ funct3[0];
+    wire cond = funct3[1]==0 ? funct3[2]==0 ? beq_bne : blt_bge : bltu_bgeu;
 
     // máquina de estados principal
-    always @(estado_atual, reset) begin
+    always @(estado_atual, reset, cond) begin
 
         zera_sinais;
 
@@ -239,12 +240,7 @@ module control_unit
             begin
                 alub_src <= 1'b1;
                 carry_in <= 1'b1;
-                case(funct3[2:1]) // synthesis parallel_case
-                    00: pc_src <= beq_bne;
-                    10: pc_src <= blt_bge;
-                    11: pc_src <= bltu_bgeu;
-                    default: pc_src <= 1'b0; // inalcançável
-                endcase
+                pc_src <= cond;
                 pc_enable <= 1'b1;
 
                 proximo_estado <= fetch;

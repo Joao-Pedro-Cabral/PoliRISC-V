@@ -75,15 +75,15 @@ module Dataflow_tb();
     // DUT
     Dataflow DUT (.clock(clock), .reset(reset), .instruction(instruction), .instruction_address(instruction_address), .read_data(read_data), .write_data(write_data),
      .data_address(data_address), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .carry_in(carry_in), .arithmetic(arithmetic), .alupc_src(alupc_src),
-     .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src), .write_register_enable(write_register_enable), .opcode(opcode), 
+     .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src), .write_register_enable(write_register_enable), .opcode(opcode),
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/core/RV64I/branches.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
-    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), 
+    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data),
                         .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
 
     // Componentes auxiliares para a verificação
@@ -96,7 +96,7 @@ module Dataflow_tb();
     assign read_data_extend[15:8]  = (read_data_src[1] | read_data_src[0]) ? read_data[15:8] : ({8{read_data[7] & read_data_src[2]}});
     assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
     assign read_data_extend[63:32] = read_data_src[1] ? (read_data_src[0] ? read_data[63:32] : {32{read_data[31] & read_data_src[2]}}) : (read_data_src[0] ? {32{read_data[15] & read_data_src[2]}} : {32{read_data[7] & read_data_src[2]}});
-    
+
     // geração do pc
     assign pc = instruction_address;
 
@@ -109,13 +109,13 @@ module Dataflow_tb();
     end
 
     // geração do LUT linear
-    generate 
+    generate
         for(j = 0; j < 49; j = j + 1)
             assign LUT_linear[42*(j+1)-1:42*j] = LUT_uc[j];
     endgenerate
 
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2057:0] LUT_linear); 
+    function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2057:0] LUT_linear);
             integer i;
             reg [24:0] temp;
         begin
@@ -126,7 +126,7 @@ module Dataflow_tb();
                         temp = LUT_linear[42*i+:25];
             end
             // I, S, B: opcode e funct3
-            else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 || 
+            else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
                 opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
                 for(i = 3; i < 34; i = i + 1) begin
                     if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3]) begin
@@ -202,7 +202,7 @@ module Dataflow_tb();
 
     // flags da ULA -> B-type
     assign xorB                  = B ^ {64{1'b1}};
-    assign {carry_out_, add_sub} = A + xorB + 64'b01; 
+    assign {carry_out_, add_sub} = A + xorB + 64'b01;
     assign zero_                 = ~(|add_sub);
     assign negative_             = add_sub[63];
     assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
@@ -329,7 +329,7 @@ module Dataflow_tb();
                     #2.5;
                     if(pc_imm !== instruction_address) begin
                         $display("Error JAL/JALR: pc_imm = %b, instruction_address = %b", pc_imm, instruction_address);
-                        $stop;  
+                        $stop;
                     end
                     #3;
                 end
