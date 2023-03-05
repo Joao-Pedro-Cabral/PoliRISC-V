@@ -31,6 +31,7 @@ module RV64I_tb();
     wire [6:0]  funct7;
     wire [63:0] immediate;
     reg  write_register_enable;   // write enable do banco de registradores
+    wire [7:0] data_mem_byte_write_enable_;
     reg  [63:0] reg_data;         // write data do banco de registradores
     wire [63:0] A;                // read data 1 do banco de registradores
     wire [63:0] B;                // read data 2 do banco de registradores
@@ -63,7 +64,7 @@ module RV64I_tb();
     single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
                 .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));    
 
-   // Componentes auxiliares para a verificação
+    // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
     register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
@@ -90,7 +91,7 @@ module RV64I_tb();
         #3;
     end
 
-     function [63:0] ULA_function(input [63:0] A, input [63:0] B, input [3:0] seletor);
+    function [63:0] ULA_function(input [63:0] A, input [63:0] B, input [3:0] seletor);
             reg   [63:0] xorB;
             reg   [63:0] add_sub;
             reg   overflow;
@@ -142,6 +143,9 @@ module RV64I_tb();
     assign negative_             = add_sub[63];
     assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
 
+    // geração data mem byte write enable
+    assign data_mem_byte_write_enable_ = funct3[1] ? (funct3[0] ? 8'hFF : 8'h0F) : (funct3[0] ? 8'h03 : 8'h01);
+
     // testar o DUT
     initial begin : Testbench
         $display("SOT!");
@@ -149,17 +153,36 @@ module RV64I_tb();
         // Idle
         #2;
         reset = 1'b1;
-        #6;
+        #0.5;
+        if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+            $display("Error Idle: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+            $stop;
+        end
+        #5.5;
         reset = 1'b0;
-        #6;
+        #0.5;
+        if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+            $display("Error Idle: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+            $stop;
+        end
+        #5.5;
         for(i = 0; i < program_size; i = i + 1) begin
             $display("Test: %d", i);
             // Fetch
-            write_register_enable = 1'b0;
-            instruction_mem_enable = 1'b1;
-            #18;
-            instruction_mem_enable = 1'b0;
-            // Decode -> Nada a ser testado
+            write_register_enable  = 1'b0;
+            if(instruction_mem_enable !== 1 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                $display("Error Fetch: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                $stop;
+            end
+            wait (instruction_mem_busy == 1'b1);
+            wait (instruction_mem_busy == 1'b0);
+            #10;
+            // Decode 
+            if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                $display("Error Decode: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                $stop;
+            end
+            #6;
             // Execute -> Teste
             case (opcode)
                 // Store(S*) e Load(L*)
@@ -173,7 +196,15 @@ module RV64I_tb();
                         $display("Error Store: write_data = %b, B = %b, funct3 = %b", write_data, B, funct3);
                         $stop;
                     end
+                    if(instruction_mem_enable !== 0 || data_mem_enable !== 1 || (data_mem_byte_write_enable !== (data_mem_byte_write_enable_ && opcode === 7'b0100011))) begin
+                        $display("Error Load/Store: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                        $stop;
+                    end
                     #17.5
+                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error Load/Store: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                        $stop;
+                    end
                     if(opcode[5] === 1'b0 && db_reg_data !== read_data_extend) begin
                         $display("Error Load: db_reg_data = %b, read_data_extend = %b, funct3 = %b", db_reg_data, read_data_extend, funct3);
                         $stop;
@@ -197,6 +228,10 @@ module RV64I_tb();
                         $display("Error B-type flags: overflow = %b, carry_out = %b, negative = %b, zero = %b, funct3 = %b", overflow, carry_out, negative, zero, funct3);
                         $stop;
                     end
+                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error B-type: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                        $stop;
+                    end
                     #2.5;
                     if((pc_src === 1 && pc_imm !== instruction_address) || (pc_src === 0 && pc_4 !== instruction_address)) begin
                         $display("Error B-type PC: pc_src = %b, pc_imm = %b, pc_4 = %b, pc = %b", pc_src, pc_imm, pc_4, instruction_address);
@@ -215,6 +250,10 @@ module RV64I_tb();
                         $display("Error AUIPC/LUI: reg_data = %b, db_reg_data = %b, opcode = %b", reg_data, db_reg_data, opcode);
                         $stop;
                     end
+                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error LUI/AUIPC: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                        $stop;
+                    end
                     #5.5;
                 // JAL e JALR
                 7'b1101111, 7'b1100111:
@@ -227,6 +266,10 @@ module RV64I_tb();
                     #0.5;
                     if(db_reg_data !== reg_data) begin
                         $display("Error JAL/JALR: reg_data = %b, reg_data = %b, opcode = %b", db_reg_data, reg_data, opcode);
+                        $stop;
+                    end
+                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error JAL/JALR: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
                         $stop;
                     end
                     #2.5;
@@ -249,6 +292,10 @@ module RV64I_tb();
                     #0.5;
                     if(reg_data !== db_reg_data) begin
                         $display("Error ULA R/I-type: reg_data = %b, db_reg_data = %b, funct7 = %b, funct3 = %b", reg_data, db_reg_data, funct7, funct3);
+                        $stop;
+                    end
+                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error ULA R/I-type: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
                         $stop;
                     end
                     #5.5;

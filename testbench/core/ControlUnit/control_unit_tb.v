@@ -163,8 +163,10 @@ module control_unit_tb();
             overflow  = $random;
             zero      = $random;
             // Fetch
-            if(pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b1)
+            if(pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b1) begin
                 $display("Error Fetch: pc_enable = %b, write_register_enable = %b, instruction_mem_enable = %b", pc_enable, write_register_enable, instruction_mem_enable);
+                $stop;
+            end
             wait (instruction_mem_busy == 1'b1);
             wait (instruction_mem_busy == 1'b0);
             #9;
