@@ -41,6 +41,7 @@ module RV64I_tb();
     reg  [63:0] pc_4;             // pc + 4
     wire [63:0] read_data_extend; // dado lido após aplicação da extensão de sinal
     wire [2:0]  read_data_src;
+    wire store;
     // flags da ULA
     wire zero;
     wire negative;
@@ -58,7 +59,7 @@ module RV64I_tb();
     .instruction_mem_busy(instruction_mem_busy), .instruction_mem_enable(instruction_mem_enable), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/core/RV64I/branches.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
@@ -139,14 +140,17 @@ module RV64I_tb();
     endfunction
 
     // flags da ULA -> B-type
-    assign xorB                  = B ^ 64'sb11;
-    assign {carry_out, add_sub} = A + xorB + 64'b01; 
-    assign zero                 = ~(|add_sub);
-    assign negative             = add_sub[63];
-    assign overflow             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
+    assign xorB                  = B ^ {64{1'b1}};
+    assign {carry_out_, add_sub} = A + xorB + 64'b01;
+    assign zero_                 = ~(|add_sub);
+    assign negative_             = add_sub[63];
+    assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
 
     // geração data mem byte write enable
-    assign data_mem_byte_write_enable_ = funct3[1] ? (funct3[0] ? 8'hFF : 8'h0F) : (funct3[0] ? 8'h03 : 8'h01);
+    assign data_mem_byte_write_enable_ = funct3[1] ? (funct3[0] ? (8'hFF & {8{store}}) : (8'h0F & {8{store}})) : (funct3[0] ? (8'h03 & {8{store}}) : (8'h01 & {8{store}}));
+
+    // geração store
+    assign store = (opcode === 7'b0100011) ? 1'b1 : 1'b0;
 
     // testar o DUT
     initial begin : Testbench
@@ -198,11 +202,15 @@ module RV64I_tb();
                         $display("Error Store: write_data = %b, B = %b, funct3 = %b", write_data, B, funct3);
                         $stop;
                     end
-                    if(instruction_mem_enable !== 0 || data_mem_enable !== 1 || (data_mem_byte_write_enable !== (data_mem_byte_write_enable_ && opcode === 7'b0100011))) begin
+                    if(instruction_mem_enable !== 0 || data_mem_enable !== 1 || data_mem_byte_write_enable !== data_mem_byte_write_enable_ ) begin
                         $display("Error Load/Store: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
                         $stop;
                     end
-                    #17.5
+                    #17.5;
+                    if(opcode[5] === 1'b0) begin
+                        write_register_enable = 1'b1;
+                        reg_data = read_data_extend;
+                    end
                     if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
                         $display("Error Load/Store: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
                         $stop;
@@ -216,11 +224,11 @@ module RV64I_tb();
                 // Branch(B*)
                 7'b1100011: begin
                     if(funct3[2:1] === 2'b00)
-                        pc_src = ~(zero ^ funct3[0]);
+                        pc_src = zero ^ funct3[0];
                     else if(funct3[2:1] === 2'b10)
-                        pc_src = ~(negative ^ overflow ^ funct3[0]);
+                        pc_src = negative ^ overflow ^ funct3[0];
                     else if(funct3[2:1] === 2'b11)
-                        pc_src = carry_out ^ funct3[0];
+                        pc_src = carry_out ~^ funct3[0];
                     else
                         $display("Error B-type: Invalid funct3! Funct3 : %b", funct3);
                     pc_4                  = pc + 4;

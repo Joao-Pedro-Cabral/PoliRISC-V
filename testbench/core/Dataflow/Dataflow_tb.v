@@ -270,11 +270,11 @@ module Dataflow_tb();
                 // Branch(B*)
                 7'b1100011: begin
                     if(funct3[2:1] === 2'b00)
-                        pc_src = ~(zero ^ funct3[0]);
+                        pc_src = zero ^ funct3[0];
                     else if(funct3[2:1] === 2'b10)
-                        pc_src = ~(negative ^ overflow ^ funct3[0]);
+                        pc_src = negative ^ overflow ^ funct3[0];
                     else if(funct3[2:1] === 2'b11)
-                        pc_src = carry_out ^ funct3[0];
+                        pc_src = carry_out ~^ funct3[0];
                     else begin
                         $display("Error B-type: Invalid funct3! funct3 : %b", funct3);
                         $stop;
@@ -289,7 +289,7 @@ module Dataflow_tb();
                         $stop;
                     end
                     #2.5;
-                    if((pc_src === 1 && pc_imm !== instruction_address) || (pc_src === 0 && pc_4 !== instruction_address)) begin
+                    if((pc_src === 1'b1 && pc_imm !== instruction_address) || (pc_src === 1'b0 && pc_4 !== instruction_address)) begin
                         $display("Error B-type PC: pc_src = %b, pc_imm = %b, pc_4 = %b, pc = %b", pc_src, pc_imm, pc_4, instruction_address);
                         $stop;
                     end
