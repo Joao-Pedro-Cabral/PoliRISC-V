@@ -51,16 +51,16 @@ module control_unit_tb();
     wire [2057:0] LUT_linear;       // Tabela acima linearizada
     reg  [24:0]   df_src;           // Produzido pelo LUT
     wire [24:0]   db_df_src;        // Produzido pela UC
-    wire [63:0]   immediate;        // imediato 
+    wire [63:0]   immediate;        // imediato
     // variáveis
     integer program_size = 1000;  // tamanho do programa que será executado
     integer i;
     genvar j;
 
     // DUT
-    control_unit DUT (.clock(clock), .reset(reset), .instruction_mem_enable(instruction_mem_enable), .instruction_mem_busy(instruction_mem_busy), .data_mem_enable(data_mem_enable), 
-    .data_mem_byte_write_enable(data_mem_byte_write_enable), .data_mem_busy(data_mem_busy), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), 
-    .negative(negative), .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .carry_in(carry_in), 
+    control_unit DUT (.clock(clock), .reset(reset), .instruction_mem_enable(instruction_mem_enable), .instruction_mem_busy(instruction_mem_busy), .data_mem_enable(data_mem_enable),
+    .data_mem_byte_write_enable(data_mem_byte_write_enable), .data_mem_busy(data_mem_busy), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero),
+    .negative(negative), .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .carry_in(carry_in),
     .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src),
     .write_register_enable(write_register_enable));
 
@@ -68,7 +68,7 @@ module control_unit_tb();
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
 
    // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/random.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/core/RV64I/branches.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(instruction_mem_enable), .addr(pc[9:0]), .data(instruction), .busy(instruction_mem_busy));
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
@@ -87,13 +87,13 @@ module control_unit_tb();
     end
 
     // geração do LUT linear
-    generate 
+    generate
         for(j = 0; j < 49; j = j + 1)
             assign LUT_linear[42*(j+1)-1:42*j] = LUT_uc[j];
     endgenerate
 
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2057:0] LUT_linear); 
+    function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2057:0] LUT_linear);
             integer i;
             reg [24:0] temp;
         begin
@@ -104,7 +104,7 @@ module control_unit_tb();
                         temp = LUT_linear[42*i+:25];
             end
             // I, S, B: opcode e funct3
-            else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 || 
+            else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
                 opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
                 for(i = 3; i < 34; i = i + 1) begin
                     if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3]) begin
@@ -163,8 +163,10 @@ module control_unit_tb();
             overflow  = $random;
             zero      = $random;
             // Fetch
-            if(pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b1)
+            if(pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b1) begin
                 $display("Error Fetch: pc_enable = %b, write_register_enable = %b, instruction_mem_enable = %b", pc_enable, write_register_enable, instruction_mem_enable);
+                $stop;
+            end
             wait (instruction_mem_busy == 1'b1);
             wait (instruction_mem_busy == 1'b0);
             #9;
@@ -177,7 +179,7 @@ module control_unit_tb();
             end
             #6;
             // Execute -> Não testo pc_src para instruções do tipo B e write_register_enable para Load
-            if({df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[24:16], df_src[14:10], df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011) 
+            if({df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[24:16], df_src[14:10], df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011)
                     || (df_src[9] !== db_df_src[9] && opcode !== 7'b0000011)) begin
                 $display("Error Execute: df_src = %b, db_df_src = %b", df_src, db_df_src);
                 $stop;
@@ -202,7 +204,7 @@ module control_unit_tb();
                 7'b1100011: begin
                     // testo pc_src de acordo com as flags aleatórias
                     if(funct3[2:1] === 2'b00) begin
-                        if(~(zero ^ funct3[0]) === 1'b1) begin
+                        if(zero ^ funct3[0] === 1'b1) begin
                             pc_in = pc + immediate;
                             if(pc_src !== 1'b1) begin
                                 $display("Error B-type: pc_src = %b, funct3 = %b", pc_src, funct3);
@@ -218,7 +220,7 @@ module control_unit_tb();
                         end
                     end
                     else if(funct3[2:1] === 2'b10) begin
-                        if(~(negative ^ overflow ^ funct3[0]) === 1'b1) begin
+                        if(negative ^ overflow ^ funct3[0] === 1'b1) begin
                             pc_in = pc + immediate;
                             if(pc_src !== 1'b1) begin
                                 $display("Error B-type: pc_src = %b, funct3 = %b", pc_src, funct3);
@@ -234,7 +236,7 @@ module control_unit_tb();
                         end
                     end
                     else if(funct3[2:1] === 2'b11) begin
-                        if(carry_out ^ funct3[0] === 1'b1) begin
+                        if(carry_out ~^ funct3[0] === 1'b1) begin
                             pc_in = pc + immediate;
                             if(pc_src !== 1'b1) begin
                                 $display("Error B-type: pc_src = %b, funct3 = %b", pc_src, funct3);
