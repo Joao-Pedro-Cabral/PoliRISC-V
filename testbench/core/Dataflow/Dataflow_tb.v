@@ -42,24 +42,25 @@ module Dataflow_tb();
     wire overflow;
     wire [63:0] db_reg_data;
     // Sinais da Memória de Instrução
-    reg instruction_mem_enable;
-    reg instruction_mem_busy;
+    reg  instruction_mem_enable;
+    wire instruction_mem_busy;
     // Sinais da Memória de Dados
-    reg data_mem_enable;
-    reg data_mem_write_enable;
-    reg [7:0] data_mem_byte_write_enable;
-    reg data_mem_busy;
+    reg  data_mem_enable;
+    reg  data_mem_write_enable;
+    reg  [7:0] data_mem_byte_write_enable;
+    wire data_mem_busy;
     // Sinais intermediários de teste
-    wire [41:0] LUT_uc [48:0];    // UC simulada com tabela
-    reg  [24:0] df_src;
-    wire [63:0] immediate;
-    reg  [63:0] reg_data;         // write data do banco de registradores
-    wire [63:0] A;                // read data 1 do banco de registradores
-    wire [63:0] B;                // read data 2 do banco de registradores
-    wire [63:0] pc;               // pc
-    reg  [63:0] pc_imm;           // pc + imediato
-    reg  [63:0] pc_4;             // pc + 4
-    wire [63:0] read_data_extend; // dado lido após aplicação da extensão de sinal
+    reg  [41:0]   LUT_uc [48:0];    // UC simulada com tabela
+    wire [2057:0] LUT_linear;     // Tabela acima linearizada
+    reg  [24:0]   df_src;
+    wire [63:0]   immediate;
+    reg  [63:0]   reg_data;         // write data do banco de registradores
+    wire [63:0]   A;                // read data 1 do banco de registradores
+    wire [63:0]   B;                // read data 2 do banco de registradores
+    wire [63:0]   pc;               // pc
+    reg  [63:0]   pc_imm;           // pc + imediato
+    reg  [63:0]   pc_4;             // pc + 4
+    wire [63:0]   read_data_extend; // dado lido após aplicação da extensão de sinal
     // flags da ULA
     wire zero_;
     wire negative_;
@@ -70,6 +71,7 @@ module Dataflow_tb();
     // variáveis
     integer program_size = 50; // tamanho do programa que será executado
     integer i;
+    genvar  j;
 
     // DUT
     Dataflow DUT (.clock(clock), .reset(reset), .instruction(instruction), .instruction_address(instruction_address), .read_data(read_data), .write_data(write_data),
@@ -78,11 +80,11 @@ module Dataflow_tb();
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(32), .addr_size(8), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
-                            .enable(instruction_mem_enable), .addr(instruction_address[7:0]), .data(instruction), .busy(instruction_mem_busy));
+    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(8), .addr_size(9), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+                            .enable(instruction_mem_enable), .addr(instruction_address[8:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
-    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
+    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), 
                         .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
 
     // Componentes auxiliares para a verificação
@@ -107,48 +109,48 @@ module Dataflow_tb();
         #3;
     end
 
+    // geração do LUT linear
+    generate 
+        for(j = 0; j < 49; j = j + 1)
+            assign LUT_linear[42*(j+1)-1:42*j] = LUT_uc[j];
+    endgenerate
+
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [41:0] LUT_uc [48:0]); 
-        integer i;
+    function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2057:0] LUT_linear); 
+            integer i;
         begin
             // U,J : apenas opcode
-            if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
-                for(i = 0; i < 3; i = i + 1) begin
-                    if(opcode === LUT_uc[i][6:0])
-                        find_instruction = LUT_uc[i][41:17];
-                end
-            end
+            if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111)
+                for(i = 0; i < 3; i = i + 1)
+                    if(opcode === LUT_linear[42*i+:7])
+                        find_instruction = LUT_linear[17+42*i+:25];
             // I, S, B: opcode e funct3
             else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 || 
-               opcode === 7'b0010011 || opcode === 7'b0011011) begin
-                for(i = 3; i < 34; i = i + 1) begin
-                    if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7])
+               opcode === 7'b0010011 || opcode === 7'b0011011)
+                for(i = 3; i < 34; i = i + 1)
+                    if(opcode === LUT_linear[42*i+:7] && funct3 === LUT_linear[7+42*i+:3])
                         // SRLI e SRAI: funct7
                         if(funct3 === 3'b101)
-                            if(funct7 === LUT_uc[i][16:10])
-                                find_instruction = LUT_uc[i][41:17];
+                            if(funct7 === LUT_linear[10+42*i+:7])
+                                find_instruction = LUT_linear[17+42*i+:25];
                         else
-                            find_instruction = LUT_uc[i][41:17];
-                end
-            end
+                            find_instruction = LUT_linear[17+42*i+:25];
             // R: opcode, funct3 e funct7
-            else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111) begin
-               for(i = 34; i < 49; i = i + 1) begin
-                    if(opcode === LUT_uc[i][6:0] && funct3 === LUT_uc[i][9:7] && funct7 === LUT_uc[i][16:10])
-                        find_instruction = LUT_uc[i][41:17];
-                end
-            end
+            else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111)
+               for(i = 34; i < 49; i = i + 1)
+                    if(opcode === LUT_linear[42*i+:7] && funct3 === LUT_linear[7+42*i+:3] && funct7 === LUT_linear[10+42*i+:7])
+                        find_instruction = LUT_linear[17+42*i+:25];
             else
                 $display("Function error: opcode = %b", opcode);
         end
     endfunction
 
     function [63:0] ULA_function(input [63:0] A, input [63:0] B, input [3:0] seletor);
-        reg   [63:0] xorB;
-        reg   [63:0] add_sub;
-        reg   overflow;
-        reg   carry_out;
-        reg   negative;
+            reg   [63:0] xorB;
+            reg   [63:0] add_sub;
+            reg   overflow;
+            reg   carry_out;
+            reg   negative;
         begin
             case (seletor)
                 4'b0000:
@@ -215,7 +217,7 @@ module Dataflow_tb();
             #18;
             instruction_mem_enable = 1'b0;
             // Decode
-            df_src = find_instruction(opcode, funct3, funct7, LUT_uc);
+            df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
             // Execute
             alua_src                    = df_src[0];
             alub_src                    = df_src[1];
@@ -341,5 +343,6 @@ module Dataflow_tb();
                 end
             endcase
         end
+        $stop;
     end
 endmodule

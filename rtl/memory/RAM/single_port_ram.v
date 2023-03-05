@@ -5,6 +5,8 @@
 //! @date   2023-02-22
 //
 
+`timescale 1 ns / 100 ps
+
 module single_port_ram
 #(
     parameter ADDR_SIZE=2,
