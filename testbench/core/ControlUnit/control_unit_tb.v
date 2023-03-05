@@ -11,23 +11,23 @@
 module control_unit_tb();
     // sinais do DUT
         // Common
-    wire clock;
-    wire reset;
+    reg  clock;
+    reg  reset;
         // Instruction Memory
     wire instruction_mem_enable;
     wire instruction_mem_busy;
         // Data Memory
     wire data_mem_enable;
     wire [7:0] data_mem_byte_write_enable;
-    wire data_mem_busy;
+    reg  data_mem_busy;
         // From Dataflow
     wire [6:0] opcode;
     wire [2:0] funct3;
     wire [6:0] funct7;
-    wire zero;
-    wire negative;
-    wire carry_out;
-    wire overflow;
+    reg  zero;
+    reg  negative;
+    reg  carry_out;
+    reg  overflow;
         // To Dataflow
     wire alua_src;
     wire alub_src;
@@ -44,17 +44,18 @@ module control_unit_tb();
     // Sinais da Memória de instruções
     wire [31:0] instruction;
     // Sinais do PC
-    wire [63:0] pc_in;
+    reg  [63:0] pc_in;
     wire [63:0] pc;
     // Sinais intermediários de teste
-    wire [41:0]   LUT_uc [48:0];    // UC simulada com tabela
+    reg  [41:0]   LUT_uc [48:0];    // UC simulada com tabela
     wire [2057:0] LUT_linear;       // Tabela acima linearizada
-    wire [24:0]   df_src;           // Produzido pelo LUT
+    reg  [24:0]   df_src;           // Produzido pelo LUT
     wire [24:0]   db_df_src;        // Produzido pela UC
     wire [63:0]   immediate;        // imediato 
     // variáveis
     integer program_size = 1000;  // tamanho do programa que será executado
     integer i;
+    genvar j;
 
     // DUT
     control_unit DUT (.clock(clock), .reset(reset), .instruction_mem_enable(instruction_mem_enable), .instruction_mem_busy(instruction_mem_busy), .data_mem_enable(data_mem_enable), 
@@ -67,15 +68,14 @@ module control_unit_tb();
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
 
    // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(32), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
-                            .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
+    ROM #(.rom_init_file("./MIFs/core/RV64I/random.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+                            .enable(instruction_mem_enable), .addr(pc[9:0]), .data(instruction), .busy(instruction_mem_busy));
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
     assign funct7 = instruction[31:25];
 
     // PC
     register_d #(.N(64), .reset_value(0)) PC_reg (.clock(clock), .reset(reset), .enable(pc_enable), .D(pc_in), .Q(pc));
-    assign instruction_address = pc;
 
 
     // geração do clock
@@ -109,7 +109,7 @@ module control_unit_tb();
                 for(i = 3; i < 34; i = i + 1) begin
                     if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3]) begin
                         // SRLI e SRAI: funct7
-                        if(funct3 === 3'b101) begin
+                        if(funct3 === 3'b101 && opcode[4] == 1'b1) begin
                             if(funct7[6:1] === LUT_linear[26+42*i+:6])
                                 temp = LUT_linear[42*i+:25];
                         end
@@ -144,13 +144,17 @@ module control_unit_tb();
         #2;
         reset = 1'b1;
         #0.5;
-        if(db_df_src !== 18'b0)
+        if(db_df_src !== 18'b0) begin
             $display("Error Idle: db_df_src = %b", db_df_src);
+            $stop;
+        end
         #5.5;
         reset = 1'b0;
         #0.5;
-        if(db_df_src !== 18'b0)
+        if(db_df_src !== 18'b0) begin
             $display("Error Idle: db_df_src = %b", db_df_src);
+            $stop;
+        end
         #5.5;
         for(i = 0; i < program_size; i = i + 1) begin
             $display("Test: %d", i);
@@ -163,26 +167,33 @@ module control_unit_tb();
                 $display("Error Fetch: pc_enable = %b, write_register_enable = %b, instruction_mem_enable = %b", pc_enable, write_register_enable, instruction_mem_enable);
             wait (instruction_mem_busy == 1'b1);
             wait (instruction_mem_busy == 1'b0);
-            #3;
+            #9;
             // Decode
             df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
             #1;
-            if(pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b0)
-                $display("Error End-Fetch: pc_enable = %b, write_register_enable = %b, instruction_mem_enable = %b", pc_enable, write_register_enable, instruction_mem_enable);
+            if(pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b0) begin
+                $display("Error Decode: pc_enable = %b, write_register_enable = %b, instruction_mem_enable = %b", pc_enable, write_register_enable, instruction_mem_enable);
+                $stop;
+            end
             #6;
             // Execute -> Não testo pc_src para instruções do tipo B e write_register_enable para Load
-            if({df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[24:16], df_src[14:10], df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011) || (df_src[9] !== db_df_src[9] && opcode !== 7'b0000011))
+            if({df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[24:16], df_src[14:10], df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011) 
+                    || (df_src[9] !== db_df_src[9] && opcode !== 7'b0000011)) begin
                 $display("Error Execute: df_src = %b, db_df_src = %b", df_src, db_df_src);
+                $stop;
+            end
             // Testar pc_enable e incrementar pc
             case(opcode)
                 // Store(S*) e Load(L*)
                 7'b0100011, 7'b0000011: begin
                     pc_in = pc + 4;
-                    wait (data_mem_busy == 1'b1);
-                    wait (data_mem_busy == 1'b0);
+                    #2;
+                    data_mem_busy = 1'b1;
+                    #12;
+                    data_mem_busy = 1'b0;
                     #4;
                     if(pc_enable !== 1'b1 || write_register_enable !== df_src[9] || data_mem_enable !== 1'b0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Store/Load Error: pc_enable = %b, write_register_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b, opcode = %b", pc_enable, write_register_enable, data_mem_enable, data_mem_byte_write_enable, opcode);
+                        $display("Store/Load Error: pc_enable = %b, write_register_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b, opcode = %b, funct3 = %b", pc_enable, write_register_enable, data_mem_enable, data_mem_byte_write_enable, opcode, funct3);
                         $stop;
                     end
                     #6;
@@ -203,7 +214,7 @@ module control_unit_tb();
                                 $display("Error B-type: pc_src = %b, funct3 = %b", pc_src, funct3);
                                 $stop;
                             end
-                            pc = pc + 4;
+                            pc_in = pc + 4;
                         end
                     end
                     else if(funct3[2:1] === 2'b10) begin
@@ -245,7 +256,7 @@ module control_unit_tb();
                 // JAL e JALR
                 7'b1101111, 7'b1100111: begin
                     if(pc_enable !== 1'b1) begin
-                        $display("PC enable error: pc_enable = %b, opcode = %b", pc_enable, opcode);
+                        $display("Error J-type: pc_enable = %b, opcode = %b", pc_enable, opcode);
                         $stop;
                     end
                     pc_in = pc + immediate;
@@ -254,7 +265,7 @@ module control_unit_tb();
                 // U-type & ULA R/I-type
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011, 7'b0110111, 7'b0010111: begin
                     if(pc_enable !== 1'b1) begin
-                        $display("PC enable error: pc_enable = %b, opcode = %b", pc_enable, opcode);
+                        $display("Error U/R/I-type: pc_enable = %b, opcode = %b", pc_enable, opcode);
                         $stop;
                     end
                     pc_in = pc + 4;
@@ -266,4 +277,5 @@ module control_unit_tb();
                 end
             endcase
         end
+    end
 endmodule

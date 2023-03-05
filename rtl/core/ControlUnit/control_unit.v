@@ -85,10 +85,8 @@ module control_unit
 
     // lógica da mudança de estados
     always @(posedge clock, reset) begin
-        if(reset) begin
-            zera_sinais;
-            estado_atual <= fetch;
-        end
+        if(reset)
+            estado_atual <= idle;
         else if(clock == 1'b1)
             estado_atual <= proximo_estado;
     end
@@ -118,7 +116,7 @@ module control_unit
     wire bltu_bgeu = carry_out ~^ funct3[0];
 
     // máquina de estados principal
-    always @(posedge clock) begin
+    always @(estado_atual, reset) begin
 
         zera_sinais;
 
@@ -141,23 +139,26 @@ module control_unit
             begin
                 if(opcode[1:0] != 2'b11)
                     proximo_estado <= halt;
-                else if(opcode[4]==1'b1)
-                    if(opcode[5]==1'b1)
+                else if(opcode[4]==1'b1) begin
+                    if(opcode[5]==1'b1) begin
                         if(opcode[2]==1'b0)
                             proximo_estado <= registrador_registrador;
                         else if(opcode[3]==1'b0 && opcode[6]==1'b0)
                             proximo_estado <= lui;
                         else
                             proximo_estado <= halt;
-                    else
+                    end
+                    else begin
                         if(opcode[2]==1'b0)
                             proximo_estado <= registrador_imediato;
                         else if(opcode[3]==1'b0 && opcode[6]==1'b0)
                             proximo_estado <= auipc;
                         else
                             proximo_estado <= halt;
-                else
-                    if(opcode[6]==1'b1)
+                    end
+                end
+                else begin
+                    if(opcode[6]==1'b1) begin
                         if(opcode[3]==1'b1)
                             proximo_estado <= jal;
                         else if(opcode[2]==1'b0)
@@ -166,13 +167,16 @@ module control_unit
                             proximo_estado <= jalr;
                         else
                             proximo_estado <= halt;
-                    else
+                    end
+                    else begin
                         if(opcode[5]==1'b0)
                             proximo_estado <= load;
                         else if(opcode[2]==1'b0 && opcode[3]==1'b0)
                             proximo_estado <= store;
                         else
                             proximo_estado <= halt;
+                    end
+                end
             end
 
             registrador_registrador:
@@ -203,7 +207,7 @@ module control_unit
             begin
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
-                arithmetic <= funct7[5];
+                arithmetic <= funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;

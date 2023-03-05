@@ -1,4 +1,4 @@
-TOPLEVEL= "Dataflow"
+TOPLEVEL= "control_unit"
 
 action   = "simulation"
 sim_tool = "modelsim"

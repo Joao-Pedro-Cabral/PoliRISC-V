@@ -131,7 +131,7 @@ module Dataflow_tb();
                 for(i = 3; i < 34; i = i + 1) begin
                     if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3]) begin
                         // SRLI e SRAI: funct7
-                        if(funct3 === 3'b101) begin
+                        if(funct3 === 3'b101 && opcode[4] == 1'b1) begin
                             if(funct7[6:1] === LUT_linear[26+42*i+:6])
                                 temp = LUT_linear[42*i+:25];
                         end

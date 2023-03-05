@@ -166,16 +166,16 @@ module RV64I_tb();
                 7'b0100011, 7'b0000011:
                     #0.5;
                     if(data_address !== A + immediate) begin
-                        $display("Error Load/Store: data_address = %b, A = %b, immediate = %b, opcode = %b", data_address, A, immediate, opcode);
+                        $display("Error Load/Store: data_address = %b, A = %b, immediate = %b, opcode = %b, funct3 = %b", data_address, A, immediate, opcode, funct3);
                         $stop;
                     end
                     if(opcode[5] === 1'b1 && write_data !== B) begin
-                        $display("Error Store: write_data = %b, B = %b", write_data, B);
+                        $display("Error Store: write_data = %b, B = %b, funct3 = %b", write_data, B, funct3);
                         $stop;
                     end
                     #17.5
                     if(opcode[5] === 1'b0 && db_reg_data !== read_data_extend) begin
-                        $display("Error Load: db_reg_data = %b, read_data_extend = %b", db_reg_data, read_data_extend);
+                        $display("Error Load: db_reg_data = %b, read_data_extend = %b, funct3 = %b", db_reg_data, read_data_extend, funct3);
                         $stop;
                     end
                     #6;
@@ -255,7 +255,7 @@ module RV64I_tb();
                 end
                 default: begin
                     $display("Error opcode case: opcode = %b", opcode);
-                    #6;
+                    $stop;
                 end
             endcase
         end
