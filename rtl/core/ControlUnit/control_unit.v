@@ -58,7 +58,8 @@ module control_unit
         jalr = 4'h8,
         load = 4'h9,
         store = 4'hA,
-        halt = 4'hB;
+        halt = 4'hB,
+        idle = 4'hC;
 
     reg [3:0] estado_atual, proximo_estado;
 
@@ -122,6 +123,14 @@ module control_unit
         zera_sinais;
 
         case(estado_atual) // synthesis parallel_case
+            idle:
+            begin
+                if(reset == 1'b1)
+                    proximo_estado <= idle;
+                else
+                    proximo_estado <= fetch;
+            end
+
             fetch:
             begin
                 espera_instruction_mem;
