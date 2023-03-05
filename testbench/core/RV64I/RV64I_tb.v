@@ -9,20 +9,20 @@
 
 module RV64I_tb();
     // sinais do DUT
-    wire clock,
-    wire reset,
+    reg  clock;
+    reg  reset;
         // Data Memory
-    wire [63:0] read_data,
-    wire [63:0] write_data,
-    wire [63:0] data_address,
-    wire data_mem_busy,
-    wire data_mem_enable,
-    wire [7:0] data_mem_byte_write_enable,
+    wire [63:0] read_data;
+    wire [63:0] write_data;
+    wire [63:0] data_address;
+    wire data_mem_busy;
+    wire data_mem_enable;
+    wire [7:0] data_mem_byte_write_enable;
         // Instruction Memory
-    wire [31:0] instruction,
-    wire [63:0] instruction_address,
-    wire instruction_mem_busy,
-    wire instruction_mem_enable,
+    wire [31:0] instruction;
+    wire [63:0] instruction_address;
+    wire instruction_mem_busy;
+    wire instruction_mem_enable;
         // depuracao
     wire [63:0] db_reg_data;
     // Sinais intermediários de teste
@@ -40,11 +40,12 @@ module RV64I_tb();
     reg  [63:0] pc_imm;           // pc + imediato
     reg  [63:0] pc_4;             // pc + 4
     wire [63:0] read_data_extend; // dado lido após aplicação da extensão de sinal
+    wire [2:0]  read_data_src;
     // flags da ULA
-    wire zero_;
-    wire negative_;
-    wire carry_out_;
-    wire overflow_;
+    wire zero;
+    wire negative;
+    wire carry_out;
+    wire overflow;
     wire [63:0] xorB;
     wire [63:0] add_sub;
     // variáveis
@@ -57,11 +58,11 @@ module RV64I_tb();
     .instruction_mem_busy(instruction_mem_busy), .instruction_mem_enable(instruction_mem_enable), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(32), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
-    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address[7:0]), .write_data(write_data), 
+    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), 
                 .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));    
 
     // Componentes auxiliares para a verificação
@@ -70,6 +71,7 @@ module RV64I_tb();
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 
     // geração do read_data_extended
+    assign read_data_src           = {~funct3[2], funct3[1:0]};
     assign read_data_extend[7:0]   = read_data[7:0];
     assign read_data_extend[15:8]  = (read_data_src[1] | read_data_src[0]) ? read_data[15:8] : ({8{read_data[7] & read_data_src[2]}});
     assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
@@ -138,10 +140,10 @@ module RV64I_tb();
 
     // flags da ULA -> B-type
     assign xorB                  = B ^ 64'sb11;
-    assign {carry_out_, add_sub} = A + xorB + 64'b01; 
-    assign zero_                 = ~(|add_sub);
-    assign negative_             = add_sub[63];
-    assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
+    assign {carry_out, add_sub} = A + xorB + 64'b01; 
+    assign zero                 = ~(|add_sub);
+    assign negative             = add_sub[63];
+    assign overflow             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
 
     // geração data mem byte write enable
     assign data_mem_byte_write_enable_ = funct3[1] ? (funct3[0] ? 8'hFF : 8'h0F) : (funct3[0] ? 8'h03 : 8'h01);
@@ -186,7 +188,7 @@ module RV64I_tb();
             // Execute -> Teste
             case (opcode)
                 // Store(S*) e Load(L*)
-                7'b0100011, 7'b0000011:
+                7'b0100011, 7'b0000011: begin
                     #0.5;
                     if(data_address !== A + immediate) begin
                         $display("Error Load/Store: data_address = %b, A = %b, immediate = %b, opcode = %b, funct3 = %b", data_address, A, immediate, opcode, funct3);
@@ -210,8 +212,9 @@ module RV64I_tb();
                         $stop;
                     end
                     #6;
+                end
                 // Branch(B*)
-                7'b1100011:
+                7'b1100011: begin
                     if(funct3[2:1] === 2'b00)
                         pc_src = ~(zero ^ funct3[0]);
                     else if(funct3[2:1] === 2'b10)
@@ -224,10 +227,6 @@ module RV64I_tb();
                     pc_imm                = pc + immediate;
                     write_register_enable = 1'b0;
                     #0.5;
-                    if(overflow !== overflow_ || carry_out !== carry_out_ || negative !== negative_ || zero !== zero_) begin
-                        $display("Error B-type flags: overflow = %b, carry_out = %b, negative = %b, zero = %b, funct3 = %b", overflow, carry_out, negative, zero, funct3);
-                        $stop;
-                    end
                     if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
                         $display("Error B-type: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
                         $stop;
@@ -238,8 +237,9 @@ module RV64I_tb();
                         $stop;
                     end
                     #3;
+                end
                 // LUI e AUIPC
-                7'b0110111, 7'b0010111:
+                7'b0110111, 7'b0010111: begin
                     write_register_enable = 1'b1;
                     if(opcode[5] === 1)
                         reg_data = immediate;
@@ -255,8 +255,9 @@ module RV64I_tb();
                         $stop;
                     end
                     #5.5;
+                end
                 // JAL e JALR
-                7'b1101111, 7'b1100111:
+                7'b1101111, 7'b1100111: begin
                     write_register_enable = 1'b1;
                     if(opcode[3] === 1'b1)
                         pc_imm    = instruction_address + immediate;
@@ -278,6 +279,7 @@ module RV64I_tb();
                         $stop;    
                     end
                     #3;
+                end
                 // ULA R/I-type
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
                     write_register_enable = 1'b1;
@@ -286,7 +288,7 @@ module RV64I_tb();
                     else if(funct3 === 3'b101)
                         reg_data = ULA_function(A, immediate, {funct7[5], funct3});
                     else
-                        reg_data = ULA_function(A, immediate, {funct7[5], funct3});
+                        reg_data = ULA_function(A, immediate, {1'b0, funct3});
                     if(opcode[3] === 1'b1)
                         reg_data = {{32{reg_data[31]}},reg_data[31:0]};
                     #0.5;

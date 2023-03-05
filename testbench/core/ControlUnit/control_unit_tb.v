@@ -179,7 +179,7 @@ module control_unit_tb();
             end
             #6;
             // Execute -> Não testo pc_src para instruções do tipo B e write_register_enable para Load
-            if({df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[24:16], df_src[14:10], df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011)
+            if({df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[24:16], db_df_src[14:10], db_df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011)
                     || (df_src[9] !== db_df_src[9] && opcode !== 7'b0000011)) begin
                 $display("Error Execute: df_src = %b, db_df_src = %b", df_src, db_df_src);
                 $stop;
