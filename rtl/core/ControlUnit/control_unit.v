@@ -262,7 +262,6 @@ module control_unit
                 read_data_src <= funct3 ^ 3'b100;
                 espera_data_mem;
                 pc_enable <= 1'b1;
-                write_register_src <= 2'b00;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
