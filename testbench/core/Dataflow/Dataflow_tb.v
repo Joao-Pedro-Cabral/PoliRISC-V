@@ -209,7 +209,7 @@ module Dataflow_tb();
 
     // testar o DUT
     initial begin
-        $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
+        $readmemb("./MIFs/core/RV64I/power.mif", LUT_uc);
         $display("SOT!");
         pc_enable = 1'b0;
         write_register_enable = 1'b0;
@@ -226,8 +226,8 @@ module Dataflow_tb();
             write_register_enable = 1'b0;
             instruction_mem_enable = 1'b1;
             wait (instruction_mem_busy == 1'b1);
-            instruction_mem_enable = 1'b0;
             wait (instruction_mem_busy == 1'b0);
+            instruction_mem_enable = 1'b0;
             #3.9;
             // Decode
             df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
