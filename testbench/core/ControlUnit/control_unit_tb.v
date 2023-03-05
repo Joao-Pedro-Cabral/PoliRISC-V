@@ -68,7 +68,7 @@ module control_unit_tb();
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
 
    // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/branches.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./MIFs/core/RV64I/random.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(instruction_mem_enable), .addr(pc[9:0]), .data(instruction), .busy(instruction_mem_busy));
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];

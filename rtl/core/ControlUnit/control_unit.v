@@ -115,7 +115,7 @@ module control_unit
     wire blt_bge = (negative ^ overflow) ^ funct3[0];
     wire bltu_bgeu = carry_out ~^ funct3[0];
     wire cond = funct3[1]==0 ? funct3[2]==0 ? beq_bne : blt_bge : bltu_bgeu;
-    wire [7:0] byte_enable = funct[1]==0 ? (funct[0]==0 ? 8'h01 : 8'h03) : (funct[0]==0 ? 8'h0F : 8'hFF);
+    wire [7:0] byte_enable = funct3[1]==0 ? (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF);
 
     // máquina de estados principal
     always @(estado_atual, reset, cond, byte_enable) begin
