@@ -43,7 +43,7 @@ module full_barrel_shifter_tb;
 
     integer i;
     initial begin
-        $readmemb("./MIFs/core/ULA/casos_de_teste.mif", casos_de_teste);
+        $readmemb("./MIFs/core/ULA/casos_de_teste_fbs.mif", casos_de_teste);
         {in_data, shamt, left_or_right_shift, arithmetic_right_shift}=0;
 
         $display("SOT!");
