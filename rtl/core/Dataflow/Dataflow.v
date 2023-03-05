@@ -99,7 +99,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
 
     // Atribuições intermediárias
         // Mascarar LUI np Rs1
-    assign reg_addr_source_1 = instruction[19:15] & {4{(~(instruction[4] & instruction[2]))}};
+    assign reg_addr_source_1 = instruction[19:15] & {5{(~(instruction[4] & instruction[2]))}};
     assign muxaluY_out[31:0] = aluY[31:0];
         // Estender com/sem sinal 
     assign read_data_extend[7:0]   = read_data[7:0];

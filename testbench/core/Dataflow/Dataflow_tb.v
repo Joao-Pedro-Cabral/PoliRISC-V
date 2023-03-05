@@ -68,7 +68,7 @@ module Dataflow_tb();
     wire [63:0] xorB;
     wire [63:0] add_sub;
     // variáveis
-    integer program_size = 1000; // tamanho do programa que será executado
+    integer program_size = 10000; // tamanho do programa que será executado
     integer i;
     genvar  j;
 
@@ -79,7 +79,7 @@ module Dataflow_tb();
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/random.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
@@ -88,7 +88,7 @@ module Dataflow_tb();
 
     // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
-    register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
+    register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15] & {5{(~(instruction[4] & instruction[2]))}}),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 
     // geração do read_data_extended
@@ -209,7 +209,7 @@ module Dataflow_tb();
 
     // testar o DUT
     initial begin
-        $readmemb("./MIFs/core/RV64I/power.mif", LUT_uc);
+        $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         pc_enable = 1'b0;
         write_register_enable = 1'b0;
@@ -320,10 +320,10 @@ module Dataflow_tb();
                         pc_imm    = instruction_address + immediate;
                     else
                         pc_imm    = (A + immediate) << 1;
-                    pc_4 = pc + 4;
+                    reg_data = pc + 4;
                     #0.5;
-                    if(db_reg_data !== pc_4) begin
-                        $display("Error JAL/JALR: reg_data = %b, pc + 4 = %b, opcode = %b", db_reg_data, pc_4, opcode);
+                    if(db_reg_data !== reg_data) begin
+                        $display("Error JAL/JALR: reg_data = %b, reg_data = %b, opcode = %b", db_reg_data, reg_data, opcode);
                         $stop;
                     end
                     #2.5;
