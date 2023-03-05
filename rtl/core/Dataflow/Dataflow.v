@@ -93,6 +93,9 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
         // Data Memory
     gen_mux       #(.size(32), .N(2))        mux_read_data    (.A({read_data[63:32], {32{read_data[31] & read_data_src[2]}},
         {32{read_data[15] & read_data_src[2]}}, {32{read_data[7] & read_data_src[2]}}}), .S(read_data_src[1:0]), .Y(read_data_extend[63:32]));
+        // Immediate Extender
+    ImmediateExtender                        estende_imediato (.instruction(instruction), .immediate(immediate));
+
 
     // Atribuições intermediárias
         // Mascarar LUI np Rs1

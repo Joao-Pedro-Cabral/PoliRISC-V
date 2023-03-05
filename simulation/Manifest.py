@@ -1,4 +1,4 @@
-TOPLEVEL= "ULA"
+TOPLEVEL= "Dataflow"
 
 action   = "simulation"
 sim_tool = "modelsim"

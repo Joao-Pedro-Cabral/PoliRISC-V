@@ -51,7 +51,7 @@ module Dataflow_tb();
     wire data_mem_busy;
     // Sinais intermediários de teste
     reg  [41:0]   LUT_uc [48:0];    // UC simulada com tabela
-    wire [2057:0] LUT_linear;     // Tabela acima linearizada
+    wire [2057:0] LUT_linear;       // Tabela acima linearizada
     reg  [24:0]   df_src;
     wire [63:0]   immediate;
     reg  [63:0]   reg_data;         // write data do banco de registradores
@@ -69,7 +69,7 @@ module Dataflow_tb();
     wire [63:0] xorB;
     wire [63:0] add_sub;
     // variáveis
-    integer program_size = 50; // tamanho do programa que será executado
+    integer program_size = 100; // tamanho do programa que será executado
     integer i;
     genvar  j;
 
@@ -118,30 +118,50 @@ module Dataflow_tb();
     // função para determinar os seletores a partir do opcode, funct3 e funct7
     function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2057:0] LUT_linear); 
             integer i;
+            reg [24:0] temp;
         begin
             // U,J : apenas opcode
             if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111)
-                for(i = 0; i < 3; i = i + 1)
-                    if(opcode === LUT_linear[42*i+:7])
-                        find_instruction = LUT_linear[17+42*i+:25];
+                for(i = 0; i < 3; i = i + 1) begin
+                    //$display("LUT_linear[35+42*i+:7] = %b, LUT_linear[32+42*i+:3] = %b, LUT_linear[25+42*i+:7] = %b", LUT_linear[35+42*i+:7], LUT_linear[32+42*i+:3], LUT_linear[25+42*i+:7]);
+                    if(opcode == LUT_linear[35+42*i+:7])
+                        temp = LUT_linear[42*i+:25];
+                end
             // I, S, B: opcode e funct3
             else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 || 
-               opcode === 7'b0010011 || opcode === 7'b0011011)
-                for(i = 3; i < 34; i = i + 1)
-                    if(opcode === LUT_linear[42*i+:7] && funct3 === LUT_linear[7+42*i+:3])
+                opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111)
+                for(i = 3; i < 34; i = i + 1) begin
+                    //$display("LUT_linear[35+42*i+:7] = %b, LUT_linear[32+42*i+:3] = %b, LUT_linear[25+42*i+:7] = %b, LUT_linear[42*i+:25] = %b", LUT_linear[35+42*i+:7], LUT_linear[32+42*i+:3], LUT_linear[25+42*i+:7], LUT_linear[42*i+:25]);
+                    if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3]) begin
+                        //$display("A1");
                         // SRLI e SRAI: funct7
-                        if(funct3 === 3'b101)
-                            if(funct7 === LUT_linear[10+42*i+:7])
-                                find_instruction = LUT_linear[17+42*i+:25];
-                        else
-                            find_instruction = LUT_linear[17+42*i+:25];
+                        if(funct3 === 3'b101) begin
+                            //$display("A2");
+                            if(funct7 === LUT_linear[25+42*i+:7]) begin
+                                //$display("A3");
+                                temp = LUT_linear[42*i+:25];
+                            end
+                        end
+                        else begin
+                            //$display("A4");
+                            temp = LUT_linear[42*i+:25];
+                        end
+                    end
+                    //$display("A5");
+                end
             // R: opcode, funct3 e funct7
-            else if(opcode === 7'b0111011 || opcode === 7'b0110011 || opcode === 7'b1100111)
-               for(i = 34; i < 49; i = i + 1)
-                    if(opcode === LUT_linear[42*i+:7] && funct3 === LUT_linear[7+42*i+:3] && funct7 === LUT_linear[10+42*i+:7])
-                        find_instruction = LUT_linear[17+42*i+:25];
-            else
+            else if(opcode === 7'b0111011 || opcode === 7'b0110011)
+               for(i = 34; i < 49; i = i + 1) begin
+                    //$display("LUT_linear[35+42*i+:7] = %b, LUT_linear[32+42*i+:3] = %b, LUT_linear[25+42*i+:7] = %b", LUT_linear[35+42*i+:7], LUT_linear[32+42*i+:3], LUT_linear[25+42*i+:7]);
+                    if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3] && funct7 === LUT_linear[25+42*i+:7])
+                        temp = LUT_linear[42*i+:25];
+                end
+            else begin
                 $display("Function error: opcode = %b", opcode);
+                $stop;
+            end
+            $display("temp: %b", temp);
+            find_instruction = temp;
         end
     endfunction
 
@@ -154,7 +174,7 @@ module Dataflow_tb();
         begin
             case (seletor)
                 4'b0000:
-                    ULA_function = A + B;
+                    ULA_function = $signed(A) + $signed(B);
                 4'b0001:
                     ULA_function = A << (B[5:0]);
                 4'b0010: begin
@@ -178,7 +198,7 @@ module Dataflow_tb();
                 4'b0111:
                     ULA_function = A | B;
                 4'b1000:
-                    ULA_function = A - B;
+                    ULA_function = $signed(A) - $signed(B);
                 4'b1101:
                     ULA_function = $signed(A) >>> (B[5:0]);
                 default: begin
@@ -190,7 +210,7 @@ module Dataflow_tb();
     endfunction
 
     // flags da ULA -> B-type
-    assign xorB                  = B ^ 64'sb11;
+    assign xorB                  = B ^ {64{1'b1}};
     assign {carry_out_, add_sub} = A + xorB + 64'b01; 
     assign zero_                 = ~(|add_sub);
     assign negative_             = add_sub[63];
@@ -214,27 +234,30 @@ module Dataflow_tb();
             pc_enable = 1'b0;
             write_register_enable = 1'b0;
             instruction_mem_enable = 1'b1;
-            #18;
+            wait (instruction_mem_busy == 1'b1);
             instruction_mem_enable = 1'b0;
+            wait (instruction_mem_busy == 1'b0);
+            #3.9;
             // Decode
             df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
+            #0.1;
             // Execute
-            alua_src                    = df_src[0];
-            alub_src                    = df_src[1];
-            aluy_src                    = df_src[2];
-            alu_src                     = df_src[5:3];
-            carry_in                    = df_src[6];
-            arithmetic                  = df_src[7];
-            alupc_src                   = df_src[8];
-            read_data_src               = df_src[12:10];
-            write_register_src          = df_src[14:13];
-            data_mem_enable             = df_src[16];
-            data_mem_byte_write_enable  = df_src[24:17];
+            alua_src                    = df_src[24];
+            alub_src                    = df_src[23];
+            aluy_src                    = df_src[22];
+            alu_src                     = df_src[21:19];
+            carry_in                    = df_src[18];
+            arithmetic                  = df_src[17];
+            alupc_src                   = df_src[16];
+            read_data_src               = df_src[14:12];
+            write_register_src          = df_src[11:10];
+            data_mem_enable             = df_src[8];
+            data_mem_byte_write_enable  = df_src[7:0];
             // Executa e Testa
             case (opcode)
                 // Store(S*) e Load(L*)
                 7'b0100011, 7'b0000011: begin
-                    pc_src = df_src[9];
+                    pc_src = df_src[15];
                     #0.5;
                     if(data_address !== A + immediate)
                         if(opcode[5] === 1'b1)
@@ -243,11 +266,13 @@ module Dataflow_tb();
                             $display("Error Load: data_address = %b, A = %b, immediate = %b", data_address, A, immediate);
                     if(opcode[5] === 1'b1 && write_data !== B)
                         $display("Error Store: write_data = %b, B = %b", write_data, B);
-                    #13.5
+                    #2.5;
+                    data_mem_enable = 1'b0;
+                    #15;
                     if(opcode[5] === 1'b0 && db_reg_data !== read_data_extend)
                         $display("Error Load: db_reg_data = %b, read_data_extend = %b", db_reg_data, read_data_extend);
                     pc_enable = 1'b1;
-                    #4;
+                    #6;
                 end
                 // Branch(B*)
                 7'b1100011: begin
@@ -262,20 +287,20 @@ module Dataflow_tb();
                     pc_4                  = pc + 4;
                     pc_imm                = pc + immediate;
                     pc_enable             = 1'b1;
-                    write_register_enable = df_src[15];
+                    write_register_enable = df_src[9];
                     #0.5;
                     if(overflow !== overflow_ || carry_out !== carry_out_ || negative !== negative_ || zero !== zero_)
                         $display("Error B-type flags: overflow = %b, carry_out = %b, negative = %b, zero = %b", overflow, carry_out, negative, zero);
-                    #1.5;
+                    #2.5;
                     if((pc_src === 1 && pc_imm !== instruction_address) || (pc_src === 0 && pc_4 !== instruction_address))
                         $display("Error B-type PC: pc_src = %b, pc_imm = %b, pc_4 = %b, pc = %b", pc_src, pc_imm, pc_4, instruction_address);
-                    #4;
+                    #3;
                 end
                 // LUI e AUIPC
                 7'b0110111, 7'b0010111: begin
-                    pc_src    = df_src[9];
+                    pc_src    = df_src[15];
                     pc_enable = 1'b1;
-                    write_register_enable = df_src[15];
+                    write_register_enable = df_src[9];
                     if(opcode[5] === 1)
                         reg_data = immediate;
                     else
@@ -290,11 +315,11 @@ module Dataflow_tb();
                 end
                 // JAL e JALR
                 7'b1101111, 7'b1100111: begin
-                    pc_src    = df_src[9];
+                    pc_src    = df_src[15];
                     pc_enable = 1'b1;
-                    write_register_enable = df_src[15];
+                    write_register_enable = df_src[9];
                     if(opcode[3] === 1'b1)
-                        pc_imm    = instruction_address + 4;
+                        pc_imm    = instruction_address + immediate;
                     else
                         pc_imm    = (A + immediate) << 1;
                     pc_4 = pc + 4;
@@ -304,23 +329,20 @@ module Dataflow_tb();
                             $display("Error JAL: reg_data = %b, pc + 4 = %b", db_reg_data, pc_4);
                         else
                             $display("Error JALR: reg_data = %b, pc + 4 = %b", db_reg_data, pc_4); 
-                    #1.5;
+                    #2.5;
                     if(pc_imm !== instruction_address)
-                        if(opcode[3] === 1'b1)
-                            $display("Error JAL: pc_imm = %b, instruction_address = %b", pc_imm, instruction_address);
-                        else
-                            $display("Error JALR: pc_imm = %b, instruction_address = %b", pc_imm, instruction_address);   
-                    #4;
+                        $display("Error JAL/JALR: pc_imm = %b, instruction_address = %b", pc_imm, instruction_address);  
+                    #3;
                 end
                 // ULA R/I-type
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
-                    pc_src    = df_src[9];
+                    pc_src    = df_src[15];
                     pc_enable = 1'b1;
-                    write_register_enable = df_src[15];
-                    if(opcode[5] === 1'b1)
+                    write_register_enable = df_src[9];
+                    if(opcode[5] === 1'b1 || funct3 === 3'b101)
                         reg_data = ULA_function(A, B, {funct7[5], funct3});
                     else
-                        reg_data = ULA_function(A, immediate, {funct7[5], funct3});
+                        reg_data = ULA_function(A, immediate, {1'b0, funct3});
                     if(opcode[3] === 1'b1)
                         reg_data = {{32{reg_data[31]}},reg_data[31:0]};
                     #0.5;
