@@ -51,7 +51,7 @@ module Dataflow_tb();
     wire data_mem_busy;
     // Sinais intermediários de teste
     reg  [41:0]   LUT_uc [48:0];    // UC simulada com tabela
-    wire [2057:0] LUT_linear;     // Tabela acima linearizada
+    wire [2057:0] LUT_linear;       // Tabela acima linearizada
     reg  [24:0]   df_src;
     wire [63:0]   immediate;
     reg  [63:0]   reg_data;         // write data do banco de registradores
