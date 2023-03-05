@@ -115,9 +115,10 @@ module control_unit
     wire blt_bge = (negative ^ overflow) ^ funct3[0];
     wire bltu_bgeu = carry_out ~^ funct3[0];
     wire cond = funct3[1]==0 ? funct3[2]==0 ? beq_bne : blt_bge : bltu_bgeu;
+    wire [7:0] byte_enable = funct[1]==0 ? (funct[0]==0 ? 8'h01 : 8'h03) : (funct[0]==0 ? 8'h0F : 8'hFF);
 
     // máquina de estados principal
-    always @(estado_atual, reset, cond) begin
+    always @(estado_atual, reset, cond, byte_enable) begin
 
         zera_sinais;
 
@@ -269,13 +270,7 @@ module control_unit
 
             store:
             begin
-                case(funct3[1:0]) // synthesis parallel_case
-                    00: data_mem_byte_write_enable <= 8'h01; // SB
-                    01: data_mem_byte_write_enable <= 8'h03; // SH
-                    10: data_mem_byte_write_enable <= 8'h0F; // SW
-                    11: data_mem_byte_write_enable <= 8'hFF; // SD
-                    default: data_mem_byte_write_enable <= 8'h00; // inalcançável
-                endcase
+                data_mem_byte_write_enable <= byte_enable;
                 espera_data_mem;
                 data_mem_byte_write_enable <= 8'b0;
                 pc_enable <= 1'b1;
