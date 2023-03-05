@@ -25,6 +25,8 @@ module single_port_ram
     output reg busy
 
 );
+    reg busy_flag;
+
     function automatic [ADDR_SIZE-1:0] offset_and_truncate_address(input [DATA_SIZE-1:0] addr, input integer offset);
       offset_and_truncate_address = addr + offset;
     endfunction
@@ -47,15 +49,19 @@ module single_port_ram
         end
     endgenerate
 
+    always @* begin
+        if(chip_select === 1'b1 && busy_flag !== 1'b1)
+            if(output_enable === 1'b1 || byte_write_enable !== 0)
+                busy_flag <= 1'b1;
+    end
+
     always @ (posedge clk) begin
-        if(chip_select == 1)
-            if(output_enable == 1 || byte_write_enable != 0) begin
-                busy = 1'b1;
-                #(BUSY_TIME);
-                busy = 1'b0;
-            end
-            else
-                busy = 1'b0;
+        if(busy_flag === 1'b1)
+            busy = 1'b1;
+            #(BUSY_TIME);
+            busy = 1'b0;
+            busy_flag = 1'b0;
+        end
     end
 
 endmodule
