@@ -1,4 +1,4 @@
-TOPLEVEL= "left_barrel_shifter"
+TOPLEVEL= "ULA"
 
 action   = "simulation"
 sim_tool = "modelsim"
