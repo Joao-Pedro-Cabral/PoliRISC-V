@@ -181,8 +181,8 @@ module control_unit_tb();
                     wait (data_mem_busy == 1'b1);
                     wait (data_mem_busy == 1'b0);
                     #4;
-                    if(pc_enable !== 1'b1 || write_register_enable !== df_src[9]) begin
-                        $display("Store/Load Error: pc_enable = %b, write_register_enable = %b, opcode = %b", pc_enable, write_register_enable, opcode);
+                    if(pc_enable !== 1'b1 || write_register_enable !== df_src[9] || data_mem_enable !== 1'b0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Store/Load Error: pc_enable = %b, write_register_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b, opcode = %b", pc_enable, write_register_enable, data_mem_enable, data_mem_byte_write_enable, opcode);
                         $stop;
                     end
                     #6;

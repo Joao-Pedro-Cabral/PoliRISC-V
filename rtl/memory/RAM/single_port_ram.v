@@ -50,13 +50,13 @@ module single_port_ram
     endgenerate
 
     always @* begin
-        if(chip_select === 1'b1 && busy_flag !== 1'b1)
+        if(chip_select === 1'b1)
             if(output_enable === 1'b1 || byte_write_enable !== 0)
                 busy_flag <= 1'b1;
     end
 
     always @ (posedge clk) begin
-        if(busy_flag === 1'b1)
+        if(busy_flag === 1'b1) begin
             busy = 1'b1;
             #(BUSY_TIME);
             busy = 1'b0;

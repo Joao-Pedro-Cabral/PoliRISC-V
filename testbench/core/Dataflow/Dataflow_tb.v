@@ -46,7 +46,6 @@ module Dataflow_tb();
     wire instruction_mem_busy;
     // Sinais da Memória de Dados
     reg  data_mem_enable;
-    reg  data_mem_write_enable;
     reg  [7:0] data_mem_byte_write_enable;
     wire data_mem_busy;
     // Sinais intermediários de teste
@@ -259,9 +258,8 @@ module Dataflow_tb();
                         $display("Error Store: write_data = %b, B = %b", write_data, B);
                         $stop;
                     end
-                    #2.5;
+                    #17.5;
                     data_mem_enable = 1'b0;
-                    #15;
                     if(opcode[5] === 1'b0 && db_reg_data !== read_data_extend) begin
                         $display("Error Load: db_reg_data = %b, read_data_extend = %b", db_reg_data, read_data_extend);
                         $stop;
