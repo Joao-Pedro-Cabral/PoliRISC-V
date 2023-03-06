@@ -58,8 +58,8 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
         // Somador PC + 4
     wire [63:0] pc_plus_4;
         // Somador PC + Imediato
-    wire [63:0] muxpc_reg_out;       // PC or Rs1 << 1
-    wire [63:0] muxpc_immediate_out; // Immediate or Immediate << 1
+    wire [63:0] muxpc_reg_out;       // PC or Rs1
+    wire [63:0] muxpc_immediate_out; // Immediate
     wire [63:0] pc_plus_immediate;
         // Mux PC
     wire [63:0] muxpc_out;
@@ -85,8 +85,8 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     sklansky_adder #(.INPUT_SIZE(64))        pc_4             (.A(pc), .B(64'b0100), .c_in(1'b0), .c_out(), .S(pc_plus_4));
         // Somador PC + Imediato
     sklansky_adder #(.INPUT_SIZE(64))        pc_immediate     (.A(muxpc_reg_out), .B(muxpc_immediate_out), .c_in(1'b0), .c_out(), .S(pc_plus_immediate));
-    mux2to1       #(.size(64))               muxpc_reg        (.A(pc), .B({reg_data_source_1[62:0], 1'b0}), .S(alupc_src), .Y(muxpc_reg_out));
-    mux2to1       #(.size(64))               muxpc_immediate  (.A(immediate), .B({immediate[62:0], 1'b0}), .S(alupc_src), .Y(muxpc_immediate_out));
+    mux2to1       #(.size(64))               muxpc_reg        (.A(pc), .B({reg_data_source_1[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_reg_out));
+    mux2to1       #(.size(64))               muxpc_immediate  (.A(immediate), .B({immediate[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_immediate_out));
         // PC
     mux2to1       #(.size(64))               muxpc            (.A(pc_plus_4), .B(pc_plus_immediate), .S(pc_src), .Y(muxpc_out));
     register_d    #(.N(64), .reset_value(0)) pc_register      (.clock(clock), .reset(reset), .enable(pc_enable), .D(muxpc_out), .Q(pc));
@@ -98,7 +98,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
 
 
     // Atribuições intermediárias
-        // Mascarar LUI np Rs1
+        // Mascarar LUI no Rs1
     assign reg_addr_source_1 = instruction[19:15] & {5{(~(instruction[4] & instruction[2]))}};
     assign muxaluY_out[31:0] = aluY[31:0];
         // Estender com/sem sinal 

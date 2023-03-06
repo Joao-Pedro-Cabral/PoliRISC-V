@@ -53,6 +53,7 @@ module Dataflow_tb();
     wire [2057:0] LUT_linear;       // Tabela acima linearizada
     reg  [24:0]   df_src;
     wire [63:0]   immediate;
+    wire [63:0]   A_immediate;
     reg  [63:0]   reg_data;         // write data do banco de registradores
     wire [63:0]   A;                // read data 1 do banco de registradores
     wire [63:0]   B;                // read data 2 do banco de registradores
@@ -79,7 +80,7 @@ module Dataflow_tb();
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/core/RV64I/branches.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./MIFs/core/RV64I/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
@@ -207,6 +208,8 @@ module Dataflow_tb();
     assign negative_             = add_sub[63];
     assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
 
+    assign A_immediate = A + immediate;
+
     // testar o DUT
     initial begin
         $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
@@ -319,7 +322,7 @@ module Dataflow_tb();
                     if(opcode[3] === 1'b1)
                         pc_imm    = instruction_address + immediate;
                     else
-                        pc_imm    = (A + immediate) << 1;
+                        pc_imm    = {A_immediate[63:1],1'b0};
                     reg_data = pc + 4;
                     #0.5;
                     if(db_reg_data !== reg_data) begin

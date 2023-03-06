@@ -1,4 +1,4 @@
-TOPLEVEL= "RV64I"
+TOPLEVEL= "control_unit"
 
 action   = "simulation"
 sim_tool = "modelsim"

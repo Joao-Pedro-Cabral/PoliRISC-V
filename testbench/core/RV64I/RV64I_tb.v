@@ -30,6 +30,7 @@ module RV64I_tb();
     wire [2:0]  funct3;
     wire [6:0]  funct7;
     wire [63:0] immediate;
+    wire [63:0]   A_immediate;
     reg  write_register_enable;   // write enable do banco de registradores
     wire [7:0] data_mem_byte_write_enable_;
     reg  [63:0] reg_data;         // write data do banco de registradores
@@ -152,6 +153,8 @@ module RV64I_tb();
     // geração store
     assign store = (opcode === 7'b0100011) ? 1'b1 : 1'b0;
 
+    assign A_immediate = A + immediate;
+
     // testar o DUT
     initial begin : Testbench
         $display("SOT!");
@@ -270,7 +273,7 @@ module RV64I_tb();
                     if(opcode[3] === 1'b1)
                         pc_imm    = instruction_address + immediate;
                     else
-                        pc_imm    = (A + immediate) << 1;
+                        pc_imm    = {A_immediate[63:1],1'b0};
                     reg_data = pc + 4;
                     #0.5;
                     if(db_reg_data !== reg_data) begin
