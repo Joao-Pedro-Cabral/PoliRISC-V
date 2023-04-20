@@ -24,7 +24,7 @@ module Dataflow_tb();
     reg alub_src;
     reg aluy_src;
     reg [2:0] alu_src;
-    reg carry_in;
+    reg sub;
     reg arithmetic;
     reg alupc_src;
     reg pc_src;
@@ -75,7 +75,7 @@ module Dataflow_tb();
 
     // DUT
     Dataflow DUT (.clock(clock), .reset(reset), .instruction(instruction), .instruction_address(instruction_address), .read_data(read_data), .write_data(write_data),
-     .data_address(data_address), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .carry_in(carry_in), .arithmetic(arithmetic), .alupc_src(alupc_src),
+     .data_address(data_address), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src),
      .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src), .write_register_enable(write_register_enable), .opcode(opcode),
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
@@ -240,7 +240,7 @@ module Dataflow_tb();
             alub_src                    = df_src[23];
             aluy_src                    = df_src[22];
             alu_src                     = df_src[21:19];
-            carry_in                    = df_src[18];
+            sub                    = df_src[18];
             arithmetic                  = df_src[17];
             alupc_src                   = df_src[16];
             read_data_src               = df_src[14:12];
