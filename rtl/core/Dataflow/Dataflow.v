@@ -6,7 +6,7 @@
 //
 
 module Dataflow(clock, reset, instruction, instruction_address, read_data, write_data, data_address,
-                alua_src, alub_src, aluy_src, alu_src, carry_in, arithmetic, alupc_src, pc_src, pc_enable, read_data_src,
+                alua_src, alub_src, aluy_src, alu_src, sub, arithmetic, alupc_src, pc_src, pc_enable, read_data_src,
                 write_register_src, write_register_enable, opcode, funct3, funct7, zero, negative, carry_out, overflow, db_reg_data);
     // Common
     input  wire clock;
@@ -23,7 +23,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     input  wire alub_src;
     input  wire aluy_src;
     input  wire [2:0] alu_src;
-    input  wire carry_in;
+    input  wire sub;
     input  wire arithmetic;
     input  wire alupc_src;
     input  wire pc_src;
@@ -79,7 +79,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     mux2to1        #(.size(64))              muxaluA          (.A(reg_data_source_1), .B(pc), .S(alua_src), .Y(aluA));
     mux2to1        #(.size(64))              muxaluB          (.A(immediate), .B(reg_data_source_2), .S(alub_src), .Y(aluB)); 
     mux2to1        #(.size(32))              muxaluY          (.A(aluY[63:32]), .B({32{aluY[31]}}), .S(aluy_src), .Y(muxaluY_out[63:32]));
-    ULA            #(.N(64))                 alu              (.A(aluA), .B(aluB), .seletor(alu_src), .carry_in(carry_in), .arithmetic(arithmetic), 
+    ULA            #(.N(64))                 alu              (.A(aluA), .B(aluB), .seletor(alu_src), .sub(sub), .arithmetic(arithmetic), 
         .Y(aluY), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow));
         // Somador PC + 4
     sklansky_adder #(.INPUT_SIZE(64))        pc_4             (.A(pc), .B(64'b0100), .c_in(1'b0), .c_out(), .S(pc_plus_4));

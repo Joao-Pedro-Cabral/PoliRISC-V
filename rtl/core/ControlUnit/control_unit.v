@@ -34,7 +34,7 @@ module control_unit
     output reg alub_src,
     output reg aluy_src,
     output reg [2:0] alu_src,
-    output reg carry_in,
+    output reg sub,
     output reg arithmetic,
     output reg alupc_src,
     output reg pc_src,
@@ -72,7 +72,7 @@ module control_unit
         alub_src <= 1'b0;
         aluy_src <= 1'b0;
         alu_src <= 3'b000;
-        carry_in <= 1'b0;
+        sub <= 1'b0;
         arithmetic <= 1'b0;
         alupc_src <= 1'b0;
         pc_src <= 1'b0;
@@ -186,7 +186,7 @@ module control_unit
                 alub_src <= 1'b1;
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
-                carry_in <= funct7[5];
+                sub <= funct7[5];
                 arithmetic <= funct7[5];
                 pc_enable <= 1'b1;
                 write_register_src <= 2'b1x;
@@ -240,7 +240,7 @@ module control_unit
             desvio_condicional:
             begin
                 alub_src <= 1'b1;
-                carry_in <= 1'b1;
+                sub <= 1'b1;
                 pc_src <= cond;
                 pc_enable <= 1'b1;
 

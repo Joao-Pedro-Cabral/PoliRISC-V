@@ -5,12 +5,12 @@
 //! @date   2023-02-12
 //
 
-module ULA(A, B, seletor, carry_in, arithmetic, Y, zero, negative, carry_out, overflow);
+module ULA(A, B, seletor, sub, arithmetic, Y, zero, negative, carry_out, overflow);
     parameter N = 16;
     input  wire [N-1:0] A;
     input  wire [N-1:0] B;
     input  wire [2:0]   seletor;
-    input  wire         carry_in;
+    input  wire         sub;
     input  wire         arithmetic; // 1: SRA, 0 : SRL
     output wire [N-1:0] Y;
     output wire         zero;
@@ -35,7 +35,7 @@ module ULA(A, B, seletor, carry_in, arithmetic, Y, zero, negative, carry_out, ov
 
     // operações da ULA
         // operações aritméticas
-    sklansky_adder       #(.INPUT_SIZE(N)) adder (.A(A), .B(B ^ {N{carry_in}}), .c_in(carry_in), .c_out(carry_out_), .S(add_sub));
+    sklansky_adder       #(.INPUT_SIZE(N)) adder (.A(A), .B(B ^ {N{sub}}), .c_in(sub), .c_out(carry_out_), .S(add_sub));
     left_barrel_shifter  #(.XLEN(N))       shifter_left (.in_data(A), .shamt(B[$clog2(N) - 1:0]), .out_data(sll));
     //assign sll     = A << (B[$clog2(N)-1:0]);
     assign slt     = negative_ ^ overflow_;
