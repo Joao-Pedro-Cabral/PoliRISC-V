@@ -33,7 +33,7 @@ module ROM_tb();
 
     // testar o DUT
     initial begin: Testbench
-        $readmemb("./MIFs/memory/ROM/rom_init_file_tb.mif", memory); // instanciar a memória do tb
+        $readmemb("./ROM.mif", memory); // instanciar a memória do tb
         $display("SOT!");
         #8;
         for(i = 0 ; i < 128; i = i + 1) begin

@@ -30,6 +30,7 @@ module ROM(clock, enable, addr, data, busy);
     // inicializando a memória
     initial begin
         $readmemb(rom_init_file, memory);
+        busy = 1'b0;
     end
 
     // Particionando a memória de acordo com os offsets

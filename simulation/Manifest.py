@@ -1,12 +1,21 @@
-TOPLEVEL= "control_unit"
+TOPLEVEL= "RV64I"
 
 action   = "simulation"
 sim_tool = "modelsim"
 sim_top  = TOPLEVEL + "_tb"
+use_mif  = True
+mif_path = "./MIFs/core/RV64I/power.mif"
 
 vlog_opt = " -vlog01compat"
 
-sim_post_cmd = "vsim -do vsim.do -voptargs=+acc " + sim_top
+if use_mif: #if the testbench needs a mif file
+    sim_pre_cmd  = "ln -s " + mif_path + " ./" + TOPLEVEL + ".mif"
+
+if use_mif: 
+    sim_post_cmd = ("vsim -do vsim.do -voptargs=+acc " + sim_top + ";"
+                    "rm " + " ./" + TOPLEVEL + ".mif")
+else:
+    sim_post_cmd = "vsim -do vsim.do -voptargs=+acc " + sim_top
 
 modules = {
     "local" : [
