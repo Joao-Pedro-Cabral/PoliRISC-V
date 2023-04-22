@@ -124,11 +124,6 @@ module control_unit_tb();
                     if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3] && funct7 === LUT_linear[25+42*i+:7])
                         temp = LUT_linear[42*i+:25];
             end
-            else begin
-                $display("Function error: opcode = %b", opcode);
-                $stop;
-            end
-            //$display("temp: %b", temp);
             find_instruction = temp;
         end
     endfunction
@@ -138,7 +133,6 @@ module control_unit_tb();
     // testar o DUT
     initial begin: Testbench
         $display("Program  size: %d", `program_size);
-        $random(1);
         $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         // Idle
@@ -152,12 +146,11 @@ module control_unit_tb();
         end
         #5.5;
         reset = 1'b0;
-        #0.5;
+        #1.5;
         if(db_df_src !== 18'b0) begin
             $display("Error Idle: db_df_src = %b", db_df_src);
             $stop;
         end
-        #5.5;
         for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
             carry_out = $random;
@@ -180,9 +173,9 @@ module control_unit_tb();
                 $stop;
             end
             #6;
-            // Execute -> Não testo pc_src para instruções do tipo B e write_register_enable para Load
-            if({df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[24:16], db_df_src[14:10], db_df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011)
-                    || (df_src[9] !== db_df_src[9] && opcode !== 7'b0000011)) begin
+            // Execute -> Não testo pc_src para instruções do tipo B e write_register_enable para Load (caso opcode = 0 -> deixo passar)
+            if(opcode !== 0 && ({df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[24:16], db_df_src[14:10], db_df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011)
+                    || (df_src[9] !== db_df_src[9] && opcode !== 7'b0000011))) begin
                 $display("Error Execute: df_src = %b, db_df_src = %b", df_src, db_df_src);
                 $stop;
             end

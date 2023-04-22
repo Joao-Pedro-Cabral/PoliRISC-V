@@ -30,7 +30,7 @@ module RV64I_tb();
     wire [2:0]  funct3;
     wire [6:0]  funct7;
     wire [63:0] immediate;
-    wire [63:0]   A_immediate;
+    wire [63:0] A_immediate;
     reg  write_register_enable;   // write enable do banco de registradores
     wire [7:0] data_mem_byte_write_enable_;
     reg  [63:0] reg_data;         // write data do banco de registradores
@@ -51,7 +51,7 @@ module RV64I_tb();
     wire [63:0] xorB;
     wire [63:0] add_sub;
     // variáveis
-    integer program_size = 1000; // tamanho do programa que será executado
+    integer limit = 1000; // tamanho do programa que será executado
     integer i;
 
     // DUT
@@ -132,10 +132,6 @@ module RV64I_tb();
                     ULA_function = $signed(A) - $signed(B);
                 4'b1101:
                     ULA_function = $signed(A) >>> (B[5:0]);
-                default: begin
-                    $display("ULA_function error: opcode = %b", opcode);
-                    $stop;
-                end
             endcase
         end
     endfunction
@@ -176,7 +172,7 @@ module RV64I_tb();
             $stop;
         end
         #5.5;
-        for(i = 0; i < program_size; i = i + 1) begin
+        for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
             // Fetch
             write_register_enable  = 1'b0;

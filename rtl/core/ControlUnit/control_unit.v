@@ -84,7 +84,7 @@ module control_unit
     endtask
 
     // lógica da mudança de estados
-    always @(posedge clock, reset) begin
+    always @(posedge clock, posedge reset) begin
         if(reset)
             estado_atual <= idle;
         else if(clock == 1'b1)
@@ -95,8 +95,8 @@ module control_unit
     task espera_instruction_mem;
     begin
         instruction_mem_enable <= 1'b1;
-        wait (instruction_mem_busy == 1'b1);
-        wait (instruction_mem_busy == 1'b0);
+        @ (posedge instruction_mem_busy);
+        @ (negedge instruction_mem_busy);
         instruction_mem_enable <= 1'b0;
     end
     endtask
@@ -104,8 +104,8 @@ module control_unit
     task espera_data_mem;
     begin
         data_mem_enable <= 1'b1;
-        wait (data_mem_busy == 1'b1);
-        wait (data_mem_busy == 1'b0);
+        @ (posedge data_mem_busy);
+        @ (negedge data_mem_busy);
         data_mem_enable <= 1'b0;
     end
     endtask
