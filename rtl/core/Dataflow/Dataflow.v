@@ -72,12 +72,12 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     // Instanciação de Componentes
         // Register File
     mux2to1        #(.size(64))              muxpc4_data      (.A(read_data_extend), .B(pc_plus_4), .S(write_register_src[0]), .Y(muxpc4_data_out));
-    mux2to1        #(.size(64))              muxreg_destiny   (.A(muxpc4_data_out), .B(muxaluY_out), .S(write_register_src[1]), .Y(reg_data_destiny));
+    mux2to1        #(.size(64))              muxreg_destiny   (.A(muxaluY_out), .B(muxpc4_data_out), .S(write_register_src[1]), .Y(reg_data_destiny));
     register_file  #(.size(64), .N(5))       int_reg_state    (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(reg_addr_source_1), 
         .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data_destiny), .read_data1(reg_data_source_1), .read_data2(reg_data_source_2));
         // ULA
     mux2to1        #(.size(64))              muxaluA          (.A(reg_data_source_1), .B(pc), .S(alua_src), .Y(aluA));
-    mux2to1        #(.size(64))              muxaluB          (.A(immediate), .B(reg_data_source_2), .S(alub_src), .Y(aluB)); 
+    mux2to1        #(.size(64))              muxaluB          (.A(reg_data_source_2), .B(immediate), .S(alub_src), .Y(aluB)); 
     mux2to1        #(.size(32))              muxaluY          (.A(aluY[63:32]), .B({32{aluY[31]}}), .S(aluy_src), .Y(muxaluY_out[63:32]));
     ULA            #(.N(64))                 alu              (.A(aluA), .B(aluB), .seletor(alu_src), .sub(sub), .arithmetic(arithmetic), 
         .Y(aluY), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow));
@@ -86,7 +86,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
         // Somador PC + Imediato
     sklansky_adder #(.INPUT_SIZE(64))        pc_immediate     (.A(muxpc_reg_out), .B(muxpc_immediate_out), .c_in(1'b0), .c_out(), .S(pc_plus_immediate));
     mux2to1       #(.size(64))               muxpc_reg        (.A(pc), .B({reg_data_source_1[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_reg_out));
-    mux2to1       #(.size(64))               muxpc_immediate  (.A(immediate), .B({immediate[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_immediate_out));
+    mux2to1       #(.size(64))               muxpc_immediate  (.A({immediate[62:0],1'b0}), .B({immediate[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_immediate_out));
         // PC
     mux2to1       #(.size(64))               muxpc            (.A(pc_plus_4), .B(pc_plus_immediate), .S(pc_src), .Y(muxpc_out));
     register_d    #(.N(64), .reset_value(0)) pc_register      (.clock(clock), .reset(reset), .enable(pc_enable), .D(muxpc_out), .Q(pc));

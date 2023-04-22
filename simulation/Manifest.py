@@ -1,3 +1,4 @@
+import subprocess
 TOPLEVEL= "RV64I"
 
 action   = "simulation"
@@ -6,7 +7,7 @@ sim_top  = TOPLEVEL + "_tb"
 use_mif  = True
 mif_path = "./MIFs/core/RV64I/power.mif"
 
-vlog_opt = " -vlog01compat"
+vlog_opt = " -vlog01compat +define+program_size=" + str(int(subprocess.check_output(["wc", "-l", mif_path]).split()[0]))
 
 if use_mif: #if the testbench needs a mif file
     sim_pre_cmd  = "ln -s " + mif_path + " ./" + TOPLEVEL + ".mif"

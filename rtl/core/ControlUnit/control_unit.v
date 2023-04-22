@@ -183,13 +183,12 @@ module control_unit
 
             registrador_registrador:
             begin
-                alub_src <= 1'b1;
+                // alub_src <= 1'b1;
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
                 sub <= funct7[5];
                 arithmetic <= funct7[5];
                 pc_enable <= 1'b1;
-                write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
@@ -197,9 +196,9 @@ module control_unit
 
             lui:
             begin
+                alub_src <= 1'b1;
                 aluy_src <= 1'b1;
                 pc_enable <= 1'b1;
-                write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
@@ -207,11 +206,11 @@ module control_unit
 
             registrador_imediato:
             begin
+                alub_src <= 1'b1;
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
                 arithmetic <= funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
                 pc_enable <= 1'b1;
-                write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
@@ -220,8 +219,8 @@ module control_unit
             auipc:
             begin
                 alua_src <= 1'b1;
+                alub_src <= 1'b1;
                 pc_enable <= 1'b1;
-                write_register_src <= 2'b1x;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
@@ -231,7 +230,7 @@ module control_unit
             begin
                 pc_src <= 1'b1;
                 pc_enable <= 1'b1;
-                write_register_src <= 2'b01;
+                write_register_src <= 2'b11;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
@@ -239,7 +238,6 @@ module control_unit
 
             desvio_condicional:
             begin
-                alub_src <= 1'b1;
                 sub <= 1'b1;
                 pc_src <= cond;
                 pc_enable <= 1'b1;
@@ -252,7 +250,7 @@ module control_unit
                 alupc_src <= 1'b1;
                 pc_src <= 1'b1;
                 pc_enable <= 1'b1;
-                write_register_src <= 2'b01;
+                write_register_src <= 2'b11;
                 write_register_enable <= 1'b1;
 
                 proximo_estado <= fetch;
@@ -260,7 +258,9 @@ module control_unit
 
             load:
             begin
+                alub_src <= 1'b1;
                 read_data_src <= funct3 ^ 3'b100;
+                write_register_src <= 2'b10;
                 espera_data_mem;
                 pc_enable <= 1'b1;
                 write_register_enable <= 1'b1;
@@ -270,6 +270,7 @@ module control_unit
 
             store:
             begin
+                alub_src <= 1'b1;
                 data_mem_byte_write_enable <= byte_enable;
                 espera_data_mem;
                 data_mem_byte_write_enable <= 8'b0;

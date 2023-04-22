@@ -157,6 +157,7 @@ module RV64I_tb();
 
     // testar o DUT
     initial begin : Testbench
+        $display("Program  size: %d", `program_size);
         $display("SOT!");
         write_register_enable = 1'b0;
         // Idle
@@ -235,7 +236,7 @@ module RV64I_tb();
                     else
                         $display("Error B-type: Invalid funct3! Funct3 : %b", funct3);
                     pc_4                  = pc + 4;
-                    pc_imm                = pc + immediate;
+                    pc_imm                = pc + (immediate << 1);
                     write_register_enable = 1'b0;
                     #0.5;
                     if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
@@ -271,7 +272,7 @@ module RV64I_tb();
                 7'b1101111, 7'b1100111: begin
                     write_register_enable = 1'b1;
                     if(opcode[3] === 1'b1)
-                        pc_imm    = instruction_address + immediate;
+                        pc_imm    = instruction_address + (immediate << 1);
                     else
                         pc_imm    = {A_immediate[63:1],1'b0};
                     reg_data = pc + 4;
@@ -312,6 +313,13 @@ module RV64I_tb();
                         $stop;
                     end
                     #5.5;
+                end
+                7'b0000000: begin
+                    if(pc === `program_size - 3)
+                        $display("End  of program!");
+                    else
+                        $display("Error opcode case: opcode = %b", opcode);
+                    $stop;
                 end
                 default: begin
                     $display("Error opcode case: opcode = %b", opcode);

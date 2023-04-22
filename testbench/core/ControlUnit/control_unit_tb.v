@@ -53,7 +53,7 @@ module control_unit_tb();
     wire [24:0]   db_df_src;        // Produzido pela UC
     wire [63:0]   immediate;        // imediato
     // variáveis
-    integer program_size = 1000;  // tamanho do programa que será executado
+    integer limit = 1000;  // tamanho do programa que será executado
     integer i;
     genvar j;
 
@@ -137,6 +137,8 @@ module control_unit_tb();
 
     // testar o DUT
     initial begin: Testbench
+        $display("Program  size: %d", `program_size);
+        $random(1);
         $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         // Idle
@@ -156,7 +158,7 @@ module control_unit_tb();
             $stop;
         end
         #5.5;
-        for(i = 0; i < program_size; i = i + 1) begin
+        for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
             carry_out = $random;
             negative  = $random;
@@ -272,6 +274,13 @@ module control_unit_tb();
                     end
                     pc_in = pc + 4;
                     #6;
+                end
+                7'b0000000: begin
+                    if(pc === `program_size - 3)
+                        $display("End of program!");
+                    else
+                        $display("Error opcode case: opcode = %b", opcode);
+                    $stop;
                 end
                 default: begin
                     $display("Error opcode case: opcode = %b", opcode);

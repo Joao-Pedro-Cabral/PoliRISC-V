@@ -69,7 +69,7 @@ module Dataflow_tb();
     wire [63:0] xorB;
     wire [63:0] add_sub;
     // variáveis
-    integer program_size = 10000; // tamanho do programa que será executado
+    integer limit = 10000; // número máximo de iterações a serem feitas
     integer i;
     genvar  j;
 
@@ -147,10 +147,6 @@ module Dataflow_tb();
                     if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3] && funct7 === LUT_linear[25+42*i+:7])
                         temp = LUT_linear[42*i+:25];
             end
-            else begin
-                $display("Function error: opcode = %b", opcode);
-                $stop;
-            end
             //$display("temp: %b", temp);
             find_instruction = temp;
         end
@@ -193,10 +189,6 @@ module Dataflow_tb();
                     ULA_function = $signed(A) - $signed(B);
                 4'b1101:
                     ULA_function = $signed(A) >>> (B[5:0]);
-                default: begin
-                    $display("ULA_function error: opcode = %b", opcode);
-                    $stop;
-                end
             endcase
         end
     endfunction
@@ -212,6 +204,7 @@ module Dataflow_tb();
 
     // testar o DUT
     initial begin
+        $display("Program  size: %d", `program_size);
         $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
         $display("SOT!");
         pc_enable = 1'b0;
@@ -222,7 +215,7 @@ module Dataflow_tb();
         #6;
         reset = 1'b0;
         #6;
-        for(i = 0; i < program_size; i = i + 1) begin
+        for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
             // Fetch
             pc_enable = 1'b0;
@@ -240,7 +233,7 @@ module Dataflow_tb();
             alub_src                    = df_src[23];
             aluy_src                    = df_src[22];
             alu_src                     = df_src[21:19];
-            sub                    = df_src[18];
+            sub                         = df_src[18];
             arithmetic                  = df_src[17];
             alupc_src                   = df_src[16];
             read_data_src               = df_src[14:12];
@@ -283,7 +276,7 @@ module Dataflow_tb();
                         $stop;
                     end
                     pc_4                  = pc + 4;
-                    pc_imm                = pc + immediate;
+                    pc_imm                = pc + (immediate << 1);
                     pc_enable             = 1'b1;
                     write_register_enable = df_src[9];
                     #0.5;
@@ -320,7 +313,7 @@ module Dataflow_tb();
                     pc_enable = 1'b1;
                     write_register_enable = df_src[9];
                     if(opcode[3] === 1'b1)
-                        pc_imm    = instruction_address + immediate;
+                        pc_imm    = instruction_address + (immediate << 1);
                     else
                         pc_imm    = {A_immediate[63:1],1'b0};
                     reg_data = pc + 4;
@@ -355,6 +348,13 @@ module Dataflow_tb();
                         $stop;
                     end
                     #5.5;
+                end
+                7'b0000000: begin
+                    if(pc === `program_size - 3)
+                        $display("End of program!");
+                    else
+                        $display("Error opcode case: opcode = %b", opcode);
+                    $stop;
                 end
                 default: begin
                     $display("Error opcode case: opcode = %b", opcode);
