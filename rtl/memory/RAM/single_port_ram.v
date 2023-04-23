@@ -58,16 +58,12 @@ module single_port_ram
                 if(chip_select && byte_write_enable[j]) begin
                     read_data[(j+1)*BYTE_SIZE-1 -: BYTE_SIZE] <= write_data[(i+1)*BYTE_SIZE-1 -: BYTE_SIZE];
                 end
+                else begin
+                    read_data[(j+1)*BYTE_SIZE-1 -: BYTE_SIZE] <= 1'b0;
+                end
             end
         end
     end
-
-    /* genvar j; */
-    /* generate */
-    /*     for(j = 0; j < DATA_SIZE/BYTE_SIZE; j = j + 1) begin : out_data */
-    /*         assign read_data[(j+1)*BYTE_SIZE-1:j*BYTE_SIZE] = chip_select & output_enable ? ram[offset_and_truncate_address(address, j)] : 0; */
-    /*     end */
-    /* endgenerate */
 
     always @* begin
         if(chip_select === 1'b1)
