@@ -20,7 +20,7 @@ module control_unit
 
     // Data Memory
     input data_mem_busy,
-    output reg data_mem_enable,
+    output reg data_mem_read_enable,
     output reg [7:0] data_mem_byte_write_enable,
 
     // Vindo do Fluxo de Dados
@@ -66,7 +66,7 @@ module control_unit
     task zera_sinais;
     begin
         instruction_mem_enable <= 1'b0;
-        data_mem_enable <= 1'b0;
+        data_mem_read_enable <= 1'b0;
         data_mem_byte_write_enable <= 8'b0;
         alua_src <= 1'b0;
         alub_src <= 1'b0;
@@ -90,6 +90,13 @@ module control_unit
         else if(clock == 1'b1)
             estado_atual <= proximo_estado;
     end
+    
+    // decisores para desvios condicionais baseados nas flags da ULA
+    wire beq_bne = zero ^ funct3[0];
+    wire blt_bge = (negative ^ overflow) ^ funct3[0];
+    wire bltu_bgeu = carry_out ~^ funct3[0];
+    wire cond = funct3[1]==0 ? funct3[2]==0 ? beq_bne : blt_bge : bltu_bgeu;
+    wire [7:0] byte_enable = funct3[1]==0 ? (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF);
 
     // TODO: verificar se o uso de non-blocking statements causa problemas em simulação
     task espera_instruction_mem;
@@ -101,21 +108,23 @@ module control_unit
     end
     endtask
 
-    task espera_data_mem;
+    task data_mem_read;
     begin
-        data_mem_enable <= 1'b1;
+        data_mem_read_enable <= 1'b1;
         @ (posedge data_mem_busy);
         @ (negedge data_mem_busy);
-        data_mem_enable <= 1'b0;
+        data_mem_read_enable <= 1'b0;
     end
     endtask
 
-    // decisores para desvios condicionais baseados nas flags da ULA
-    wire beq_bne = zero ^ funct3[0];
-    wire blt_bge = (negative ^ overflow) ^ funct3[0];
-    wire bltu_bgeu = carry_out ~^ funct3[0];
-    wire cond = funct3[1]==0 ? funct3[2]==0 ? beq_bne : blt_bge : bltu_bgeu;
-    wire [7:0] byte_enable = funct3[1]==0 ? (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF);
+    task data_mem_write;
+    begin
+        data_mem_byte_write_enable <= byte_enable;
+        @ (posedge data_mem_busy);
+        @ (negedge data_mem_busy);
+        data_mem_byte_write_enable <= 8'b0;
+    end
+    endtask
 
     // máquina de estados principal
     always @(estado_atual, reset, cond, byte_enable) begin
@@ -183,7 +192,6 @@ module control_unit
 
             registrador_registrador:
             begin
-                // alub_src <= 1'b1;
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
                 sub <= funct7[5];
@@ -261,7 +269,7 @@ module control_unit
                 alub_src <= 1'b1;
                 read_data_src <= funct3 ^ 3'b100;
                 write_register_src <= 2'b10;
-                espera_data_mem;
+                data_mem_read;
                 pc_enable <= 1'b1;
                 write_register_enable <= 1'b1;
 
@@ -271,9 +279,7 @@ module control_unit
             store:
             begin
                 alub_src <= 1'b1;
-                data_mem_byte_write_enable <= byte_enable;
-                espera_data_mem;
-                data_mem_byte_write_enable <= 8'b0;
+                data_mem_write;
                 pc_enable <= 1'b1;
 
                 proximo_estado <= fetch;
