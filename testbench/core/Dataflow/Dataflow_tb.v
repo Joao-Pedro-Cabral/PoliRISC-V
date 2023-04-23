@@ -57,7 +57,7 @@ module Dataflow_tb();
     reg  [63:0]   reg_data;         // write data do banco de registradores
     wire [63:0]   A;                // read data 1 do banco de registradores
     wire [63:0]   B;                // read data 2 do banco de registradores
-    wire [63:0]   pc;               // pc
+    reg  [63:0]   pc = 0;           // pc
     reg  [63:0]   pc_imm;           // pc + imediato
     reg  [63:0]   pc_4;             // pc + 4
     wire [63:0]   read_data_extend; // dado lido após aplicação da extensão de sinal
@@ -81,10 +81,10 @@ module Dataflow_tb();
 
     // Instruction Memory
     ROM #(.rom_init_file("./Dataflow.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
-                            .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
+                            .enable(instruction_mem_enable), .addr(pc[9:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
-    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data),
+    single_port_ram #(.ADDR_SIZE(6), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data),
                         .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
 
     // Componentes auxiliares para a verificação
@@ -97,9 +97,6 @@ module Dataflow_tb();
     assign read_data_extend[15:8]  = (read_data_src[1] | read_data_src[0]) ? read_data[15:8] : ({8{read_data[7] & read_data_src[2]}});
     assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
     assign read_data_extend[63:32] = read_data_src[1] ? (read_data_src[0] ? read_data[63:32] : {32{read_data[31] & read_data_src[2]}}) : (read_data_src[0] ? {32{read_data[15] & read_data_src[2]}} : {32{read_data[7] & read_data_src[2]}});
-
-    // geração do pc
-    assign pc = instruction_address;
 
     // geração do clock
     always begin
@@ -220,14 +217,23 @@ module Dataflow_tb();
             // Fetch
             pc_enable = 1'b0;
             write_register_enable = 1'b0;
+            if(pc !== instruction_address) begin
+                $display("Error PC: pc = %b, instruction_address = %b", pc, instruction_address);
+                $stop;
+            end
             instruction_mem_enable = 1'b1;
             wait (instruction_mem_busy == 1'b1);
             wait (instruction_mem_busy == 1'b0);
             instruction_mem_enable = 1'b0;
-            #3.9;
+            wait (clock == 1'b0);
             // Decode
+            if(opcode !== instruction[6:0] || funct3 !== instruction[14:12] || funct7 !== instruction[31:25]) begin
+                $display("Error Decode: opcode = %b, funct3 = %b, funct7 = %b", opcode, funct3, funct7);
+                $stop;
+            end
             df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
-            #0.1;
+            wait (clock == 1'b1);
+            wait (clock == 1'b0);
             // Execute
             alua_src                    = df_src[24];
             alub_src                    = df_src[23];
@@ -254,14 +260,21 @@ module Dataflow_tb();
                         $display("Error Store: write_data = %b, B = %b", write_data, B);
                         $stop;
                     end
-                    #17.5;
-                    data_mem_enable = 1'b0;
-                    if(opcode[5] === 1'b0 && db_reg_data !== read_data_extend) begin
-                        $display("Error Load: db_reg_data = %b, read_data_extend = %b", db_reg_data, read_data_extend);
+                    wait (data_mem_busy == 1'b1);
+                    wait (data_mem_busy == 1'b0);
+                    write_register_enable = df_src[9];
+                    reg_data = read_data_extend;
+                    #0.1;
+                    if(opcode[5] === 1'b0 && db_reg_data !== reg_data) begin
+                        $display("Error Load: db_reg_data = %b, reg_data = %b", db_reg_data, reg_data);
                         $stop;
                     end
                     pc_enable = 1'b1;
-                    #6;
+                    wait (clock == 1'b0);
+                    wait (clock == 1'b1);
+                    data_mem_enable = 1'b0;
+                    pc = pc + 4;
+                    #1;
                 end
                 // Branch(B*)
                 7'b1100011: begin
@@ -278,42 +291,45 @@ module Dataflow_tb();
                     pc_4                  = pc + 4;
                     pc_imm                = pc + (immediate << 1);
                     pc_enable             = 1'b1;
-                    write_register_enable = df_src[9];
+                    write_register_enable = 1'b0;
                     #0.5;
                     if(overflow !== overflow_ || carry_out !== carry_out_ || negative !== negative_ || zero !== zero_) begin
                         $display("Error B-type flags: overflow = %b, carry_out = %b, negative = %b, zero = %b, funct3 = %b", overflow, carry_out, negative, zero, funct3);
                         $stop;
                     end
-                    #2.5;
-                    if((pc_src === 1'b1 && pc_imm !== instruction_address) || (pc_src === 1'b0 && pc_4 !== instruction_address)) begin
-                        $display("Error B-type PC: pc_src = %b, pc_imm = %b, pc_4 = %b, pc = %b", pc_src, pc_imm, pc_4, instruction_address);
-                        $stop;
-                    end
-                    #3;
+                    wait (clock == 1'b1);
+                    #0.1;
+                    if(pc_src === 1'b1) 
+                        pc = pc_imm;
+                    else
+                        pc = pc_4;
+                    #1;
                 end
                 // LUI e AUIPC
                 7'b0110111, 7'b0010111: begin
                     pc_src    = df_src[15];
                     pc_enable = 1'b1;
-                    write_register_enable = df_src[9];
+                    write_register_enable = 1'b1;
                     if(opcode[5] === 1)
                         reg_data = immediate;
                     else
-                        reg_data = instruction_address + immediate;
+                        reg_data = pc + immediate;
                     #0.5;
                     if(reg_data !== db_reg_data) begin
                         $display("Error AUIPC/LUI: reg_data = %b, db_reg_data = %b, opcode = %b", reg_data, db_reg_data, opcode);
                         $stop;
                     end
-                    #5.5;
+                    wait (clock == 1'b1);
+                    pc = pc + 4;
+                    #1;
                 end
                 // JAL e JALR
                 7'b1101111, 7'b1100111: begin
                     pc_src    = df_src[15];
                     pc_enable = 1'b1;
-                    write_register_enable = df_src[9];
+                    write_register_enable = 1'b1;
                     if(opcode[3] === 1'b1)
-                        pc_imm    = instruction_address + (immediate << 1);
+                        pc_imm    = pc + (immediate << 1);
                     else
                         pc_imm    = {A_immediate[63:1],1'b0};
                     reg_data = pc + 4;
@@ -322,18 +338,20 @@ module Dataflow_tb();
                         $display("Error JAL/JALR: reg_data = %b, reg_data = %b, opcode = %b", db_reg_data, reg_data, opcode);
                         $stop;
                     end
-                    #2.5;
+                    wait (clock == 1'b1);
+                    #0.1;
                     if(pc_imm !== instruction_address) begin
                         $display("Error JAL/JALR: pc_imm = %b, instruction_address = %b", pc_imm, instruction_address);
                         $stop;
                     end
-                    #3;
+                    pc = pc_imm;
+                    #1;
                 end
                 // ULA R/I-type
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
                     pc_src    = df_src[15];
                     pc_enable = 1'b1;
-                    write_register_enable = df_src[9];
+                    write_register_enable = 1'b1;
                     if(opcode[5] === 1'b1)
                         reg_data = ULA_function(A, B, {funct7[5], funct3});
                     else if(funct3 === 3'b101)
@@ -347,7 +365,9 @@ module Dataflow_tb();
                         $display("Error ULA R/I-type: reg_data = %b, db_reg_data = %b, opcode = %b, funct3 = %b, funct7 = %b", reg_data, db_reg_data, opcode, funct3, funct7);
                         $stop;
                     end
-                    #5.5;
+                    wait (clock == 1'b1);
+                    pc = pc + 4;
+                    #1;
                 end
                 7'b0000000: begin
                     if(pc === `program_size - 3)
