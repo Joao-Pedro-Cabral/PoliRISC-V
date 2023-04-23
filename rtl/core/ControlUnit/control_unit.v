@@ -41,7 +41,8 @@ module control_unit
     output reg pc_enable,
     output reg [2:0] read_data_src,
     output reg [1:0] write_register_src,
-    output reg write_register_enable
+    output reg write_register_enable,
+    output reg ir_enable
 );
 
     // sinais úteis
@@ -80,6 +81,7 @@ module control_unit
         read_data_src <= 3'b000;
         write_register_src <= 2'b00;
         write_register_enable <= 1'b0;
+        ir_enable <= 1'b0;
     end
     endtask
 
@@ -143,6 +145,7 @@ module control_unit
             fetch:
             begin
                 espera_instruction_mem;
+                ir_enable <= 1'b1;
                 proximo_estado <= decode;
             end
 

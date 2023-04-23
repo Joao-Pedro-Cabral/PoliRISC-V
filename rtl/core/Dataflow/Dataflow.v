@@ -5,7 +5,7 @@
 //! @date   2023-03-04
 //
 
-module Dataflow(clock, reset, instruction, instruction_address, read_data, write_data, data_address,
+module Dataflow(clock, reset, instruction, instruction_address, read_data, write_data, data_address, ir_enable,
                 alua_src, alub_src, aluy_src, alu_src, sub, arithmetic, alupc_src, pc_src, pc_enable, read_data_src,
                 write_register_src, write_register_enable, opcode, funct3, funct7, zero, negative, carry_out, overflow, db_reg_data);
     // Common
@@ -31,6 +31,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     input  wire [2:0] read_data_src;
     input  wire [1:0] write_register_src;
     input  wire write_register_enable;
+    input  wire ir_enable;
     // To Control Unit
     output wire [6:0] opcode;
     output wire [2:0] funct3;
@@ -67,6 +68,8 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     wire [63:0] pc;
         // Data Memory
     wire [63:0] read_data_extend;
+        // Instruction Register(IR)
+    wire [31:0] ir;
 
 
     // Instanciação de Componentes
@@ -74,7 +77,7 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     mux2to1        #(.size(64))              muxpc4_data      (.A(read_data_extend), .B(pc_plus_4), .S(write_register_src[0]), .Y(muxpc4_data_out));
     mux2to1        #(.size(64))              muxreg_destiny   (.A(muxaluY_out), .B(muxpc4_data_out), .S(write_register_src[1]), .Y(reg_data_destiny));
     register_file  #(.size(64), .N(5))       int_reg_state    (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(reg_addr_source_1), 
-        .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data_destiny), .read_data1(reg_data_source_1), .read_data2(reg_data_source_2));
+        .read_address2(ir[24:20]), .write_address(ir[11:7]), .write_data(reg_data_destiny), .read_data1(reg_data_source_1), .read_data2(reg_data_source_2));
         // ULA
     mux2to1        #(.size(64))              muxaluA          (.A(reg_data_source_1), .B(pc), .S(alua_src), .Y(aluA));
     mux2to1        #(.size(64))              muxaluB          (.A(reg_data_source_2), .B(immediate), .S(alub_src), .Y(aluB)); 
@@ -85,8 +88,8 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     sklansky_adder #(.INPUT_SIZE(64))        pc_4             (.A(pc), .B(64'b0100), .c_in(1'b0), .c_out(), .S(pc_plus_4));
         // Somador PC + Imediato
     sklansky_adder #(.INPUT_SIZE(64))        pc_immediate     (.A(muxpc_reg_out), .B(muxpc_immediate_out), .c_in(1'b0), .c_out(), .S(pc_plus_immediate));
-    mux2to1       #(.size(64))               muxpc_reg        (.A(pc), .B({reg_data_source_1[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_reg_out));
-    mux2to1       #(.size(64))               muxpc_immediate  (.A({immediate[62:0],1'b0}), .B({immediate[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_immediate_out));
+    mux2to1        #(.size(64))              muxpc_reg        (.A(pc), .B({reg_data_source_1[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_reg_out));
+    mux2to1        #(.size(64))              muxpc_immediate  (.A({immediate[62:0],1'b0}), .B({immediate[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_immediate_out));
         // PC
     mux2to1       #(.size(64))               muxpc            (.A(pc_plus_4), .B(pc_plus_immediate), .S(pc_src), .Y(muxpc_out));
     register_d    #(.N(64), .reset_value(0)) pc_register      (.clock(clock), .reset(reset), .enable(pc_enable), .D(muxpc_out), .Q(pc));
@@ -94,12 +97,14 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     gen_mux       #(.size(32), .N(2))        mux_read_data    (.A({read_data[63:32], {32{read_data[31] & read_data_src[2]}},
         {32{read_data[15] & read_data_src[2]}}, {32{read_data[7] & read_data_src[2]}}}), .S(read_data_src[1:0]), .Y(read_data_extend[63:32]));
         // Immediate Extender
-    ImmediateExtender                        estende_imediato (.instruction(instruction), .immediate(immediate));
+    ImmediateExtender                        estende_imediato (.instruction(ir), .immediate(immediate));
+        // Instruction Register -> Borda de Descida!
+    register_d    #(.N(32), .reset_value(0)) instru_register  (.clock(clock), .reset(reset), .enable(ir_enable), .D(instruction), .Q(ir));
 
 
     // Atribuições intermediárias
         // Mascarar LUI no Rs1
-    assign reg_addr_source_1 = instruction[19:15] & {5{(~(instruction[4] & instruction[2]))}};
+    assign reg_addr_source_1 = ir[19:15] & {5{(~(ir[4] & ir[2]))}};
     assign muxaluY_out[31:0] = aluY[31:0];
         // Estender com/sem sinal 
     assign read_data_extend[7:0]   = read_data[7:0];
@@ -114,9 +119,9 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     assign write_data   = reg_data_source_2;
     assign data_address = aluY;
         // Control Unit
-    assign opcode = instruction[6:0];
-    assign funct3 = instruction[14:12];
-    assign funct7 = instruction[31:25];
+    assign opcode = ir[6:0];
+    assign funct3 = ir[14:12];
+    assign funct7 = ir[31:25];
         // Depuracao
     assign db_reg_data = reg_data_destiny;
 

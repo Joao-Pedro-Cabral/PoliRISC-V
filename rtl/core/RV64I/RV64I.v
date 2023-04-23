@@ -13,7 +13,7 @@ module RV64I (
     output wire [63:0] write_data,
     output wire [63:0] data_address,
     input  wire data_mem_busy,
-    output wire data_mem_enable,
+    output wire data_mem_read_enable,
     output wire [7:0] data_mem_byte_write_enable,
     // Instruction Memory
     input  wire [31:0] instruction,
@@ -37,6 +37,7 @@ module RV64I (
     wire [2:0] read_data_src;
     wire [1:0] write_register_src;
     wire write_register_enable;
+    wire ir_enable;
     wire [6:0] opcode;
     wire [2:0] funct3;
     wire [6:0] funct7;
@@ -47,15 +48,15 @@ module RV64I (
 
     // Dataflow
     Dataflow DF (.clock(clock), .reset(reset), .instruction(instruction), .instruction_address(instruction_address), .read_data(read_data), .write_data(write_data),
-     .data_address(data_address), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), 
+     .data_address(data_address), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .ir_enable(ir_enable),
      .alupc_src(alupc_src), .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src), .write_register_enable(write_register_enable), 
      .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Control Unit
-    control_unit UC (.clock(clock), .reset(reset), .instruction_mem_enable(instruction_mem_enable), .instruction_mem_busy(instruction_mem_busy), .data_mem_enable(data_mem_enable), 
+    control_unit UC (.clock(clock), .reset(reset), .instruction_mem_enable(instruction_mem_enable), .instruction_mem_busy(instruction_mem_busy), .data_mem_read_enable(data_mem_read_enable), 
     .data_mem_byte_write_enable(data_mem_byte_write_enable), .data_mem_busy(data_mem_busy), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), 
     .negative(negative), .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), 
     .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src),
-    .write_register_enable(write_register_enable));
+    .write_register_enable(write_register_enable), .ir_enable(ir_enable));
 
 endmodule

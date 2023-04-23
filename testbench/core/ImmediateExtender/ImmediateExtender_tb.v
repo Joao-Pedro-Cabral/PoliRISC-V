@@ -40,24 +40,34 @@ module ImmediateExtender_tb();
     initial begin
         #2;
         $display("SOT!");
-        for(i = 0; i < 9; i = i + 1) begin
+        for(i = 0; i < 1000; i = i + 1) begin
             $display("Opcode: %d", i);
             for(j = 0; j < 10; j = j + 1) begin
                 $display("Teste: %d", j);
                 instruction[31:7] = $random;
-                instruction[6:0]  = instruction_opcode[i];
+                instruction[6:0]  = instruction_opcode[(i%9)];
                 #1;
-                case(i)
-                    0:       if(immediate !== J_type)
+                case((i%9))
+                    0:       if(immediate !== J_type) begin
                         $display("Error: instruction %b, immediate: %b, J_type: %b", instruction, immediate, J_type);
-                    1, 2:    if(immediate !== U_type)
+                        $stop;
+                        end 
+                    1, 2:    if(immediate !== U_type) begin
                         $display("Error: instruction %b, immediate: %b, U_type: %b", instruction, immediate, U_type);
-                    3:       if(immediate !== B_type)
+                        $stop;
+                        end 
+                    3:       if(immediate !== B_type) begin
                         $display("Error: instruction %b, immediate: %b, B_type: %b", instruction, immediate, B_type);
-                    4, 5:    if(immediate !== S_type)
+                        $stop;
+                        end 
+                    4:    if(immediate !== S_type) begin
                         $display("Error: instruction %b, immediate: %b, S_type: %b", instruction, immediate, S_type);
-                    6, 7, 8: if(immediate !== I_type)
+                        $stop;
+                        end 
+                    5, 6, 7, 8: if(immediate !== I_type) begin
                         $display("Error: instruction %b, immediate: %b, I_type: %b", instruction, immediate, I_type);
+                        $stop;
+                        end 
                 endcase
                 #1;
             end
