@@ -59,7 +59,7 @@ module single_port_ram
                     read_data[(j+1)*BYTE_SIZE-1 -: BYTE_SIZE] <= write_data[(i+1)*BYTE_SIZE-1 -: BYTE_SIZE];
                 end
                 else begin
-                    read_data[(j+1)*BYTE_SIZE-1 -: BYTE_SIZE] <= 1'b0;
+                    read_data[(j+1)*BYTE_SIZE-1 -: BYTE_SIZE] <= 'b0;
                 end
             end
         end
