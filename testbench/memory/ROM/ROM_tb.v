@@ -40,12 +40,13 @@ module ROM_tb();
             $display("Test: %d", i);
             enable = i%2;
             addr   = i/2;
-            #2;
+            /* #2; */
             if(enable === 1) begin
+                @(posedge busy)
                 enable = 0;
                 if(busy !== 1)
                     $display("Error busy !== 1: enable = %b, busy = %b", enable, busy);
-                #12;
+                @(negedge busy)
                 if(busy !== 0 || data !== memory[addr/4])
                     $display("Error: enable = %b, addr = %b, data = %b, busy = %b", enable, addr, data, busy);
             end
@@ -55,6 +56,7 @@ module ROM_tb();
             #4;    
         end
         $display("EOT!");
+        $stop;
     end
 
 endmodule

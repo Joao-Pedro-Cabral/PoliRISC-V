@@ -20,6 +20,7 @@ module ROM(clock, enable, addr, data, busy);
     output wire [word_size*(2**offset) - 1 : 0] data;
     output reg  busy;
 
+    reg [addr_size - 1:0] synch_addr;
     reg busy_flag;
     reg [word_size - 1:0] memory [2**addr_size - 1:0]; // memória ROM
     wire [word_size*(2**addr_size)-1:0] linear_memory; // linearização da memória
@@ -40,8 +41,13 @@ module ROM(clock, enable, addr, data, busy);
         end
     endgenerate
 
+    always @(posedge clock) begin : leitura_sincrona
+        if(busy === 1'b1)
+            synch_addr <= addr;
+    end
+
     // Leitura da ROM
-    gen_mux #(.size(word_size*(2**offset)), .N(addr_size - offset)) addr_mux (.A(linear_memory), .S(addr[addr_size-1:offset]), .Y(data));
+    gen_mux #(.size(word_size*(2**offset)), .N(addr_size - offset)) addr_mux (.A(linear_memory), .S(synch_addr[addr_size-1:offset]), .Y(data));
 
     always @* begin
         if(enable === 1'b1)
