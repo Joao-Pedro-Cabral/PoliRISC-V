@@ -1,3 +1,12 @@
+//
+//! @file   memory_controller.v
+//! @brief  Implementação de um controlador de barramento para memórias
+//          e dispositivos
+//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
+//! @date   2023-04-24
+//
+
+`timescale 1 ns / 100 ps
 module memory_controller
 (
   /* Interface com o processador */
@@ -11,10 +20,10 @@ module memory_controller
   /* //// */
 
   /* Interface com a memória ROM */
-  input  [63:0] rom_data;
-  input  rom_busy;
-  output wire rom_enable;
-  output wire [63:0] rom_addr;
+  input  [63:0] rom_data,
+  input  rom_busy,
+  output wire rom_enable,
+  output wire [63:0] rom_addr,
   /* //// */
   
   /* Interface com a memória RAM */
@@ -28,6 +37,8 @@ module memory_controller
   /* //// */
 
   /* Interface com a UART */
+  `ifdef UART
+  `endif
   /* //// */
 );
 
@@ -45,8 +56,8 @@ module memory_controller
   /* //// */
 
   /* Endereçamento */
-  assign rom_addr    = mem_address;
-  assign ram_address = mem_address;
+  assign rom_addr    = {40'h0, mem_address[23:0]};
+  assign ram_address = {38'h0, mem_address[25:0]};
   /* //// */
   
   /* Entradas de dados  */
@@ -54,7 +65,7 @@ module memory_controller
   /* //// */
 
   /* Saídas de dados */
-  assign write_data = s_ram_chip_select ? ram_write_data : 64'b0;
+  assign ram_write_data = s_ram_chip_select ? write_data : 64'b0;
   /* //// */
 
 endmodule

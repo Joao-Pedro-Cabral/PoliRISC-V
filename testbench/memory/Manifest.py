@@ -1,6 +1,7 @@
 modules = {
     "local" : [
         "RAM",
-        "ROM"
+        "ROM",
+        "Controller"
     ],
 }
