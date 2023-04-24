@@ -16,7 +16,7 @@ module RV64I_tb();
     wire [63:0] write_data;
     wire [63:0] data_address;
     wire data_mem_busy;
-    wire data_mem_enable;
+    wire data_mem_read_enable;
     wire [7:0] data_mem_byte_write_enable;
         // Instruction Memory
     wire [31:0] instruction;
@@ -33,10 +33,11 @@ module RV64I_tb();
     wire [63:0] A_immediate;
     reg  write_register_enable;   // write enable do banco de registradores
     wire [7:0] data_mem_byte_write_enable_;
+    wire data_mem_read_enable_;
     reg  [63:0] reg_data;         // write data do banco de registradores
     wire [63:0] A;                // read data 1 do banco de registradores
     wire [63:0] B;                // read data 2 do banco de registradores
-    wire [63:0] pc;
+    reg  [63:0] pc = 0;
     reg  pc_src;                  // seletor da entrada do registrador PC
     reg  [63:0] pc_imm;           // pc + imediato
     reg  [63:0] pc_4;             // pc + 4
@@ -44,28 +45,29 @@ module RV64I_tb();
     wire [2:0]  read_data_src;
     wire store;
     // flags da ULA
-    wire zero;
-    wire negative;
-    wire carry_out;
-    wire overflow;
+    wire zero_;
+    wire negative_;
+    wire carry_out_;
+    wire overflow_;
     wire [63:0] xorB;
     wire [63:0] add_sub;
     // variáveis
     integer limit = 1000; // tamanho do programa que será executado
     integer i;
+    integer estado = 0;
 
     // DUT
     RV64I DUT (.clock(clock), .reset(reset), .read_data(read_data), .write_data(write_data), .data_address(data_address), .data_mem_busy(data_mem_busy),
-    .data_mem_enable(data_mem_enable), .data_mem_byte_write_enable(data_mem_byte_write_enable), .instruction(instruction), .instruction_address(instruction_address),
+    .data_mem_read_enable(data_mem_read_enable), .data_mem_byte_write_enable(data_mem_byte_write_enable), .instruction(instruction), .instruction_address(instruction_address),
     .instruction_mem_busy(instruction_mem_busy), .instruction_mem_enable(instruction_mem_enable), .db_reg_data(db_reg_data));
 
     // Instruction Memory
     ROM #(.rom_init_file("./RV64I.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
-                            .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
+                            .enable(instruction_mem_enable), .addr(pc[9:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
-    single_port_ram #(.ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), 
-                .output_enable(1'b1), .chip_select(data_mem_enable), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));    
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"), .ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), 
+                .output_enable(data_mem_read_enable), .chip_select(1'b1), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));    
 
     // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
@@ -83,9 +85,6 @@ module RV64I_tb();
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
     assign funct7 = instruction[31:25];
-
-    // pc
-    assign pc = instruction_address;
 
     // geração do clock
     always begin
@@ -145,6 +144,7 @@ module RV64I_tb();
 
     // geração data mem byte write enable
     assign data_mem_byte_write_enable_ = funct3[1] ? (funct3[0] ? (8'hFF & {8{store}}) : (8'h0F & {8{store}})) : (funct3[0] ? (8'h03 & {8{store}}) : (8'h01 & {8{store}}));
+    assign data_mem_read_enable_ = (opcode === 7'b0000011) ? 1'b1 : 1'b0;
 
     // geração store
     assign store = (opcode === 7'b0100011) ? 1'b1 : 1'b0;
@@ -157,43 +157,58 @@ module RV64I_tb();
         $display("SOT!");
         write_register_enable = 1'b0;
         // Idle
+        estado = 0;
         #2;
         reset = 1'b1;
-        #0.5;
-        if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-            $display("Error Idle: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+        #0.1;
+        if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+            $display("Error Idle: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
             $stop;
         end
-        #5.5;
+        wait (clock == 1'b1);
+        wait (clock == 1'b0);
         reset = 1'b0;
-        #0.5;
-        if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-            $display("Error Idle: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+        #0.1;
+        if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+            $display("Error Idle: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
             $stop;
         end
-        #5.5;
+        wait (clock == 1'b1);
+        wait (clock == 1'b0);
         for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
             // Fetch
+            estado = 1;
             write_register_enable  = 1'b0;
-            if(instruction_mem_enable !== 1 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                $display("Error Fetch: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+            #0.1;
+            if(instruction_mem_enable !== 1 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                $display("Error Fetch: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                 $stop;
             end
             wait (instruction_mem_busy == 1'b1);
             wait (instruction_mem_busy == 1'b0);
-            #10;
-            // Decode 
-            if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                $display("Error Decode: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+            #0.1;
+            if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                $display("Error Fetch: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                 $stop;
             end
-            #6;
+            wait (clock == 1'b0);
+            wait (clock == 1'b1);
+            #0.1;
+            // Decode 
+            estado = 2;
+            if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                $display("Error Decode: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+                $stop;
+            end
+            wait (clock == 1'b0);
+            wait (clock == 1'b1);
             // Execute -> Teste
+            estado = 3;
             case (opcode)
                 // Store(S*) e Load(L*)
                 7'b0100011, 7'b0000011: begin
-                    #0.5;
+                    #0.1;
                     if(data_address !== A + immediate) begin
                         $display("Error Load/Store: data_address = %b, A = %b, immediate = %b, opcode = %b, funct3 = %b", data_address, A, immediate, opcode, funct3);
                         $stop;
@@ -202,49 +217,67 @@ module RV64I_tb();
                         $display("Error Store: write_data = %b, B = %b, funct3 = %b", write_data, B, funct3);
                         $stop;
                     end
-                    if(instruction_mem_enable !== 0 || data_mem_enable !== 1 || data_mem_byte_write_enable !== data_mem_byte_write_enable_ ) begin
-                        $display("Error Load/Store: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== data_mem_read_enable_ || data_mem_byte_write_enable !== data_mem_byte_write_enable_) begin
+                        $display("Error Load/Store: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                         $stop;
                     end
-                    #17.5;
+                    wait (data_mem_busy == 1'b1);
+                    wait (data_mem_busy == 1'b0);
+                    #0.1;
                     if(opcode[5] === 1'b0) begin
                         write_register_enable = 1'b1;
                         reg_data = read_data_extend;
                     end
-                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error Load/Store: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                    wait (clock == 1'b0);
+                    #0.1;
+                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error Load/Store: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                         $stop;
                     end
-                    if(opcode[5] === 1'b0 && db_reg_data !== read_data_extend) begin
-                        $display("Error Load: db_reg_data = %b, read_data_extend = %b, funct3 = %b", db_reg_data, read_data_extend, funct3);
+                    if(opcode[5] === 1'b0 && db_reg_data !== reg_data) begin
+                        $display("Error Load: db_reg_data = %b, reg_data = %b, funct3 = %b", db_reg_data, reg_data, funct3);
                         $stop;
                     end
-                    #6;
+                    pc = pc + 4;
+                    wait (clock == 1'b1);
+                    #0.1;
+                    if(instruction_address !== pc) begin
+                        $display("Error Load/Store: pc = %x, instruction address = %x", pc, instruction_address);
+                        $stop;
+                    end
+                    wait (clock == 1'b0);
                 end
                 // Branch(B*)
                 7'b1100011: begin
+                    #0.1;
                     if(funct3[2:1] === 2'b00)
-                        pc_src = zero ^ funct3[0];
+                        pc_src = zero_ ^ funct3[0];
                     else if(funct3[2:1] === 2'b10)
-                        pc_src = negative ^ overflow ^ funct3[0];
+                        pc_src = negative_ ^ overflow_ ^ funct3[0];
                     else if(funct3[2:1] === 2'b11)
-                        pc_src = carry_out ~^ funct3[0];
+                        pc_src = carry_out_ ~^ funct3[0];
                     else
                         $display("Error B-type: Invalid funct3! Funct3 : %b", funct3);
                     pc_4                  = pc + 4;
                     pc_imm                = pc + (immediate << 1);
                     write_register_enable = 1'b0;
-                    #0.5;
-                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error B-type: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                    #0.1;
+                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error B-type: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                         $stop;
                     end
-                    #2.5;
+                    wait (clock == 1'b0);
+                    wait (clock == 1'b1);
+                    #0.1;
                     if((pc_src === 1 && pc_imm !== instruction_address) || (pc_src === 0 && pc_4 !== instruction_address)) begin
                         $display("Error B-type PC: pc_src = %b, pc_imm = %b, pc_4 = %b, pc = %b", pc_src, pc_imm, pc_4, instruction_address);
                         $stop;
                     end
-                    #3;
+                    if(pc_src === 1'b1) 
+                        pc = pc_imm;
+                    else
+                        pc = pc_4;
+                    wait (clock == 1'b0);
                 end
                 // LUI e AUIPC
                 7'b0110111, 7'b0010111: begin
@@ -253,16 +286,24 @@ module RV64I_tb();
                         reg_data = immediate;
                     else
                         reg_data = instruction_address + immediate;
-                    #0.5;
+                    #0.1;
                     if(reg_data !== db_reg_data) begin
                         $display("Error AUIPC/LUI: reg_data = %b, db_reg_data = %b, opcode = %b", reg_data, db_reg_data, opcode);
                         $stop;
                     end
-                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error LUI/AUIPC: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error LUI/AUIPC: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                         $stop;
                     end
-                    #5.5;
+                    wait (clock == 1'b0);
+                    pc = pc + 4;
+                    wait (clock == 1'b1);
+                    #0.1;
+                    if(instruction_address !== pc) begin
+                        $display("Error Load/Store: pc = %x, instruction address = %x", pc, instruction_address);
+                        $stop;
+                    end
+                    wait (clock == 1'b0);
                 end
                 // JAL e JALR
                 7'b1101111, 7'b1100111: begin
@@ -272,21 +313,24 @@ module RV64I_tb();
                     else
                         pc_imm    = {A_immediate[63:1],1'b0};
                     reg_data = pc + 4;
-                    #0.5;
+                    #0.1;
                     if(db_reg_data !== reg_data) begin
                         $display("Error JAL/JALR: reg_data = %b, reg_data = %b, opcode = %b", db_reg_data, reg_data, opcode);
                         $stop;
                     end
-                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error JAL/JALR: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error JAL/JALR: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                         $stop;
                     end
-                    #2.5;
-                    if(pc_imm !== instruction_address) begin
-                        $display("Error JAL/JALR: pc_imm = %b, instruction_address = %b", pc_imm, instruction_address);
+                    wait (clock == 1'b0);
+                    pc = pc_imm;
+                    wait (clock == 1'b1);
+                    #0.1;
+                    if(pc !== instruction_address) begin
+                        $display("Error JAL/JALR: pc = %b, instruction_address = %b", pc, instruction_address);
                         $stop;    
                     end
-                    #3;
+                    wait (clock == 1'b0);
                 end
                 // ULA R/I-type
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
@@ -299,16 +343,24 @@ module RV64I_tb();
                         reg_data = ULA_function(A, immediate, {1'b0, funct3});
                     if(opcode[3] === 1'b1)
                         reg_data = {{32{reg_data[31]}},reg_data[31:0]};
-                    #0.5;
+                    #0.1;
                     if(reg_data !== db_reg_data) begin
                         $display("Error ULA R/I-type: reg_data = %b, db_reg_data = %b, funct7 = %b, funct3 = %b", reg_data, db_reg_data, funct7, funct3);
                         $stop;
                     end
-                    if(instruction_mem_enable !== 0 || data_mem_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error ULA R/I-type: instruction_mem_enable = %b, data_mem_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_enable, data_mem_byte_write_enable);
+                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
+                        $display("Error ULA R/I-type: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                         $stop;
                     end
-                    #5.5;
+                    wait (clock == 1'b0);
+                    pc = pc + 4;
+                    wait (clock == 1'b1);
+                    #0.1;
+                    if(instruction_address !== pc) begin
+                        $display("Error Load/Store: pc = %x, instruction address = %x", pc, instruction_address);
+                        $stop;
+                    end
+                    wait (clock == 1'b0);
                 end
                 7'b0000000: begin
                     if(pc === `program_size - 3)

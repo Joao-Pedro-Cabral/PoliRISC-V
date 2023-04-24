@@ -5,10 +5,12 @@
 //! @date   2023-03-04
 //
 
-module RV64I (
+module RV64I
+(
     input  wire clock,
     input  wire reset,
-    // Data Memory
+    
+    // Bus Interface
     input  wire [63:0] read_data,
     output wire [63:0] write_data,
     output wire [63:0] data_address,
@@ -54,9 +56,9 @@ module RV64I (
 
     // Control Unit
     control_unit UC (.clock(clock), .reset(reset), .instruction_mem_enable(instruction_mem_enable), .instruction_mem_busy(instruction_mem_busy), .data_mem_read_enable(data_mem_read_enable), 
-    .data_mem_byte_write_enable(data_mem_byte_write_enable), .data_mem_busy(data_mem_busy), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), 
+    .data_mem_byte_write_enable(data_mem_byte_write_enable), .data_mem_busy(data_mem_busy), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .ir_enable(ir_enable),
     .negative(negative), .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), 
     .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src),
-    .write_register_enable(write_register_enable), .ir_enable(ir_enable));
+    .write_register_enable(write_register_enable));
 
 endmodule
