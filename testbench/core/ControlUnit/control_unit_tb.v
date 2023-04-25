@@ -6,6 +6,14 @@
 //! @date   2023-03-03
 //
 
+// Ideia do testbench: testar ciclo a ciclo o comportamento da UC 
+// de acordo com a instrução executada
+// Para isso considero as seguintes hipóteses:
+// RAM, ROM, DF estão corretos.
+// Com isso, basta testar se a UC consegue enviar os sinais corretos
+// a partir dos sinais de entrada provenientes da RAM, ROM e DF.
+// Para isso irei verificar as saídas da UC
+
 `timescale 1 ns / 100 ps
 
 module control_unit_tb();
@@ -45,18 +53,15 @@ module control_unit_tb();
     wire ir_enable;
     // Sinais da Memória de instruções
     wire [31:0] instruction;
-    // Sinais da Memória de Dados
+    // Sinais da Memória de  Dados
     wire [63:0] data_address;
     wire [63:0] write_data;
     wire [63:0] read_data;
-    // Sinais do PC
-    wire [63:0] pc;
     // Sinais intermediários de teste
     reg  [41:0]   LUT_uc [48:0];    // UC simulada com tabela
     wire [2057:0] LUT_linear;       // Tabela acima linearizada
-    reg  [24:0]   df_src;           // Produzido pelo LUT
-    wire [25:0]   db_df_src;        // Produzido pela UC
-    wire [63:0]   immediate;        // imediato
+    reg  [24:0]   df_src;           // Sinais produzidos pelo LUT
+    wire [25:0]   db_df_src;        // Sinais produzidos pela UC
     // variáveis
     integer limit = 1000;           // evitar loop infinito
     integer i;
@@ -75,13 +80,9 @@ module control_unit_tb();
      .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src), .write_register_enable(write_register_enable), .opcode(opcode),
      .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data());
 
-    // Extensor de Imediato
-    ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
-
    // Instruction Memory
     ROM #(.rom_init_file("./control_unit.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
-
 
     // Data Memory
     single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"), .ADDR_SIZE(6), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), 
@@ -96,7 +97,7 @@ module control_unit_tb();
         #3;
     end
 
-    // geração do LUT linear
+    // geração do LUT linear -> função não suporta array
     generate
         for(j = 0; j < 49; j = j + 1)
             assign LUT_linear[42*(j+1)-1:42*j] = LUT_uc[j];
@@ -109,14 +110,14 @@ module control_unit_tb();
         begin
             // U,J : apenas opcode
             if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
-                for(i = 0; i < 3; i = i + 1)
+                for(i = 0; i < 3; i = i + 1) // Eu coloquei U, J nas linhas 0 a 2 do mif
                     if(opcode == LUT_linear[35+42*i+:7])
                         temp = LUT_linear[42*i+:25];
             end
             // I, S, B: opcode e funct3
             else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
                 opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
-                for(i = 3; i < 34; i = i + 1) begin
+                for(i = 3; i < 34; i = i + 1) begin // Eu coloquei I, S, B nas linhas 3 a 33 do mif
                     if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3]) begin
                         // SRLI e SRAI: funct7
                         if(funct3 === 3'b101 && opcode[4] == 1'b1) begin
@@ -130,7 +131,7 @@ module control_unit_tb();
             end
             // R: opcode, funct3 e funct7
             else if(opcode === 7'b0111011 || opcode === 7'b0110011) begin
-               for(i = 34; i < 49; i = i + 1)
+               for(i = 34; i < 49; i = i + 1) // Eu coloquei I, S, B nas linhas 34 a 48 do mif
                     if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3] && funct7 === LUT_linear[25+42*i+:7])
                         temp = LUT_linear[42*i+:25];
             end
@@ -138,6 +139,7 @@ module control_unit_tb();
         end
     endfunction
 
+    // Concatenação dos sinais produzidos pela UC
     assign db_df_src = {ir_enable, alua_src, alub_src, aluy_src, alu_src, sub, arithmetic, alupc_src, pc_src, read_data_src, write_register_src, write_register_enable, data_mem_read_enable, data_mem_byte_write_enable};
 
     // testar o DUT
@@ -147,14 +149,16 @@ module control_unit_tb();
         $display("SOT!");
         // Idle
         #2;
-        reset = 1'b1;
+        reset = 1'b1; // Reseto
         #0.1;
+        // Confiro se a UC está em Idle
         if(db_df_src !== 0) begin
             $display("Error Idle: db_df_src = %x", db_df_src);
             $stop;
         end
         wait (clock == 1'b1);
         wait (clock == 1'b0);
+        // No ciclo seguinte, abaixo reset e confiro se a UC ainda está em Idle
         reset = 1'b0;
         #0.1;
         if(db_df_src !== 0) begin
@@ -165,8 +169,9 @@ module control_unit_tb();
         wait (clock == 1'b0);
         for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
-            // Fetch
+            // Fetch -> Apenas instruction mem enable levantado 
             #0.1;
+            // Confiro apenas os enables, pois em implementações futuras os demais podem mudar(aqui eles são don't care)
             if(ir_enable !== 1'b0 || pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b1 || data_mem_read_enable !== 1'b0 || data_mem_byte_write_enable !== 8'b00) begin
                 $display("Error Fetch: ir_enable = %x, pc_enable = %x, write_register_enable = %x, instruction_mem_enable = %x, data_mem_read_enable = %x, data_mem_byte_write_enable = %x", ir_enable, pc_enable, write_register_enable, instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                 $stop;
@@ -174,6 +179,7 @@ module control_unit_tb();
             wait (instruction_mem_busy == 1'b1);
             wait (instruction_mem_busy == 1'b0);
             #0.1;
+            // Após a memória abaixar confiro se o ir_enable levantou e o instruction mem enable desceu
             if(ir_enable !== 1'b1 || instruction_mem_enable !== 1'b0) begin
                 $display("Error Fetch: ir_enable = %x", ir_enable);
                 $stop;
@@ -182,8 +188,10 @@ module control_unit_tb();
             wait (clock == 1'b1);
             #0.1;
             // Decode
+            // No ciclo seguinte, obtenho as saídas da UC de acordo com o sheets
             df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
             #0.1;
+            // Verifico se algum enable está erroneamente habilitado
             if(ir_enable !== 1'b0 || pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b0 || data_mem_read_enable !== 1'b0 || data_mem_byte_write_enable !== 8'b00) begin
                 $display("Error Decode: ir_enable = %x, pc_enable = %x, write_register_enable = %x, instruction_mem_enable = %x, data_mem_read_enable = %x, data_mem_byte_write_enable = %x", ir_enable, pc_enable, write_register_enable, instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
                 $stop;
@@ -199,24 +207,25 @@ module control_unit_tb();
                 $display("db_df_src: %b", {db_df_src[25:16], db_df_src[14:10], db_df_src[8:0]});
                 $stop;
             end
-            // Testar pc_enable e incrementar pc
             case(opcode)
                 // Store(S*) e Load(L*)
                 7'b0100011, 7'b0000011: begin
                     wait (data_mem_busy == 1'b1);
                     wait (data_mem_busy == 1'b0);
                     #0.1;
+                    // Espero o busy abaixar para verificar os enables
                     if(ir_enable !== 1'b0 || pc_enable !== 1'b1 || write_register_enable !== df_src[9] || data_mem_read_enable !== 1'b0 || data_mem_byte_write_enable !== 8'b00) begin
                         $display("Store/Load Error: pc_enable = %x, write_register_enable = %x, data_mem_read_enable = %x, data_mem_byte_write_enable = %x, opcode = %x, funct3 = %x", pc_enable, write_register_enable, data_mem_read_enable, data_mem_byte_write_enable, opcode, funct3);
                         $stop;
                     end
+                    // Espero a borda de descida do ciclo seguinte(padronizar com o tb do DF)
                     wait (clock == 1'b0);
                     wait (clock == 1'b1);
                     wait (clock == 1'b0);
                 end
                 // Branch(B*)
                 7'b1100011: begin
-                    // testo pc_src de acordo com as flags aleatórias
+                    // testo pc_src de acordo com as flags do DF
                     if(funct3[2:1] === 2'b00) begin
                         if(zero ^ funct3[0] === 1'b1) begin
                             if(pc_src !== 1'b1) begin
@@ -261,38 +270,44 @@ module control_unit_tb();
                     end
                     else
                         $display("Error B-type: Invalid funct3! Funct3 : %x", funct3);
+                    // Espero a borda de descida do ciclo seguinte(padronizar com o tb do DF)
                     wait (clock == 1'b0);
                     wait (clock == 1'b1);
                     wait (clock == 1'b0);
                 end
                 // JAL e JALR
                 7'b1101111, 7'b1100111: begin
+                    // Apenas checo se o pc_enable está ativado
                     if(pc_enable !== 1'b1) begin
                         $display("Error J-type: pc_enable = %x, opcode = %x", pc_enable, opcode);
                         $stop;
                     end
+                    // Espero a borda de descida do ciclo seguinte(padronizar com o tb do DF)
                     wait (clock == 1'b0);
                     wait (clock == 1'b1);
                     wait (clock == 1'b0);
                 end
                 // U-type & ULA R/I-type
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011, 7'b0110111, 7'b0010111: begin
+                    // Apenas checo se o pc_enable está ativado
                     if(pc_enable !== 1'b1) begin
                         $display("Error U/R/I-type: pc_enable = %x, opcode = %x", pc_enable, opcode);
                         $stop;
                     end
+                    // Espero a borda de descida do ciclo seguinte(padronizar com o tb do DF)
                     wait (clock == 1'b0);
                     wait (clock == 1'b1);
                     wait (clock == 1'b0);
                 end
                 7'b0000000: begin
+                    // Fim do programa -> última instrução 0000000
                     if(instruction_address === `program_size - 3)
                         $display("End of program!");
                     else
                         $display("Error opcode case: opcode = %x", opcode);
                     $stop;
                 end
-                default: begin
+                default: begin // Erro: opcode  inexistente
                     $display("Error opcode case: opcode = %x", opcode);
                     $stop;
                 end
