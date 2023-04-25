@@ -17,14 +17,15 @@ module memory_controller_tb;
   integer i;
 
   // Entradas
-  reg transfer_enable;
-  reg [7:0] byte_write_enable;
-  reg [63:0] write_data;
-  reg [63:0] mem_address;
+  reg mem_rd_en;
+  reg mem_wr_en;
+  reg [7:0] mem_byte_en;
+  reg [63:0] wr_data;
+  reg [63:0] mem_addr;
   
   // Saídas
-  wire [63:0] read_data;
-  wire transfer_busy;
+  wire [63:0] rd_data;
+  wire mem_busy;
   
   // Interface da ROM
   wire [63:0] rom_data;
@@ -43,12 +44,13 @@ module memory_controller_tb;
 
   // Instanciação do DUT
   memory_controller DUT (
-    .transfer_enable(transfer_enable),
-    .byte_write_enable(byte_write_enable),
-    .write_data(write_data),
-    .mem_address(mem_address),
-    .read_data(read_data),
-    .transfer_busy(transfer_busy),
+    .mem_rd_en(mem_rd_en),
+    .mem_wr_en(mem_wr_en),
+    .mem_byte_en(mem_byte_en),
+    .wr_data(wr_data),
+    .mem_addr(mem_addr),
+    .rd_data(rd_data),
+    .mem_busy(mem_busy),
     .rom_data(rom_data),
     .rom_busy(rom_busy),
     .rom_enable(rom_enable),
@@ -97,61 +99,63 @@ module memory_controller_tb;
 
     // Inicialização das entradas
     clock = 0;
-    transfer_enable = 0;
-    byte_write_enable = 0;
-    write_data = 0;
-    mem_address = 0;
+    mem_rd_en = 0;
+    mem_byte_en = 0;
+    wr_data = 0;
+    mem_addr = 0;
 
     // Teste da ROM
+    mem_byte_en = 8'hFF;
     for(i = 0; i < 8; i = i + 1) begin
       @(negedge clock);
-      mem_address = 8*i; // acesso da ROM
-      transfer_enable = 1;
-      @(posedge rom_busy);
-      @(negedge rom_busy);
-      if(read_data !== rom_memory[i]) 
-        $warning("Erro no teste %d da rom:\n\trom = 0x%h\n\tcontrolador = 0x%h\n", i+1, rom_memory[i], read_data);
+      mem_addr = 8*i; // acesso da ROM
+      mem_rd_en = 1;
+      @(posedge mem_busy);
+      @(negedge mem_busy);
+      if(rd_data !== rom_memory[i]) 
+        $warning("Erro no teste %d da rom:\n\trom = 0x%h\n\tcontrolador = 0x%h\n", i+1, rom_memory[i], rd_data);
       else
         $display("Acerto no teste %d da ROM", i+1);
-      transfer_enable = 0;
+      mem_rd_en = 0;
     end
     
 
     // Teste de leitura da RAM
     for(i = 0; i < 8; i = i + 1) begin
       @(negedge clock);
-      mem_address = 2**24 + 8*i; // acesso da RAM, começando no endereço 2^24
-      transfer_enable = 1;
-      @(posedge ram_busy);
-      @(negedge ram_busy);
-      if(read_data !== ram_memory[i]) 
-        $warning("Erro no teste %d de leitura da ram:\n\tram = 0x%h\n\tcontrolador = 0x%h\n", i+1, ram_memory[i], read_data);
+      mem_addr = 2**24 + 8*i; // acesso da RAM, começando no endereço 2^24
+      mem_rd_en = 1;
+      @(posedge mem_busy);
+      @(negedge mem_busy);
+      if(rd_data !== ram_memory[i]) 
+        $warning("Erro no teste %d de leitura da ram:\n\tram = 0x%h\n\tcontrolador = 0x%h\n", i+1, ram_memory[i], rd_data);
       else
         $display("Acerto no teste %d de leitura da RAM", i+1);
-      transfer_enable = 0;
+      mem_rd_en = 0;
       
       // Escreve na RAM para teste de escrita a seguir
       @(negedge clock);
-      write_data = i;
+      wr_data = i;
       ram_memory[i] = i; // atualiza conteúdo de memória da RAM
-      byte_write_enable = 8'hFF;
-      @(posedge ram_busy);
-      @(negedge ram_busy);
-      byte_write_enable = 8'h00;
+      mem_wr_en = 1'b1;
+      @(posedge mem_busy);
+      @(negedge mem_busy);
+      mem_wr_en = 1'b0;
     end
 
     // Teste de escrita da RAM
+    mem_byte_en = 8'hFF;
     for(i = 0; i < 8; i = i + 1) begin
       @(negedge clock);
-      mem_address = 2**24 + 8*i; // acesso da RAM, começando no endereço 2^24
-      transfer_enable = 1;
-      @(posedge ram_busy);
-      @(negedge ram_busy);
-      if(read_data !== ram_memory[i]) 
-        $warning("Erro no teste %d de escrita da ram:\n\tram = 0x%h\n\tcontrolador = 0x%h\n", i+1, ram_memory[i], read_data);
+      mem_addr = 2**24 + 8*i; // acesso da RAM, começando no endereço 2^24
+      mem_rd_en = 1;
+      @(posedge mem_busy);
+      @(negedge mem_busy);
+      if(rd_data !== ram_memory[i]) 
+        $warning("Erro no teste %d de escrita da ram:\n\tram = 0x%h\n\tcontrolador = 0x%h\n", i+1, ram_memory[i], rd_data);
       else
         $display("Acerto no teste %d de escrita da RAM", i+1);
-      transfer_enable = 0;
+      mem_rd_en = 0;
     end
 
     $stop;

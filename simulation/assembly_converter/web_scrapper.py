@@ -18,6 +18,9 @@ def sextw(tokens):
 
 def jr(tokens):
     return "jalr x0,"+tokens[1]+",0\n"
+
+def j(tokens):
+    return "jal x0,"+tokens[1]+"\n"
 ###############################
 
 searchterms = []
@@ -25,10 +28,11 @@ pseudoinstructions= {
         "li":li,
         "mv":mv,
         "sext.w":sextw,
-        "jr":jr
+        "jr":jr,
+        "j" :j
         }
 
-with open("riscv_assembly.txt", "r") as assembly:
+with open(input("digite o nome do arquivo: "), "r") as assembly:
     for line in assembly:
 
         # apaga espaços no começo da linha
