@@ -66,13 +66,13 @@ module memory_controller_tb;
 
   // Instanciação da memória ROM
   ROM #(.rom_init_file("./MIFs/memory/ROM/rom_init_file.mif"), .word_size(8), .addr_size(6), .offset(3), .busy_time(12))
-      rom (.clock(clock), .enable(rom_enable), .addr(rom_addr), .data(rom_data), .busy(rom_busy));
+      rom (.clock(clock), .enable(rom_enable), .addr(rom_addr[5:0]), .data(rom_data), .busy(rom_busy));
 
   // Instanciação da memória RAM
   single_port_ram
   #(
       .RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"),
-      .ADDR_SIZE(6),
+      .ADDR_SIZE(24),
       .BYTE_SIZE(8),
       .DATA_SIZE(64),
       .BUSY_TIME(30)

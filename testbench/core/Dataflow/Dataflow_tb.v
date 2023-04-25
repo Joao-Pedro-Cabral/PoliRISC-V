@@ -16,6 +16,7 @@
 // Veja que db_reg_data é usada apenas para depuração (dado a ser escrito no banco)
 
 `timescale 1 ns / 100 ps
+`define program_size 272
 
 module Dataflow_tb();
     // sinais do DUT
@@ -98,11 +99,11 @@ module Dataflow_tb();
      .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./Dataflow.mif"), .word_size(8), .addr_size(10), .offset(3), .busy_time(12)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(3), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"), .ADDR_SIZE(6), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(26), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
                         .output_enable(ram_output_enable), .chip_select(ram_chip_select), .byte_write_enable(ram_byte_write_enable), .read_data(ram_read_data), .busy(ram_busy));
 
     // Instanciação do barramento
@@ -138,29 +139,32 @@ module Dataflow_tb();
             // U,J : apenas opcode
             if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
                 for(i = 0; i < 3; i = i + 1) // Eu coloquei U, J nas linhas 0 a 2 do mif
-                    if(opcode == LUT_linear[35+41*i+:7])
-                        temp = LUT_linear[41*i+:25];
+                    if(opcode === LUT_linear[34+41*i+:7])
+                        temp = LUT_linear[41*i+:24];
             end
             // I, S, B: opcode e funct3
             else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
                 opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
                 for(i = 3; i < 34; i = i + 1) begin // Eu coloquei I, S, B nas linhas 3 a 33 do mif
-                    if(opcode === LUT_linear[35+41*i+:7] && funct3 === LUT_linear[32+41*i+:3]) begin
+                    if(opcode === LUT_linear[34+41*i+:7] && funct3 === LUT_linear[31+41*i+:3]) begin
                         // SRLI e SRAI: funct7
                         if(funct3 === 3'b101 && opcode[4] == 1'b1) begin
-                            if(funct7[6:1] === LUT_linear[26+41*i+:6])
-                                temp = LUT_linear[41*i+:25];
+                            if(funct7[6:1] === LUT_linear[25+41*i+:6])
+                                temp = LUT_linear[41*i+:24];
                         end
                         else
-                            temp = LUT_linear[41*i+:25];
+                            temp = LUT_linear[41*i+:24];
                     end
                 end
             end
             // R: opcode, funct3 e funct7
             else if(opcode === 7'b0111011 || opcode === 7'b0110011) begin
                for(i = 34; i < 49; i = i + 1) // Eu coloquei I, S, B nas linhas 34 a 48 do mif
-                    if(opcode === LUT_linear[35+41*i+:7] && funct3 === LUT_linear[32+41*i+:3] && funct7 === LUT_linear[25+41*i+:7])
-                        temp = LUT_linear[41*i+:25];
+                    if(opcode === LUT_linear[34+41*i+:7] && funct3 === LUT_linear[31+41*i+:3] && funct7 === LUT_linear[24+41*i+:7])
+                        temp = LUT_linear[41*i+:24];
+            end
+            else begin
+             $fatal("ERROR: opcode = %b", opcode);
             end
             find_instruction = temp;
         end
@@ -249,6 +253,7 @@ module Dataflow_tb();
             mem_rd_en = 1'b0;
             mem_wr_en = 1'b0;
             mem_addr_src = 1'b0;
+            mem_byte_en  = 8'hFF;
             #0.1; // espero um pouco
             // Testo o endereço de acesso a Memória de Instrução
             if(pc !== mem_addr) begin
@@ -258,8 +263,8 @@ module Dataflow_tb();
             mem_rd_en = 1'b1; // habilito a memória
             wait (mem_busy == 1'b1);
             wait (mem_busy == 1'b0);
-            instruction = rd_data;
             mem_rd_en = 1'b0; // desabilito, após descida do busy
+            instruction = rd_data;
             ir_en = 1'b1; // habilito IR
             wait (clock == 1'b0);
             wait (clock == 1'b1); // espero o clock subir
@@ -304,9 +309,9 @@ module Dataflow_tb();
                     end
                     wait (mem_busy == 1'b1);
                     wait (mem_busy == 1'b0); // espero o busy descer
-                    mem_rd_en = 1'b0;        // desabilito a memória
                     wr_reg_en = df_src[11];  // caso necessário habilito a escrita no banco
                     reg_data  = rd_data;     // escrevo no banco
+                    mem_rd_en = 1'b0;        // desabilito a memória
                     #0.1;
                     // Caso L* -> confiro a leitura
                     if(opcode[5] === 1'b0 && db_reg_data !== reg_data) begin
@@ -318,10 +323,11 @@ module Dataflow_tb();
                     pc_4  = pc + 4;
                     wait (clock == 1'b0);
                     wait (clock == 1'b1);
+                    mem_addr_src = 1'b0;
                     #0.1;
                     // Ciclo seguinte: Confiro novo valor de PC
                     if(pc_4 !== mem_addr) begin
-                        $display("Error AUIPC/LUI PC: pc_4 = %x, pc = %x", pc_4, mem_addr);
+                        $display("Error Store/Load PC: pc_4 = %x, pc = %x", pc_4, mem_addr);
                         $stop;
                     end
                     pc = pc_4;
@@ -407,7 +413,7 @@ module Dataflow_tb();
                     #0.1;
                     // Confiro a escrita no banco
                     if(db_reg_data !== reg_data) begin
-                        $display("Error JAL/JALR: reg_data = %x, reg_data = %x, opcode = %x", db_reg_data, reg_data, opcode);
+                        $display("Error JAL/JALR: db_reg_data = %x, reg_data = %x, opcode = %x", db_reg_data, reg_data, opcode);
                         $stop;
                     end
                     wait (clock == 1'b1);

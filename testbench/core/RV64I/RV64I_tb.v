@@ -71,11 +71,11 @@ module RV64I_tb();
     .instruction_mem_busy(instruction_mem_busy), .instruction_mem_enable(instruction_mem_enable), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./RV64I.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
+    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
                             .enable(instruction_mem_enable), .addr(pc[9:0]), .data(instruction), .busy(instruction_mem_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"), .ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), 
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), 
                 .output_enable(data_mem_read_enable), .chip_select(1'b1), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));    
 
     // Componentes auxiliares para a verificação

@@ -45,7 +45,7 @@ module memory_controller
 );
 
   /* Sinais de controle */
-  wire   s_rom_enable          = mem_addr[63:24] == 0     && mem_rd_en           ? 1'b1 : 1'b0; // 16 MiB para a ROM
+  wire   s_rom_enable          = mem_addr[63:24] == 0                            ? 1'b1 : 1'b0; // 16 MiB para a ROM
   wire   s_ram_chip_select     = mem_addr[63:24] <= 'b100 && mem_addr[63:24] >= 'b1 ? 1'b1 : 1'b0; // 64 MiB para a RAM
   assign rom_enable            = s_rom_enable;
   assign ram_chip_select       = s_ram_chip_select;

@@ -37,7 +37,7 @@
   lw a5,-52(s0) 
   sext.w a4,a4
   sext.w a5,a5
-  blt a4,a5,-12  ; -12 --> L5
+  blt a4,a5,-24  ; -12 --> L5
   ld a5,-24(s0) 
   mv a0,a5       ; L3
   ld ra,56(sp)
@@ -45,7 +45,10 @@
   addi sp,sp,64
   jr ra
   lui sp,67108864 ; main
-  sub sp,sp,8
+  lui x5,16777216
+  addi x5,x5,-1
+  or sp,sp,x5
+  addi sp,sp,-8
   addi sp,sp,-48 
   sd ra,40(sp)
   sd s0,32(sp)
@@ -57,7 +60,7 @@
   mv a1,a5
   mv a0,a4
   auipc x1,0      ; call power
-  jalr x1,x1,-232 ; corrigir
+  jalr x1,x1,-240 ; corrigir
   mv a4,a0
   ld a5,-40(s0)
   sd a4,0(a5)

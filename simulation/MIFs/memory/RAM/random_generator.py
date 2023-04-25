@@ -2,7 +2,7 @@ from random import randint
 
 # Define the file name and the number of words to generate
 file_name = "random_numbers.mif"
-num_words = 64
+num_words = 64*2**20
 
 # Define the number of bits per word and the maximum value for each bit
 num_bits = 8
