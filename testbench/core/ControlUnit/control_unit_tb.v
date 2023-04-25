@@ -21,14 +21,11 @@ module control_unit_tb();
         // Common
     reg  clock;
     reg  reset;
-        // Instruction Memory
-    wire instruction_mem_enable;
-    wire instruction_mem_busy;
-    wire [63:0] instruction_address;
-        // Data Memory
-    wire data_mem_read_enable;
-    wire [7:0] data_mem_byte_write_enable;
-    wire data_mem_busy;
+        // Bus
+    wire mem_wr_en;
+    wire mem_rd_en;
+    wire [7:0] mem_byte_en;
+    wire mem_busy;
         // From Dataflow
     wire [6:0] opcode;
     wire [2:0] funct3;
@@ -46,47 +43,64 @@ module control_unit_tb();
     wire arithmetic;
     wire alupc_src;
     wire pc_src;
-    wire pc_enable;
-    wire [2:0] read_data_src;
-    wire [1:0] write_register_src;
-    wire write_register_enable;
-    wire ir_enable;
-    // Sinais da Memória de instruções
-    wire [31:0] instruction;
-    // Sinais da Memória de  Dados
-    wire [63:0] data_address;
-    wire [63:0] write_data;
-    wire [63:0] read_data;
+    wire pc_en;
+    wire [1:0] wr_reg_src;
+    wire wr_reg_en;
+    wire ir_en;
+    wire mem_addr_src;
+    // Sinais do Controlador de Memória
+    wire [63:0] mem_addr;
+    wire [63:0] wr_data;
+    wire [63:0] rd_data;
+    // Sinais do Barramento
+        // Instruction Memory
+    wire [63:0] rom_data;
+    wire [63:0] rom_addr;
+    wire rom_enable;
+    wire rom_busy;
+        // Data Memory
+    wire [63:0] ram_address;
+    wire [63:0] ram_write_data;
+    wire [63:0] ram_read_data;
+    wire ram_output_enable;
+    wire ram_chip_select;
+    wire [7:0] ram_byte_write_enable;
+    wire ram_busy;
     // Sinais intermediários de teste
     reg  [41:0]   LUT_uc [48:0];    // UC simulada com tabela
-    wire [2057:0] LUT_linear;       // Tabela acima linearizada
-    reg  [24:0]   df_src;           // Sinais produzidos pelo LUT
-    wire [25:0]   db_df_src;        // Sinais produzidos pela UC
+    wire [2008:0] LUT_linear;       // Tabela acima linearizada
+    reg  [23:0]   df_src;           // Sinais produzidos pelo LUT
+    wire [24:0]   db_df_src;        // Sinais produzidos pela UC
     // variáveis
     integer limit = 1000;           // evitar loop infinito
     integer i;
     genvar j;
 
     // DUT
-    control_unit DUT (.clock(clock), .reset(reset), .instruction_mem_enable(instruction_mem_enable), .instruction_mem_busy(instruction_mem_busy), .data_mem_read_enable(data_mem_read_enable),
-    .data_mem_byte_write_enable(data_mem_byte_write_enable), .data_mem_busy(data_mem_busy), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .ir_enable(ir_enable),
-    .negative(negative), .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub),
-    .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src),
-    .write_register_enable(write_register_enable));
+    control_unit DUT (.clock(clock), .reset(reset), .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_busy(mem_busy), .opcode(opcode), .funct3(funct3), 
+    .funct7(funct7), .zero(zero), .ir_en(ir_en), .negative(negative), .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), 
+    .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src),
+    .wr_reg_en(wr_reg_en), .mem_addr_src(mem_addr_src), .mem_wr_en(mem_wr_en));
 
     // Dataflow
-    Dataflow DF (.clock(clock), .reset(reset), .instruction(instruction), .instruction_address(instruction_address), .read_data(read_data), .write_data(write_data), .ir_enable(ir_enable),
-     .data_address(data_address), .alua_src(alua_src), .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src),
-     .pc_src(pc_src), .pc_enable(pc_enable), .read_data_src(read_data_src), .write_register_src(write_register_src), .write_register_enable(write_register_enable), .opcode(opcode),
-     .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data());
+    Dataflow DF (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr(mem_addr), .alua_src(alua_src), .alub_src(alub_src), 
+     .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
+     .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), 
+     .db_reg_data(), .mem_addr_src(mem_addr_src));
 
-   // Instruction Memory
-    ROM #(.rom_init_file("./control_unit.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
-                            .enable(instruction_mem_enable), .addr(instruction_address[9:0]), .data(instruction), .busy(instruction_mem_busy));
+    // Instanciação do barramento
+    memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
+    .mem_busy(mem_busy), .rom_data(rom_data), .rom_busy(rom_busy), .rom_enable(rom_enable), .rom_addr(rom_addr), .ram_read_data(ram_read_data), 
+    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_chip_select(ram_chip_select),
+    .ram_byte_write_enable(ram_byte_write_enable));
+
+    // Instruction Memory
+    ROM #(.rom_init_file("./control_unit.mif"), .word_size(8), .addr_size(10), .offset(3), .busy_time(12)) Instruction_Memory (.clock(clock),
+                            .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"), .ADDR_SIZE(6), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), 
-        .write_data(write_data), .output_enable(data_mem_read_enable), .chip_select(1'b1), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"), .ADDR_SIZE(6), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), 
+        .write_data(ram_write_data), .output_enable(ram_output_enable), .chip_select(ram_chip_select), .byte_write_enable(ram_byte_write_enable), .read_data(ram_read_data), .busy(ram_busy));
 
 
     // geração do clock
@@ -100,47 +114,47 @@ module control_unit_tb();
     // geração do LUT linear -> função não suporta array
     generate
         for(j = 0; j < 49; j = j + 1)
-            assign LUT_linear[42*(j+1)-1:42*j] = LUT_uc[j];
+            assign LUT_linear[41*(j+1)-1:41*j] = LUT_uc[j];
     endgenerate
 
     // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [24:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2057:0] LUT_linear);
+    function [23:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2008:0] LUT_linear);
             integer i;
-            reg [24:0] temp;
+            reg [23:0] temp;
         begin
             // U,J : apenas opcode
             if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
                 for(i = 0; i < 3; i = i + 1) // Eu coloquei U, J nas linhas 0 a 2 do mif
-                    if(opcode == LUT_linear[35+42*i+:7])
-                        temp = LUT_linear[42*i+:25];
+                    if(opcode == LUT_linear[35+41*i+:7])
+                        temp = LUT_linear[41*i+:25];
             end
             // I, S, B: opcode e funct3
             else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
                 opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
                 for(i = 3; i < 34; i = i + 1) begin // Eu coloquei I, S, B nas linhas 3 a 33 do mif
-                    if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3]) begin
+                    if(opcode === LUT_linear[35+41*i+:7] && funct3 === LUT_linear[32+41*i+:3]) begin
                         // SRLI e SRAI: funct7
                         if(funct3 === 3'b101 && opcode[4] == 1'b1) begin
-                            if(funct7[6:1] === LUT_linear[26+42*i+:6])
-                                temp = LUT_linear[42*i+:25];
+                            if(funct7[6:1] === LUT_linear[26+41*i+:6])
+                                temp = LUT_linear[41*i+:25];
                         end
                         else
-                            temp = LUT_linear[42*i+:25];
+                            temp = LUT_linear[41*i+:25];
                     end
                 end
             end
             // R: opcode, funct3 e funct7
             else if(opcode === 7'b0111011 || opcode === 7'b0110011) begin
                for(i = 34; i < 49; i = i + 1) // Eu coloquei I, S, B nas linhas 34 a 48 do mif
-                    if(opcode === LUT_linear[35+42*i+:7] && funct3 === LUT_linear[32+42*i+:3] && funct7 === LUT_linear[25+42*i+:7])
-                        temp = LUT_linear[42*i+:25];
+                    if(opcode === LUT_linear[35+41*i+:7] && funct3 === LUT_linear[32+41*i+:3] && funct7 === LUT_linear[25+41*i+:7])
+                        temp = LUT_linear[41*i+:25];
             end
             find_instruction = temp;
         end
     endfunction
 
     // Concatenação dos sinais produzidos pela UC
-    assign db_df_src = {ir_enable, alua_src, alub_src, aluy_src, alu_src, sub, arithmetic, alupc_src, pc_src, read_data_src, write_register_src, write_register_enable, data_mem_read_enable, data_mem_byte_write_enable};
+    assign db_df_src = {ir_en, alua_src, alub_src, aluy_src, alu_src, sub, arithmetic, alupc_src, pc_src, wr_reg_src, wr_reg_en, mem_addr_src, mem_wr_en, mem_rd_en, mem_byte_en};
 
     // testar o DUT
     initial begin: Testbench
@@ -169,19 +183,19 @@ module control_unit_tb();
         wait (clock == 1'b0);
         for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
-            // Fetch -> Apenas instruction mem enable levantado 
+            // Fetch -> Apenas instruction mem en levantado 
             #0.1;
-            // Confiro apenas os enables, pois em implementações futuras os demais podem mudar(aqui eles são don't care)
-            if(ir_enable !== 1'b0 || pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b1 || data_mem_read_enable !== 1'b0 || data_mem_byte_write_enable !== 8'b00) begin
-                $display("Error Fetch: ir_enable = %x, pc_enable = %x, write_register_enable = %x, instruction_mem_enable = %x, data_mem_read_enable = %x, data_mem_byte_write_enable = %x", ir_enable, pc_enable, write_register_enable, instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+            // Confiro apenas os ens, pois em implementações futuras os demais podem mudar(aqui eles são don't care)
+            if(ir_en !== 1'b0 || pc_en !== 1'b0 || wr_reg_en !== 1'b0 || mem_rd_en !== 1'b1 || mem_wr_en !== 1'b0 || mem_byte_en !== 8'b01111) begin
+                $display("Error Fetch: ir_en = %x, pc_en = %x, wr_reg_en = %x, mem_rd_en = %x, mem_byte_en = %x", ir_en, pc_en, wr_reg_en, mem_rd_en, mem_byte_en);
                 $stop;
             end
-            wait (instruction_mem_busy == 1'b1);
-            wait (instruction_mem_busy == 1'b0);
+            wait (mem_busy == 1'b1);
+            wait (mem_busy == 1'b0);
             #0.1;
-            // Após a memória abaixar confiro se o ir_enable levantou e o instruction mem enable desceu
-            if(ir_enable !== 1'b1 || instruction_mem_enable !== 1'b0) begin
-                $display("Error Fetch: ir_enable = %x", ir_enable);
+            // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
+            if(ir_en !== 1'b1 || mem_rd_en !== 1'b0 || mem_byte_en !== 8'b00) begin
+                $display("Error Fetch: ir_en = %x", ir_en);
                 $stop;
             end
             wait (clock == 1'b0);
@@ -192,30 +206,28 @@ module control_unit_tb();
             df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
             #0.1;
             // Verifico se algum enable está erroneamente habilitado
-            if(ir_enable !== 1'b0 || pc_enable !== 1'b0 || write_register_enable !== 1'b0 || instruction_mem_enable !== 1'b0 || data_mem_read_enable !== 1'b0 || data_mem_byte_write_enable !== 8'b00) begin
-                $display("Error Decode: ir_enable = %x, pc_enable = %x, write_register_enable = %x, instruction_mem_enable = %x, data_mem_read_enable = %x, data_mem_byte_write_enable = %x", ir_enable, pc_enable, write_register_enable, instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+            if(ir_en !== 1'b0 || pc_en !== 1'b0 || wr_reg_en !== 1'b0 || mem_rd_en !== 1'b0 || mem_wr_en !== 1'b0 || mem_byte_en !== 8'b00) begin
+                $display("Error Decode: ir_en = %x, pc_en = %x, wr_reg_en = %x, mem_rd_en = %x, mem_wr_en = %x, mem_byte_en = %x", ir_en, pc_en, wr_reg_en, mem_rd_en, mem_wr_en, mem_byte_en);
                 $stop;
             end
             wait (clock == 1'b0);
             wait (clock == 1'b1);
             #0.1;
-            // Execute -> Não testo pc_src para instruções do tipo B e write_register_enable para Load (caso opcode = 0 -> deixo passar)
-            if(opcode !== 0 && ({1'b0,df_src[24:16], df_src[14:10], df_src[8:0]} !== {db_df_src[25:16], db_df_src[14:10], db_df_src[8:0]} || (df_src[15] !== db_df_src[15] && opcode !== 7'b1100011)
-                    || (df_src[9] !== db_df_src[9] && opcode !== 7'b0000011))) begin
+            // Execute -> Não testo pc_src para instruções do tipo B e write_reg_en para Load (caso opcode = 0 -> deixo passar)
+            if(opcode !== 0 && ({1'b0,df_src[23:15], df_src[13:12], df_src[10:0]} !== {db_df_src[24:15], db_df_src[13:12], db_df_src[10:0]} || (df_src[14] !== db_df_src[14] && opcode !== 7'b1100011)
+                    || (df_src[11] !== db_df_src[11] && opcode !== 7'b0000011))) begin
                 $display("Error Execute: df_src = %x, db_df_src = %x", df_src, db_df_src);
-                $display("df_src: %b", {1'b0,df_src[24:16], df_src[14:10], df_src[8:0]});
-                $display("db_df_src: %b", {db_df_src[25:16], db_df_src[14:10], db_df_src[8:0]});
                 $stop;
             end
             case(opcode)
                 // Store(S*) e Load(L*)
                 7'b0100011, 7'b0000011: begin
-                    wait (data_mem_busy == 1'b1);
-                    wait (data_mem_busy == 1'b0);
+                    wait (mem_busy == 1'b1);
+                    wait (mem_busy == 1'b0);
                     #0.1;
                     // Espero o busy abaixar para verificar os enables
-                    if(ir_enable !== 1'b0 || pc_enable !== 1'b1 || write_register_enable !== df_src[9] || data_mem_read_enable !== 1'b0 || data_mem_byte_write_enable !== 8'b00) begin
-                        $display("Store/Load Error: pc_enable = %x, write_register_enable = %x, data_mem_read_enable = %x, data_mem_byte_write_enable = %x, opcode = %x, funct3 = %x", pc_enable, write_register_enable, data_mem_read_enable, data_mem_byte_write_enable, opcode, funct3);
+                    if(ir_en !== 1'b0 || pc_en !== 1'b1 || wr_reg_en !== df_src[9] || mem_rd_en !== 1'b0 || mem_wr_en !== 1'b0 || mem_byte_en !== 8'b00) begin
+                        $display("Store/Load Error: pc_en = %x, wr_reg_en = %x, mem_rd_en = %x, mem_wr_en, mem_byte_en = %x, opcode = %x, funct3 = %x", pc_en, wr_reg_en, mem_rd_en, mem_wr_en, mem_byte_en, opcode, funct3);
                         $stop;
                     end
                     // Espero a borda de descida do ciclo seguinte(padronizar com o tb do DF)
@@ -275,23 +287,11 @@ module control_unit_tb();
                     wait (clock == 1'b1);
                     wait (clock == 1'b0);
                 end
-                // JAL e JALR
-                7'b1101111, 7'b1100111: begin
-                    // Apenas checo se o pc_enable está ativado
-                    if(pc_enable !== 1'b1) begin
-                        $display("Error J-type: pc_enable = %x, opcode = %x", pc_enable, opcode);
-                        $stop;
-                    end
-                    // Espero a borda de descida do ciclo seguinte(padronizar com o tb do DF)
-                    wait (clock == 1'b0);
-                    wait (clock == 1'b1);
-                    wait (clock == 1'b0);
-                end
-                // U-type & ULA R/I-type
-                7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011, 7'b0110111, 7'b0010111: begin
-                    // Apenas checo se o pc_enable está ativado
-                    if(pc_enable !== 1'b1) begin
-                        $display("Error U/R/I-type: pc_enable = %x, opcode = %x", pc_enable, opcode);
+                // JAL, JALR, U-type & ULA R/I-type
+                7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011, 7'b0110111, 7'b0010111: begin
+                    // Apenas checo se o pc_en está ativado
+                    if(pc_en !== 1'b1) begin
+                        $display("Error U/R/I-type: pc_en = %x, opcode = %x", pc_en, opcode);
                         $stop;
                     end
                     // Espero a borda de descida do ciclo seguinte(padronizar com o tb do DF)
@@ -301,7 +301,7 @@ module control_unit_tb();
                 end
                 7'b0000000: begin
                     // Fim do programa -> última instrução 0000000
-                    if(instruction_address === `program_size - 3)
+                    if(rom_data === `program_size - 3)
                         $display("End of program!");
                     else
                         $display("Error opcode case: opcode = %x", opcode);

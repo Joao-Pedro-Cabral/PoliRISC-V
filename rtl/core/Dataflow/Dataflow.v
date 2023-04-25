@@ -5,19 +5,16 @@
 //! @date   2023-03-04
 //
 
-module Dataflow(clock, reset, instruction, instruction_address, read_data, write_data, data_address, ir_enable,
-                alua_src, alub_src, aluy_src, alu_src, sub, arithmetic, alupc_src, pc_src, pc_enable, read_data_src,
-                write_register_src, write_register_enable, opcode, funct3, funct7, zero, negative, carry_out, overflow, db_reg_data);
+module Dataflow(clock, reset, rd_data, wr_data, mem_addr, mem_addr_src, ir_en, alua_src, alub_src,  
+                aluy_src, alu_src, sub, arithmetic, alupc_src, pc_src, pc_en, wr_reg_src, wr_reg_en,
+                opcode, funct3, funct7, zero, negative, carry_out, overflow, db_reg_data);
     // Common
     input  wire clock;
     input  wire reset;
-    // Instruction Memory
-    input  wire [31:0] instruction;
-    output wire [63:0] instruction_address;
-    // Data Memory
-    input  wire [63:0] read_data;
-    output wire [63:0] write_data;
-    output wire [63:0] data_address;
+    // Memory
+    input  wire [63:0] rd_data;
+    output wire [63:0] wr_data;
+    output wire [63:0] mem_addr;
     // From Control Unit
     input  wire alua_src;
     input  wire alub_src;
@@ -27,11 +24,11 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     input  wire arithmetic;
     input  wire alupc_src;
     input  wire pc_src;
-    input  wire pc_enable;
-    input  wire [2:0] read_data_src;
-    input  wire [1:0] write_register_src;
-    input  wire write_register_enable;
-    input  wire ir_enable;
+    input  wire pc_en;
+    input  wire [1:0] wr_reg_src;
+    input  wire wr_reg_en;
+    input  wire ir_en;
+    input  wire mem_addr_src;
     // To Control Unit
     output wire [6:0] opcode;
     output wire [2:0] funct3;
@@ -40,15 +37,14 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     output wire negative;
     output wire carry_out;
     output wire overflow;
-    output wire [63:0] db_reg_data; // depuracao
+    output wire [63:0] db_reg_data;  // depuracao
     // Fios intermediários
         // Register File
     wire [4:0]  reg_addr_source_1;
-    wire [4:0]  reg_addr_destiny;
     wire [63:0] reg_data_source_1;
     wire [63:0] reg_data_source_2;
     wire [63:0] reg_data_destiny;
-    wire [63:0] muxpc4_data_out; // PC + 4 or read_data
+    wire [63:0] muxpc4_data_out;     // PC + 4 or read_data
         // Extensor de Imediato
     wire [63:0] immediate;
         // ULA
@@ -66,17 +62,15 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     wire [63:0] muxpc_out;
         // PC
     wire [63:0] pc;
-        // Data Memory
-    wire [63:0] read_data_extend;
         // Instruction Register(IR)
     wire [31:0] ir;
 
 
     // Instanciação de Componentes
         // Register File
-    mux2to1        #(.size(64))              muxpc4_data      (.A(read_data_extend), .B(pc_plus_4), .S(write_register_src[0]), .Y(muxpc4_data_out));
-    mux2to1        #(.size(64))              muxreg_destiny   (.A(muxaluY_out), .B(muxpc4_data_out), .S(write_register_src[1]), .Y(reg_data_destiny));
-    register_file  #(.size(64), .N(5))       int_reg_state    (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(reg_addr_source_1), 
+    mux2to1        #(.size(64))              muxpc4_data      (.A(rd_data), .B(pc_plus_4), .S(wr_reg_src[0]), .Y(muxpc4_data_out));
+    mux2to1        #(.size(64))              muxreg_destiny   (.A(muxaluY_out), .B(muxpc4_data_out), .S(wr_reg_src[1]), .Y(reg_data_destiny));
+    register_file  #(.size(64), .N(5))       int_reg_state    (.clock(clock), .reset(reset), .write_enable(wr_reg_en), .read_address1(reg_addr_source_1), 
         .read_address2(ir[24:20]), .write_address(ir[11:7]), .write_data(reg_data_destiny), .read_data1(reg_data_source_1), .read_data2(reg_data_source_2));
         // ULA
     mux2to1        #(.size(64))              muxaluA          (.A(reg_data_source_1), .B(pc), .S(alua_src), .Y(aluA));
@@ -92,32 +86,23 @@ module Dataflow(clock, reset, instruction, instruction_address, read_data, write
     mux2to1        #(.size(64))              muxpc_immediate  (.A({immediate[62:0],1'b0}), .B({immediate[63:1], 1'b0}), .S(alupc_src), .Y(muxpc_immediate_out));
         // PC
     mux2to1       #(.size(64))               muxpc            (.A(pc_plus_4), .B(pc_plus_immediate), .S(pc_src), .Y(muxpc_out));
-    register_d    #(.N(64), .reset_value(0)) pc_register      (.clock(clock), .reset(reset), .enable(pc_enable), .D(muxpc_out), .Q(pc));
-        // Data Memory
-    gen_mux       #(.size(32), .N(2))        mux_read_data    (.A({read_data[63:32], {32{read_data[31] & read_data_src[2]}},
-        {32{read_data[15] & read_data_src[2]}}, {32{read_data[7] & read_data_src[2]}}}), .S(read_data_src[1:0]), .Y(read_data_extend[63:32]));
+    register_d    #(.N(64), .reset_value(0)) pc_register      (.clock(clock), .reset(reset), .enable(pc_en), .D(muxpc_out), .Q(pc));
         // Immediate Extender
     ImmediateExtender                        estende_imediato (.instruction(ir), .immediate(immediate));
         // Instruction Register -> Borda de Descida!
-    register_d    #(.N(32), .reset_value(0)) instru_register  (.clock(clock), .reset(reset), .enable(ir_enable), .D(instruction), .Q(ir));
+    register_d    #(.N(32), .reset_value(0)) instru_register  (.clock(clock), .reset(reset), .enable(ir_en), .D(rd_data[31:0]), .Q(ir));
+        // Memory
+    mux2to1       #(.size(64))               muxmem_addr      (.A(pc), .B(aluY), .S(mem_addr_src), .Y(mem_addr));
 
 
     // Atribuições intermediárias
         // Mascarar LUI no Rs1
     assign reg_addr_source_1 = ir[19:15] & {5{(~(ir[4] & ir[2]))}};
     assign muxaluY_out[31:0] = aluY[31:0];
-        // Estender com/sem sinal 
-    assign read_data_extend[7:0]   = read_data[7:0];
-    assign read_data_extend[15:8]  = (read_data_src[1] | read_data_src[0]) ? read_data[15:8] : ({8{read_data[7] & read_data_src[2]}});
-    assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
-    
 
     // Saídas
-        // Instruction Memory
-    assign instruction_address = pc;
-        // Data Memory
-    assign write_data   = reg_data_source_2;
-    assign data_address = aluY;
+        // Memory
+    assign wr_data   = reg_data_source_2;
         // Control Unit
     assign opcode = ir[6:0];
     assign funct3 = ir[14:12];

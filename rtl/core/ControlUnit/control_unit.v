@@ -11,19 +11,16 @@ module control_unit
     input clock,
     input reset,
 
-    // Instruction Memory
+    // Memory
+    input      mem_busy,
+    output reg mem_rd_en,
+    output reg mem_wr_en,
+    output reg [7:0] mem_byte_en,
+
+    // Vindo do Fluxo de Dados
     input [6:0] opcode,
     input [2:0] funct3,
     input [6:0] funct7,
-    input instruction_mem_busy,
-    output reg instruction_mem_enable,
-
-    // Data Memory
-    input data_mem_busy,
-    output reg data_mem_read_enable,
-    output reg [7:0] data_mem_byte_write_enable,
-
-    // Vindo do Fluxo de Dados
     input zero,
     input negative,
     input carry_out,
@@ -38,11 +35,11 @@ module control_unit
     output reg arithmetic,
     output reg alupc_src,
     output reg pc_src,
-    output reg pc_enable,
-    output reg [2:0] read_data_src,
-    output reg [1:0] write_register_src,
-    output reg write_register_enable,
-    output reg ir_enable
+    output reg pc_en,
+    output reg [1:0] wr_reg_src,
+    output reg wr_reg_en,
+    output reg ir_en,
+    output reg mem_addr_src
 );
 
     // sinais úteis
@@ -66,22 +63,22 @@ module control_unit
 
     task zera_sinais;
     begin
-        instruction_mem_enable <= 1'b0;
-        data_mem_read_enable <= 1'b0;
-        data_mem_byte_write_enable <= 8'b0;
-        alua_src <= 1'b0;
-        alub_src <= 1'b0;
-        aluy_src <= 1'b0;
-        alu_src <= 3'b000;
-        sub <= 1'b0;
-        arithmetic <= 1'b0;
-        alupc_src <= 1'b0;
-        pc_src <= 1'b0;
-        pc_enable <= 1'b0;
-        read_data_src <= 3'b000;
-        write_register_src <= 2'b00;
-        write_register_enable <= 1'b0;
-        ir_enable <= 1'b0;
+        mem_wr_en       <= 1'b0;
+        mem_rd_en       <= 1'b0;
+        mem_byte_en     <= 8'b0;
+        alua_src        <= 1'b0;
+        alub_src        <= 1'b0;
+        aluy_src        <= 1'b0;
+        alu_src         <= 3'b000;
+        sub             <= 1'b0;
+        arithmetic      <= 1'b0;
+        alupc_src       <= 1'b0;
+        pc_src          <= 1'b0;
+        pc_en           <= 1'b0;
+        wr_reg_src      <= 2'b00;
+        wr_reg_en       <= 1'b0;
+        ir_en           <= 1'b0;
+        mem_addr_src    <= 1'b0;
     end
     endtask
 
@@ -98,38 +95,28 @@ module control_unit
     wire blt_bge = (negative ^ overflow) ^ funct3[0];
     wire bltu_bgeu = carry_out ~^ funct3[0];
     wire cond = funct3[1]==0 ? funct3[2]==0 ? beq_bne : blt_bge : bltu_bgeu;
-    wire [7:0] byte_enable = funct3[1]==0 ? (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF);
+    wire [7:0] byte_en = funct3[1]==0 ? (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF);
 
-    // TODO: verificar se o uso de non-blocking statements causa problemas em simulação
-    task espera_instruction_mem;
+    task mem_rd;
     begin
-        instruction_mem_enable <= 1'b1;
-        @ (posedge instruction_mem_busy);
-        @ (negedge instruction_mem_busy);
-        instruction_mem_enable <= 1'b0;
+        mem_rd_en <= 1'b1;
+        @ (posedge mem_busy);
+        @ (negedge mem_busy);
+        mem_rd_en <= 1'b0;
     end
     endtask
 
-    task data_mem_read;
+    task mem_wr;
     begin
-        data_mem_read_enable <= 1'b1;
-        @ (posedge data_mem_busy);
-        @ (negedge data_mem_busy);
-        data_mem_read_enable <= 1'b0;
-    end
-    endtask
-
-    task data_mem_write;
-    begin
-        data_mem_byte_write_enable <= byte_enable;
-        @ (posedge data_mem_busy);
-        @ (negedge data_mem_busy);
-        data_mem_byte_write_enable <= 8'b0;
+        mem_wr_en <= 1'b1;
+        @ (posedge mem_busy);
+        @ (negedge mem_busy);
+        mem_wr_en <= 1'b0;
     end
     endtask
 
     // máquina de estados principal
-    always @(estado_atual, reset, cond, byte_enable) begin
+    always @(estado_atual, reset, cond, byte_en) begin
 
         zera_sinais;
 
@@ -144,8 +131,9 @@ module control_unit
 
             fetch:
             begin
-                espera_instruction_mem;
-                ir_enable <= 1'b1;
+                mem_byte_en <= 8'b01111;
+                mem_rd;
+                ir_en <= 1'b1;
                 proximo_estado <= decode;
             end
 
@@ -199,8 +187,8 @@ module control_unit
                 alu_src <= funct3;
                 sub <= funct7[5];
                 arithmetic <= funct7[5];
-                pc_enable <= 1'b1;
-                write_register_enable <= 1'b1;
+                pc_en <= 1'b1;
+                wr_reg_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end
@@ -209,8 +197,8 @@ module control_unit
             begin
                 alub_src <= 1'b1;
                 aluy_src <= 1'b1;
-                pc_enable <= 1'b1;
-                write_register_enable <= 1'b1;
+                pc_en <= 1'b1;
+                wr_reg_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end
@@ -221,8 +209,8 @@ module control_unit
                 aluy_src <= opcode[3];
                 alu_src <= funct3;
                 arithmetic <= funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
-                pc_enable <= 1'b1;
-                write_register_enable <= 1'b1;
+                pc_en <= 1'b1;
+                wr_reg_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end
@@ -231,8 +219,8 @@ module control_unit
             begin
                 alua_src <= 1'b1;
                 alub_src <= 1'b1;
-                pc_enable <= 1'b1;
-                write_register_enable <= 1'b1;
+                pc_en <= 1'b1;
+                wr_reg_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end
@@ -240,9 +228,9 @@ module control_unit
             jal:
             begin
                 pc_src <= 1'b1;
-                pc_enable <= 1'b1;
-                write_register_src <= 2'b11;
-                write_register_enable <= 1'b1;
+                pc_en <= 1'b1;
+                wr_reg_src <= 2'b11;
+                wr_reg_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end
@@ -251,7 +239,7 @@ module control_unit
             begin
                 sub <= 1'b1;
                 pc_src <= cond;
-                pc_enable <= 1'b1;
+                pc_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end
@@ -260,30 +248,33 @@ module control_unit
             begin
                 alupc_src <= 1'b1;
                 pc_src <= 1'b1;
-                pc_enable <= 1'b1;
-                write_register_src <= 2'b11;
-                write_register_enable <= 1'b1;
+                pc_en <= 1'b1;
+                wr_reg_src <= 2'b11;
+                wr_reg_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end
 
             load:
             begin
+                mem_addr_src <= 1'b1;
+                mem_byte_en <= byte_en;
                 alub_src <= 1'b1;
-                read_data_src <= funct3 ^ 3'b100;
-                write_register_src <= 2'b10;
-                data_mem_read;
-                pc_enable <= 1'b1;
-                write_register_enable <= 1'b1;
+                wr_reg_src <= 2'b10;
+                mem_rd;
+                pc_en <= 1'b1;
+                wr_reg_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end
 
             store:
             begin
+                mem_addr_src <= 1'b1;
+                mem_byte_en <= byte_en;
                 alub_src <= 1'b1;
-                data_mem_write;
-                pc_enable <= 1'b1;
+                mem_wr;
+                pc_en <= 1'b1;
 
                 proximo_estado <= fetch;
             end

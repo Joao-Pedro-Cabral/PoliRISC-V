@@ -1,5 +1,5 @@
 import subprocess
-TOPLEVEL= "control_unit"
+TOPLEVEL= "Dataflow"
 
 action   = "simulation"
 sim_tool = "modelsim"
