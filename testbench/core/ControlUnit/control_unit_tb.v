@@ -54,7 +54,7 @@ module control_unit_tb();
     wire [63:0] rd_data;
     // Sinais do Barramento
         // Instruction Memory
-    wire [63:0] rom_data;
+    wire [31:0] rom_data;
     wire [63:0] rom_addr;
     wire rom_enable;
     wire rom_busy;
@@ -90,12 +90,12 @@ module control_unit_tb();
 
     // Instanciação do barramento
     memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
-    .mem_busy(mem_busy), .rom_data(rom_data), .rom_busy(rom_busy), .rom_enable(rom_enable), .rom_addr(rom_addr), .ram_read_data(ram_read_data), 
+    .mem_busy(mem_busy), .rom_data({32'b0, rom_data}), .rom_busy(rom_busy), .rom_enable(rom_enable), .rom_addr(rom_addr), .ram_read_data(ram_read_data), 
     .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_chip_select(ram_chip_select),
     .ram_byte_write_enable(ram_byte_write_enable));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./control_unit.mif"), .word_size(8), .addr_size(10), .offset(3), .busy_time(12)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./control_unit.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
@@ -117,37 +117,40 @@ module control_unit_tb();
             assign LUT_linear[41*(j+1)-1:41*j] = LUT_uc[j];
     endgenerate
 
-    // função para determinar os seletores a partir do opcode, funct3 e funct7
-    function [23:0] find_instruction(input [6:0] opcode, input [2:0] funct3, input [6:0] funct7, input [2008:0] LUT_linear);
+    // função para determinar os seletores(sinais provenientes da UC) a partir do opcode, funct3 e funct7
+    function [23:0] find_instruction( [6:0] opcode,  [2:0] funct3,  [6:0] funct7,  [2008:0] LUT_linear);
             integer i;
             reg [23:0] temp;
         begin
             // U,J : apenas opcode
             if(opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
                 for(i = 0; i < 3; i = i + 1) // Eu coloquei U, J nas linhas 0 a 2 do mif
-                    if(opcode == LUT_linear[35+41*i+:7])
-                        temp = LUT_linear[41*i+:25];
+                    if(opcode === LUT_linear[34+41*i+:7])
+                        temp = LUT_linear[41*i+:24];
             end
             // I, S, B: opcode e funct3
             else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
                 opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
                 for(i = 3; i < 34; i = i + 1) begin // Eu coloquei I, S, B nas linhas 3 a 33 do mif
-                    if(opcode === LUT_linear[35+41*i+:7] && funct3 === LUT_linear[32+41*i+:3]) begin
+                    if(opcode === LUT_linear[34+41*i+:7] && funct3 === LUT_linear[31+41*i+:3]) begin
                         // SRLI e SRAI: funct7
                         if(funct3 === 3'b101 && opcode[4] == 1'b1) begin
-                            if(funct7[6:1] === LUT_linear[26+41*i+:6])
-                                temp = LUT_linear[41*i+:25];
+                            if(funct7[6:1] === LUT_linear[25+41*i+:6])
+                                temp = LUT_linear[41*i+:24];
                         end
                         else
-                            temp = LUT_linear[41*i+:25];
+                            temp = LUT_linear[41*i+:24];
                     end
                 end
             end
             // R: opcode, funct3 e funct7
             else if(opcode === 7'b0111011 || opcode === 7'b0110011) begin
                for(i = 34; i < 49; i = i + 1) // Eu coloquei I, S, B nas linhas 34 a 48 do mif
-                    if(opcode === LUT_linear[35+41*i+:7] && funct3 === LUT_linear[32+41*i+:3] && funct7 === LUT_linear[25+41*i+:7])
-                        temp = LUT_linear[41*i+:25];
+                    if(opcode === LUT_linear[34+41*i+:7] && funct3 === LUT_linear[31+41*i+:3] && funct7 === LUT_linear[24+41*i+:7])
+                        temp = LUT_linear[41*i+:24];
+            end
+            else begin
+             $fatal("ERROR: opcode = %b", opcode);
             end
             find_instruction = temp;
         end

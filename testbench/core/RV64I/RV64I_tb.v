@@ -21,28 +21,26 @@ module RV64I_tb();
     reg  clock;
     reg  reset;
         // Data Memory
-    wire [63:0] read_data;
-    wire [63:0] write_data;
-    wire [63:0] data_address;
-    wire data_mem_busy;
-    wire data_mem_read_enable;
-    wire [7:0] data_mem_byte_write_enable;
-        // Instruction Memory
-    wire [31:0] instruction;
-    wire [63:0] instruction_address;
-    wire instruction_mem_busy;
-    wire instruction_mem_enable;
+    wire [63:0] rd_data;
+    wire [63:0] wr_data;
+    wire [63:0] mem_addr;
+    wire mem_busy;
+    wire mem_rd_en;
+    wire mem_wr_en;
+    wire [7:0] mem_byte_en;
         // depuracao
     wire [63:0] db_reg_data;
     // Sinais intermediários de teste
     wire [6:0]  opcode;                         // opcode simulado pelo TB            
     wire [2:0]  funct3;                         // funct3 simulado pelo TB            
-    wire [6:0]  funct7;                         // funct7 simulado pelo TB            
+    wire [6:0]  funct7;                         // funct7 simulado pelo TB     
+    reg  [31:0] instruction;                    // Instrução executada pelo DUT       
     wire [63:0] immediate;                      // Saída do Extensor de Imediato do TB
     wire [63:0] A_immediate;                    // A + imediato
-    reg  write_register_enable;                 // write enable do banco de registradores
-    wire [7:0] data_mem_byte_write_enable_;     // data mem byte write enable simulado pelo TB
-    wire data_mem_read_enable_;                 // data mem read enable simulado pelo TB
+    reg  wr_reg_en;                             // write enable do banco de registradores
+    wire [7:0] mem_byte_en_;                    // data mem byte write enable simulado pelo TB
+    wire mem_rd_en_;                            // data mem read enable simulado pelo TB
+    wire mem_wr_en_;                            // data mem write enable simulado pelo TB
     reg  [63:0] reg_data;                       // write data do banco de registradores
     wire [63:0] A;                              // read data 1 do banco de registradores
     wire [63:0] B;                              // read data 2 do banco de registradores
@@ -50,9 +48,21 @@ module RV64I_tb();
     reg  pc_src;                                // seletor da entrada do registrador PC
     reg  [63:0] pc_imm;                         // pc + imediato
     reg  [63:0] pc_4;                           // pc + 4
-    wire [63:0] read_data_extend;               // dado lido após aplicação da extensão de sinal
-    wire [2:0]  read_data_src;                  // read_data_src simulado pelo TB -> realiza máscara do read_data_extend
-    wire store;                                 // 1, caso esteja sendo executado um S*
+    wire mem_op;                                // 1, caso esteja sendo executado um S* ou L*
+    // Sinais do Barramento
+        // Instruction Memory
+    wire [31:0] rom_data;
+    wire [63:0] rom_addr;
+    wire rom_enable;
+    wire rom_busy;
+        // Data Memory
+    wire [63:0] ram_address;
+    wire [63:0] ram_write_data;
+    wire [63:0] ram_read_data;
+    wire ram_output_enable;
+    wire ram_chip_select;
+    wire [7:0] ram_byte_write_enable;
+    wire ram_busy;
     // flags da ULA (simuladas)
     wire zero_;
     wire negative_;
@@ -66,21 +76,26 @@ module RV64I_tb();
     integer estado = 0;                         // sinal de depuração -> 0: Idle, 1: Fetch, 2: Decode, 3: Execute  
 
     // DUT
-    RV64I DUT (.clock(clock), .reset(reset), .read_data(read_data), .write_data(write_data), .data_address(data_address), .data_mem_busy(data_mem_busy),
-    .data_mem_read_enable(data_mem_read_enable), .data_mem_byte_write_enable(data_mem_byte_write_enable), .instruction(instruction), .instruction_address(instruction_address),
-    .instruction_mem_busy(instruction_mem_busy), .instruction_mem_enable(instruction_mem_enable), .db_reg_data(db_reg_data));
+    RV64I DUT (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .mem_addr(mem_addr), .mem_busy(mem_busy),
+    .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_wr_en(mem_wr_en), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock), 
-                            .enable(instruction_mem_enable), .addr(pc[9:0]), .data(instruction), .busy(instruction_mem_busy));
+    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
+                            .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(8), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(data_address), .write_data(write_data), 
-                .output_enable(data_mem_read_enable), .chip_select(1'b1), .byte_write_enable(data_mem_byte_write_enable), .read_data(read_data), .busy(data_mem_busy));    
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+                        .output_enable(ram_output_enable), .chip_select(ram_chip_select), .byte_write_enable(ram_byte_write_enable), .read_data(ram_read_data), .busy(ram_busy));
+
+    // Instanciação do barramento
+    memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
+    .mem_busy(mem_busy), .rom_data({32'b0, rom_data}), .rom_busy(rom_busy), .rom_enable(rom_enable), .rom_addr(rom_addr), .ram_read_data(ram_read_data), 
+    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_chip_select(ram_chip_select),
+    .ram_byte_write_enable(ram_byte_write_enable)); 
 
     // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
-    register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(write_register_enable), .read_address1(instruction[19:15]),
+    register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(wr_reg_en), .read_address1(instruction[19:15]),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 
     // geração do clock
@@ -139,25 +154,17 @@ module RV64I_tb();
     assign zero_                 = ~(|add_sub);
     assign negative_             = add_sub[63];
     assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
-
-    // geração do read_data_extended
-    assign read_data_src           = {~funct3[2], funct3[1:0]};
-    assign read_data_extend[7:0]   = read_data[7:0];
-    assign read_data_extend[15:8]  = (read_data_src[1] | read_data_src[0]) ? read_data[15:8] : ({8{read_data[7] & read_data_src[2]}});
-    assign read_data_extend[31:16] = read_data_src[1] ? read_data[31:16] : (read_data_src[0]) ? ({16{read_data[15] & read_data_src[2]}}) : ({16{read_data[7] & read_data_src[2]}});
-    assign read_data_extend[63:32] = read_data_src[1] ? (read_data_src[0] ? read_data[63:32] : {32{read_data[31] & read_data_src[2]}}) : (read_data_src[0] ? {32{read_data[15] & read_data_src[2]}} : {32{read_data[7] & read_data_src[2]}});
     
     // geração dos sinais da instrução
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
     assign funct7 = instruction[31:25];
 
-    // geração data mem byte write enable
-    assign data_mem_byte_write_enable_ = funct3[1] ? (funct3[0] ? (8'hFF & {8{store}}) : (8'h0F & {8{store}})) : (funct3[0] ? (8'h03 & {8{store}}) : (8'h01 & {8{store}}));
-    assign data_mem_read_enable_ = (opcode === 7'b0000011) ? 1'b1 : 1'b0;
-
-    // geração store
-    assign store = (opcode === 7'b0100011) ? 1'b1 : 1'b0;
+    // geração dos sinais de controle do barramento
+    assign mem_op = (opcode === 7'b0100011 || opcode === 7'b0000011) ? 1'b1 : 1'b0;
+    assign mem_byte_en_ = funct3[1] ? (funct3[0] ? (8'hFF & {8{mem_op}}) : (8'h0F & {8{mem_op}})) : (funct3[0] ? (8'h03 & {8{mem_op}}) : (8'h01 & {8{mem_op}}));
+    assign mem_rd_en_   = (opcode === 7'b0000011) ? 1'b1 : 1'b0;
+    assign mem_wr_en_   = (opcode === 7'b0100011) ? 1'b1 : 1'b0;
 
     // geração do A_immediate
     assign A_immediate = A + immediate;
@@ -167,15 +174,15 @@ module RV64I_tb();
         $display("Program  size: %d", `program_size);
         $display("SOT!");
         // desabilito a escrita no banco simulado
-        write_register_enable = 1'b0;
+        wr_reg_en = 1'b0;
         // Idle
         estado = 0;
         #2;
         reset = 1'b1;
         #0.1;
         // Confiro se os enables estão em baixo no Idle
-        if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-            $display("Error Idle: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+        if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== 0) begin
+            $display("Error Idle: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
             $stop;
         end
         wait (clock == 1'b1);
@@ -184,8 +191,8 @@ module RV64I_tb();
         #0.1;
         // Ciclo após reset -> Ainda estamos em Idle
         // Confiro se os enables estão em baixo
-        if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-            $display("Error Idle: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+        if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== 0) begin
+            $display("Error Idle: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
             $stop;
         end
         wait (clock == 1'b1);
@@ -197,19 +204,20 @@ module RV64I_tb();
             // Não é necessário essa espera, apenas fiz isso para que as atribuições
             // fiquem mais espaçadas na forma de onda e facilitem a depuração
             estado = 1; // Fetch
-            write_register_enable  = 1'b0;
+            wr_reg_en  = 1'b0;
             #0.1;
             // Confiro se há acesso a memória de instrução
-            if(instruction_mem_enable !== 1 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                $display("Error Fetch: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+            if(mem_wr_en !== 0 || mem_rd_en !== 1'b1 || mem_byte_en !== 8'h0F) begin
+                $display("Error Fetch: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                 $stop;
             end
-            wait (instruction_mem_busy == 1'b1);
-            wait (instruction_mem_busy == 1'b0);
+            wait (mem_busy == 1'b1);
+            wait (mem_busy == 1'b0);
             #0.1;
+            instruction = rd_data; // leitura da ROM -> instrução
             // Busy abaixado -> instruction mem enable abaixado
-            if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                $display("Error Fetch: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+            if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== 8'h0F) begin
+                $display("Error Fetch: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                 $stop;
             end
             wait (clock == 1'b0);
@@ -218,8 +226,8 @@ module RV64I_tb();
             // Decode 
             estado = 2; // Decode
             // Enables abaixados
-            if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                $display("Error Decode: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+            if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== 0) begin
+                $display("Error Decode: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                 $stop;
             end
             wait (clock == 1'b0);
@@ -231,33 +239,33 @@ module RV64I_tb();
                 7'b0100011, 7'b0000011: begin
                     #0.1;
                     // Confiro o endereço de acesso
-                    if(data_address !== A + immediate) begin
-                        $display("Error Load/Store: data_address = %b, A = %b, immediate = %b, opcode = %b, funct3 = %b", data_address, A, immediate, opcode, funct3);
+                    if(mem_addr !== A + immediate) begin
+                        $display("Error Load/Store: mem_addr = %b, A = %b, immediate = %b, opcode = %b, funct3 = %b", mem_addr, A, immediate, opcode, funct3);
                         $stop;
                     end
                     // Caso seja store -> confiro a palavra a ser escrita
-                    if(opcode[5] === 1'b1 && write_data !== B) begin
-                        $display("Error Store: write_data = %b, B = %b, funct3 = %b", write_data, B, funct3);
+                    if(opcode[5] === 1'b1 && wr_data !== B) begin
+                        $display("Error Store: wr_data = %b, B = %b, funct3 = %b", wr_data, B, funct3);
                         $stop;
                     end
                     // Confiro se o acesso a memória de dados está correto
-                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== data_mem_read_enable_ || data_mem_byte_write_enable !== data_mem_byte_write_enable_) begin
-                        $display("Error Load/Store: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+                    if(mem_byte_en !== mem_byte_en_ || mem_rd_en !== mem_rd_en_ || mem_wr_en !== mem_wr_en_) begin
+                        $display("Error mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                         $stop;
                     end
-                    wait (data_mem_busy == 1'b1);
-                    wait (data_mem_busy == 1'b0);
+                    wait (mem_busy == 1'b1);
+                    wait (mem_busy == 1'b0);
                     #0.1;
                     // Após o busy abaixar escrevo no banco simulado (caso seja Load)
                     if(opcode[5] === 1'b0) begin
-                        write_register_enable = 1'b1;
-                        reg_data = read_data_extend;
+                        wr_reg_en = 1'b1;
+                        reg_data = rd_data;
                     end
                     wait (clock == 1'b0);
                     #0.1;
                     // Na borda de descida, confiro se os sinais de controle abaixaram
-                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error Load/Store: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+                    if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== mem_byte_en_) begin
+                        $display("Error Load/Store: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                         $stop;
                     end
                     // Caso L* -> confiro a leitura
@@ -269,8 +277,8 @@ module RV64I_tb();
                     wait (clock == 1'b1);
                     #0.1;
                     // Ciclo seguinte: Confiro se o instruction address
-                    if(instruction_address !== pc) begin
-                        $display("Error Load/Store: pc = %x, instruction address = %x", pc, instruction_address);
+                    if(mem_addr !== pc) begin
+                        $display("Error Load/Store: pc = %x, mem_addr = %x", pc, mem_addr);
                         $stop;
                     end
                     wait (clock == 1'b0);
@@ -290,19 +298,19 @@ module RV64I_tb();
                     // Habilito o pc
                     pc_4                  = pc + 4;
                     pc_imm                = pc + (immediate << 1);
-                    write_register_enable = 1'b0;
+                    wr_reg_en = 1'b0;
                     #0.1;
                     // Confiro as flags da ULA
-                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error B-type: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+                    if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== 0) begin
+                        $display("Error B-type: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                         $stop;
                     end
                     wait (clock == 1'b0);
                     wait (clock == 1'b1);
                     #0.1;
                     // Após a subida do clock, confiro se o novo valor do pc está correto
-                    if((pc_src === 1 && pc_imm !== instruction_address) || (pc_src === 0 && pc_4 !== instruction_address)) begin
-                        $display("Error B-type PC: pc_src = %b, pc_imm = %b, pc_4 = %b, pc = %b", pc_src, pc_imm, pc_4, instruction_address);
+                    if((pc_src === 1 && pc_imm !== mem_addr) || (pc_src === 0 && pc_4 !== mem_addr)) begin
+                        $display("Error B-type PC: pc_src = %b, pc_imm = %b, pc_4 = %b, mem_addr = %b", pc_src, pc_imm, pc_4, mem_addr);
                         $stop;
                     end
                     // Incremento pc
@@ -315,11 +323,11 @@ module RV64I_tb();
                 // LUI e AUIPC
                 7'b0110111, 7'b0010111: begin
                     // Habilito o banco simulado
-                    write_register_enable = 1'b1;
+                    wr_reg_en = 1'b1;
                     if(opcode[5] === 1)
                         reg_data = immediate; // LUI
                     else
-                        reg_data = instruction_address + immediate; // AUIPC
+                        reg_data = mem_addr + immediate; // AUIPC
                     #0.1;
                     // Confiro se db_reg_data está correto
                     if(reg_data !== db_reg_data) begin
@@ -327,8 +335,8 @@ module RV64I_tb();
                         $stop;
                     end
                     // Verifico se os enables estão desligados
-                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error LUI/AUIPC: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+                    if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== 0) begin
+                        $display("Error LUI/AUIPC: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                         $stop;
                     end
                     wait (clock == 1'b0);
@@ -336,8 +344,8 @@ module RV64I_tb();
                     wait (clock == 1'b1);
                     #0.1;
                     // Após a subida do clock, confiro se o pc foi incrementado corretamente
-                    if(instruction_address !== pc) begin
-                        $display("Error Load/Store: pc = %x, instruction address = %x", pc, instruction_address);
+                    if(mem_addr !== pc) begin
+                        $display("Error Load/Store: pc = %x, mem_addr = %x", pc, mem_addr);
                         $stop;
                     end
                     wait (clock == 1'b0);
@@ -345,10 +353,10 @@ module RV64I_tb();
                 // JAL e JALR
                 7'b1101111, 7'b1100111: begin
                     // Habilito o banco simulado
-                    write_register_enable = 1'b1;
+                    wr_reg_en = 1'b1;
                     // Decido o novo valor de pc a partir do opcode da instrução (salto incondicional)
                     if(opcode[3] === 1'b1)
-                        pc_imm    = instruction_address + (immediate << 1); // JAL
+                        pc_imm    = mem_addr + (immediate << 1); // JAL
                     else
                         pc_imm    = {A_immediate[63:1],1'b0}; // JALR 
                     reg_data = pc + 4; // escrever pc + 4 no banco -> Link
@@ -359,8 +367,8 @@ module RV64I_tb();
                         $stop;
                     end
                     // Verifico se os enables estão desligados
-                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error JAL/JALR: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+                    if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== 0) begin
+                        $display("Error JAL/JALR: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                         $stop;
                     end
                     wait (clock == 1'b0);
@@ -368,8 +376,8 @@ module RV64I_tb();
                     wait (clock == 1'b1);
                     #0.1;
                     // Após a subida do clock, confiro se o pc foi incrementado corretamente
-                    if(pc !== instruction_address) begin
-                        $display("Error JAL/JALR: pc = %b, instruction_address = %b", pc, instruction_address);
+                    if(pc !== mem_addr) begin
+                        $display("Error JAL/JALR: pc = %b, mem_addr = %b", pc, mem_addr);
                         $stop;    
                     end
                     wait (clock == 1'b0);
@@ -377,7 +385,7 @@ module RV64I_tb();
                 // ULA R/I-type
                 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
                     // Habilito o banco simulado
-                    write_register_enable = 1'b1;
+                    wr_reg_en = 1'b1;
                     // A partir do opcode, do funct3 e do funct7 descubro o resultado da operação da ULA com a máscara aplicada
                     if(opcode[5] === 1'b1)
                         reg_data = ULA_function(A, B, {funct7[5], funct3});
@@ -394,8 +402,8 @@ module RV64I_tb();
                         $stop;
                     end
                     // Verifico se os enables estão desligados
-                    if(instruction_mem_enable !== 0 || data_mem_read_enable !== 0 || data_mem_byte_write_enable !== 0) begin
-                        $display("Error ULA R/I-type: instruction_mem_enable = %b, data_mem_read_enable = %b, data_mem_byte_write_enable = %b", instruction_mem_enable, data_mem_read_enable, data_mem_byte_write_enable);
+                    if(mem_wr_en !== 0 || mem_rd_en !== 0 || mem_byte_en !== 0) begin
+                        $display("Error ULA R/I-type: mem_wr_en = %b, mem_rd_en = %b, mem_byte_en = %x", mem_wr_en, mem_rd_en, mem_byte_en);
                         $stop;
                     end
                     wait (clock == 1'b0);
@@ -403,8 +411,8 @@ module RV64I_tb();
                     wait (clock == 1'b1);
                     #0.1;
                     // Após a subida do clock, confiro se o pc foi incrementado corretamente
-                    if(instruction_address !== pc) begin
-                        $display("Error Load/Store: pc = %x, instruction address = %x", pc, instruction_address);
+                    if(mem_addr !== pc) begin
+                        $display("Error Load/Store: pc = %x, mem_addr = %x", pc, mem_addr);
                         $stop;
                     end
                     wait (clock == 1'b0);
