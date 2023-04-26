@@ -44,15 +44,15 @@
   ld s0,48(sp)
   addi sp,sp,64
   jr ra
-  lui sp,67108864 ; main
-  lui x5,16777216
+  lui sp,16777216 ; main
+  lui x5,4096
   addi x5,x5,-1
   or sp,sp,x5
-  addi sp,sp,-8
-  addi sp,sp,-48 
+  addi sp,sp,-7
+  addi sp,sp,-96 
   sd ra,40(sp)
   sd s0,32(sp)
-  addi s0,sp,48
+  addi s0,sp,96
   ld a5,-24(s0)
   lw a4,0(a5)
   ld a5,-32(s0)
