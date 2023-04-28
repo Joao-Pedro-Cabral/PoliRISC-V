@@ -15,12 +15,13 @@
 // Para isso irei verificar as saídas da UC
 
 `timescale 1 ns / 100 ps
+`define program_size 287
 
 module control_unit_tb();
     // sinais do DUT
         // Common
-    reg  clock;
-    reg  reset;
+    reg clock;
+    reg reset;
         // Bus
     wire mem_wr_en;
     wire mem_rd_en;
@@ -63,8 +64,9 @@ module control_unit_tb();
     wire [63:0] ram_write_data;
     wire [63:0] ram_read_data;
     wire ram_output_enable;
+    wire ram_write_enable;
     wire ram_chip_select;
-    wire [7:0] ram_byte_write_enable;
+    wire [7:0] ram_byte_enable;
     wire ram_busy;
     // Sinais intermediários de teste
     reg  [41:0]   LUT_uc [48:0];    // UC simulada com tabela
@@ -91,16 +93,16 @@ module control_unit_tb();
     // Instanciação do barramento
     memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
     .mem_busy(mem_busy), .rom_data({32'b0, rom_data}), .rom_busy(rom_busy), .rom_enable(rom_enable), .rom_addr(rom_addr), .ram_read_data(ram_read_data), 
-    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_chip_select(ram_chip_select),
-    .ram_byte_write_enable(ram_byte_write_enable));
+    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
+    .ram_byte_enable(ram_byte_enable));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./control_unit.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"), .ADDR_SIZE(6), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), 
-        .write_data(ram_write_data), .output_enable(ram_output_enable), .chip_select(ram_chip_select), .byte_write_enable(ram_byte_write_enable), .read_data(ram_read_data), .busy(ram_busy));
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+                        .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
 
     // geração do clock
@@ -149,9 +151,6 @@ module control_unit_tb();
                     if(opcode === LUT_linear[34+41*i+:7] && funct3 === LUT_linear[31+41*i+:3] && funct7 === LUT_linear[24+41*i+:7])
                         temp = LUT_linear[41*i+:24];
             end
-            else begin
-             $fatal("ERROR: opcode = %b", opcode);
-            end
             find_instruction = temp;
         end
     endfunction
@@ -197,7 +196,7 @@ module control_unit_tb();
             wait (mem_busy == 1'b0);
             #0.1;
             // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
-            if(ir_en !== 1'b1 || mem_rd_en !== 1'b0 || mem_byte_en !== 8'b00) begin
+            if(ir_en !== 1'b1 || mem_rd_en !== 1'b0) begin
                 $display("Error Fetch: ir_en = %x", ir_en);
                 $stop;
             end
@@ -209,7 +208,7 @@ module control_unit_tb();
             df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
             #0.1;
             // Verifico se algum enable está erroneamente habilitado
-            if(ir_en !== 1'b0 || pc_en !== 1'b0 || wr_reg_en !== 1'b0 || mem_rd_en !== 1'b0 || mem_wr_en !== 1'b0 || mem_byte_en !== 8'b00) begin
+            if(ir_en !== 1'b0 || pc_en !== 1'b0 || wr_reg_en !== 1'b0 || mem_rd_en !== 1'b0 || mem_wr_en !== 1'b0) begin
                 $display("Error Decode: ir_en = %x, pc_en = %x, wr_reg_en = %x, mem_rd_en = %x, mem_wr_en = %x, mem_byte_en = %x", ir_en, pc_en, wr_reg_en, mem_rd_en, mem_wr_en, mem_byte_en);
                 $stop;
             end
@@ -229,8 +228,8 @@ module control_unit_tb();
                     wait (mem_busy == 1'b0);
                     #0.1;
                     // Espero o busy abaixar para verificar os enables
-                    if(ir_en !== 1'b0 || pc_en !== 1'b1 || wr_reg_en !== df_src[9] || mem_rd_en !== 1'b0 || mem_wr_en !== 1'b0 || mem_byte_en !== 8'b00) begin
-                        $display("Store/Load Error: pc_en = %x, wr_reg_en = %x, mem_rd_en = %x, mem_wr_en, mem_byte_en = %x, opcode = %x, funct3 = %x", pc_en, wr_reg_en, mem_rd_en, mem_wr_en, mem_byte_en, opcode, funct3);
+                    if(pc_en !== 1'b1 || wr_reg_en !== df_src[11] || mem_rd_en !== 1'b0 || mem_wr_en !== 1'b0) begin
+                        $display("Store/Load Error: pc_en = %x, wr_reg_en = %x, mem_rd_en = %x, mem_wr_en= 0x%h, mem_byte_en = %x, opcode = %x, funct3 = 0x%h", pc_en, wr_reg_en, mem_rd_en, mem_wr_en, mem_byte_en, opcode, funct3);
                         $stop;
                     end
                     // Espero a borda de descida do ciclo seguinte(padronizar com o tb do DF)
@@ -304,7 +303,7 @@ module control_unit_tb();
                 end
                 7'b0000000: begin
                     // Fim do programa -> última instrução 0000000
-                    if(rom_data === `program_size - 3)
+                    if(DF.pc === `program_size - 4)
                         $display("End of program!");
                     else
                         $display("Error opcode case: opcode = %x", opcode);

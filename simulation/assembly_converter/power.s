@@ -44,15 +44,13 @@
   ld s0,48(sp)
   addi sp,sp,64
   jr ra
-  lui sp,16777216 ; main
-  lui x5,4096
-  addi x5,x5,-1
-  or sp,sp,x5
-  addi sp,sp,-7
-  addi sp,sp,-96 
-  sd ra,40(sp)
+  lui sp,16777216 ; main 
+  lui x5,4096     
+  or sp,sp,x5     
+  addi sp,sp,-48  
+  sd ra,40(sp)    
   sd s0,32(sp)
-  addi s0,sp,96
+  addi s0,sp,48
   ld a5,-24(s0)
   lw a4,0(a5)
   ld a5,-32(s0)
@@ -60,7 +58,7 @@
   mv a1,a5
   mv a0,a4
   auipc x1,0      ; call power
-  jalr x1,x1,-240 ; corrigir
+  jalr x1,x1,-232 ; corrigir
   mv a4,a0
   ld a5,-40(s0)
   sd a4,0(a5)

@@ -52,7 +52,7 @@ module ULA(A, B, seletor, sub, arithmetic, Y, zero, negative, carry_out, overflo
 
     // flags da ULA
     assign negative_  = add_sub[N-1];
-    assign overflow_  = (~(A[N-1] ^ B[N-1])) & (A[N-1] ^ add_sub[N-1]);
+    assign overflow_  = (~(A[N-1] ^ B[N-1] ^ sub)) & (A[N-1] ^ add_sub[N-1]);
     assign zero       = ~(|add_sub);
     assign negative   = negative_;
     assign carry_out  = carry_out_;

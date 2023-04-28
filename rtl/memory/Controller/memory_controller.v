@@ -22,8 +22,9 @@ module memory_controller
   output [63:0] ram_address,
   output [63:0] ram_write_data,
   output ram_output_enable,
+  output ram_write_enable,
   output ram_chip_select,
-  output [7:0] ram_byte_write_enable,
+  output [7:0] ram_byte_enable,
   /* //// */
 
   /* Interface com a UART */
@@ -53,8 +54,8 @@ module memory_controller
   assign mem_busy              = s_rom_enable ? rom_busy : s_ram_chip_select ? ram_busy : 1'b0;
 
   assign ram_output_enable     = s_ram_chip_select             ? mem_rd_en   : 1'b0;
-
-  assign ram_byte_write_enable = s_ram_chip_select & mem_wr_en ? mem_byte_en : 8'b0;
+  assign ram_write_enable      = s_ram_chip_select             ? mem_wr_en   : 1'b0;
+  assign ram_byte_enable       = s_ram_chip_select             ? mem_byte_en : 8'b0;
   /* //// */
 
   /* Endereçamento */
@@ -70,7 +71,7 @@ module memory_controller
   genvar i;
   generate
     for(i=0; i < 8; i = i + 1) begin
-      assign rd_data[(i+1)*8-1 -: 8] = mem_byte_en[i] ? (s_rom_enable ? rom_data[(i+1)*8-1 -: 8] : (s_ram_chip_select ? ram_read_data[(i+1)*8-1 -: 8] : 64'b0)) : 64'b0; 
+      assign rd_data[(i+1)*8-1 -: 8] = s_rom_enable ? rom_data[(i+1)*8-1 -: 8] : (s_ram_chip_select ? ram_read_data[(i+1)*8-1 -: 8] : 64'b0); 
     end
   endgenerate
   /* //// */

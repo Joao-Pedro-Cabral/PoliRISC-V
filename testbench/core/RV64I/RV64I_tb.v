@@ -60,8 +60,9 @@ module RV64I_tb();
     wire [63:0] ram_write_data;
     wire [63:0] ram_read_data;
     wire ram_output_enable;
+    wire ram_write_enable;
     wire ram_chip_select;
-    wire [7:0] ram_byte_write_enable;
+    wire [7:0] ram_byte_enable;
     wire ram_busy;
     // flags da ULA (simuladas)
     wire zero_;
@@ -85,13 +86,13 @@ module RV64I_tb();
 
     // Data Memory
     single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
-                        .output_enable(ram_output_enable), .chip_select(ram_chip_select), .byte_write_enable(ram_byte_write_enable), .read_data(ram_read_data), .busy(ram_busy));
+                        .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
     // Instanciação do barramento
     memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
     .mem_busy(mem_busy), .rom_data({32'b0, rom_data}), .rom_busy(rom_busy), .rom_enable(rom_enable), .rom_addr(rom_addr), .ram_read_data(ram_read_data), 
-    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_chip_select(ram_chip_select),
-    .ram_byte_write_enable(ram_byte_write_enable)); 
+    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
+    .ram_byte_enable(ram_byte_enable));
 
     // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
@@ -124,7 +125,7 @@ module RV64I_tb();
                     xorB     = B ^ 64'sb11;
                     add_sub  = xorB + A + 64'b01;
                     negative = add_sub[63];
-                    overflow = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
+                    overflow = (~(A[63] ^ B[63] ^ DUT.sub)) & (A[63] ^ add_sub[63]);
                     ULA_function = negative ^ overflow;
                 end
                 4'b0011: begin // SLTU
@@ -153,7 +154,7 @@ module RV64I_tb();
     assign {carry_out_, add_sub} = A + xorB + 64'b01;
     assign zero_                 = ~(|add_sub);
     assign negative_             = add_sub[63];
-    assign overflow_             = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
+    assign overflow_             = (~(A[63] ^ B[63] ^ DUT.sub)) & (A[63] ^ add_sub[63]);
     
     // geração dos sinais da instrução
     assign opcode = instruction[6:0];

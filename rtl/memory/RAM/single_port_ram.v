@@ -20,8 +20,9 @@ module single_port_ram
     input [DATA_SIZE-1:0] address,
     input [DATA_SIZE-1:0] write_data,
     input output_enable,
+    input write_enable,
     input chip_select,
-    input [DATA_SIZE/BYTE_SIZE-1:0] byte_write_enable,
+    input [DATA_SIZE/BYTE_SIZE-1:0] byte_enable,
     output reg [DATA_SIZE-1:0] read_data,
     output reg busy
 
@@ -42,7 +43,7 @@ module single_port_ram
     integer i;
     always @(posedge clk) begin
         for(i = 0; i < DATA_SIZE/BYTE_SIZE; i = i + 1) begin
-            if(chip_select && byte_write_enable[i]) begin
+            if(chip_select && byte_enable[i] && write_enable) begin
                 ram[offset_and_truncate_address(address, i)] <= write_data[(i+1)*BYTE_SIZE-1 -: BYTE_SIZE];
             end
         end
@@ -51,11 +52,11 @@ module single_port_ram
     integer j;
     always @(posedge clk) begin
         for(j = 0; j < DATA_SIZE/BYTE_SIZE; j = j + 1) begin
-            if(chip_select && output_enable) begin
+            if(chip_select && output_enable && byte_enable[j]) begin
                 read_data[(j+1)*BYTE_SIZE-1 -: BYTE_SIZE] <= ram[offset_and_truncate_address(address, j)];
             end
             else begin
-                if(chip_select && byte_write_enable[j]) begin
+                if(chip_select && byte_enable[j] && write_enable) begin
                     read_data[(j+1)*BYTE_SIZE-1 -: BYTE_SIZE] <= write_data[(i+1)*BYTE_SIZE-1 -: BYTE_SIZE];
                 end
                 else begin
@@ -67,7 +68,7 @@ module single_port_ram
 
     always @* begin
         if(chip_select === 1'b1)
-            if(output_enable === 1'b1 || byte_write_enable !== 0)
+            if(output_enable === 1'b1 || write_enable !== 0)
                 busy_flag <= 1'b1;
     end
 
