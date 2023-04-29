@@ -27,7 +27,7 @@ module sdram_read_write(
 	output wire        dram_we_n,
     output wire        dram_ldqm,
     output wire        dram_udqm,
-    inout  wire [15:0] dram_dq,
+    inout  wire [15:0] dram_dq
 );
 
 // Configuração da SDRAM
@@ -122,12 +122,12 @@ gen_mux #(.size(64), .N(2)) read_data_mux (.A({read_data, {read_data[55:0], dram
     {read_data[55:0], dram_dq[15:8]}, {read_data[47:0], dram_dq}}), .S(op_dqm), .Y(shift_read_data));
 
 // Registrador de escrita
-register_d #(.N(64), .reset_value(0)) read_data_reg(.clock(clock), .reset(1'b0), 
+register_d #(.N(64), .reset_value(0)) write_data_reg (.clock(clock), .reset(1'b0), 
     .enable(writing), .D(shift_write_data), .Q(write_data));
 // Multiplexador para determinar o próximo valor a ser escrito a partir do op_dqm e do wr_data_load
 // load: 1 -> wr_data_i; op_dqm: 00 -> escrever 2 bytes; 01: escrever MSB; 10: escrever LSB; 11: atualizar com wr_data_i
 gen_mux #(.size(64), .N(2)) write_data_mux (.A({wr_data_i, {write_data[55:0], 8'b0}, 
-    {write_data[55:0], 8'b0}, {write_data[47:0], 16'b0}}), .S(op_dqm or {2{wr_data_load}}), .Y(shift_write_data));
+    {write_data[55:0], 8'b0}, {write_data[47:0], 16'b0}}), .S(op_dqm | {2{wr_data_load}}), .Y(shift_write_data));
 
 // FSM
 always @(*) begin
@@ -190,9 +190,9 @@ always @(*) begin
         end
         op_act: begin
             if(rd_enable == 1'b1)
-                command       <= 4'0101;   // Ativar leitura
+                command       <= 4'b0101;   // Ativar leitura
             else begin
-                command       <= 4'0100;   // Ativar escrita
+                command       <= 4'b0100;   // Ativar escrita
                 writing       <= 1'b1;
             end
             dram_ba           <= bank;
@@ -237,3 +237,4 @@ always @(*) begin
         end 
     endcase
 end
+endmodule

@@ -196,7 +196,7 @@ module control_unit_tb();
             wait (mem_busy == 1'b0);
             #0.1;
             // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
-            if(ir_en !== 1'b1 || mem_rd_en !== 1'b0) begin
+            if(ir_en !== 1'b1 || mem_rd_en !== 1'b0 || mem_byte_en !== 8'h0F) begin
                 $display("Error Fetch: ir_en = %x", ir_en);
                 $stop;
             end
@@ -228,7 +228,7 @@ module control_unit_tb();
                     wait (mem_busy == 1'b0);
                     #0.1;
                     // Espero o busy abaixar para verificar os enables
-                    if(pc_en !== 1'b1 || wr_reg_en !== df_src[11] || mem_rd_en !== 1'b0 || mem_wr_en !== 1'b0) begin
+                    if(ir_en !== 1'b0 || pc_en !== 1'b1 || wr_reg_en !== df_src[11] || mem_rd_en !== 1'b0 || mem_wr_en !== 1'b0) begin
                         $display("Store/Load Error: pc_en = %x, wr_reg_en = %x, mem_rd_en = %x, mem_wr_en= 0x%h, mem_byte_en = %x, opcode = %x, funct3 = 0x%h", pc_en, wr_reg_en, mem_rd_en, mem_wr_en, mem_byte_en, opcode, funct3);
                         $stop;
                     end

@@ -11,12 +11,12 @@ module sdram_ref(
     input  wire        enable,   // 1: habilita o refresh
     output reg         end_ref,  // 1: fim do refresh
     // SDRAM
-    output reg  [12:0] dram_addr,
+    output wire [12:0] dram_addr,
     output wire [1:0]  dram_ba,
 	output wire        dram_cs_n,
 	output wire        dram_ras_n,
 	output wire        dram_cas_n,
-	output wire        dram_we_n,
+	output wire        dram_we_n
 );
 
 // Sinais intermediários/controle
@@ -40,6 +40,14 @@ reg [1:0] present_state, next_state; // Estado da FSM
 // contador
 sync_parallel_counter #(.size(4), .init_value(0)) contador (.clock(clock), .reset(nop_cnt_rst), .enable(1'b1), .value(nop_cnt));
 
+// estados da FSM
+localparam [2:0]
+    idle     = 3'b000,
+    pall     = 3'b001,
+    pall_nop = 3'b010,
+    ref      = 3'b011,
+    ref_nop  = 3'b100;
+
 // lógica de mudança de estados
 always @(posedge clock, posedge reset) begin
     if(reset)
@@ -47,10 +55,6 @@ always @(posedge clock, posedge reset) begin
     else
         present_state <= next_state;
 end
-
-// estados da FSM
-localparam [1:0]
-    idle = 2'h0;
 
 // lógica de saída
 always @(*) begin
@@ -65,7 +69,7 @@ always @(*) begin
                 next_state <= idle;
         end
         pall: begin // Precharge All Banks -> Acho que não precisa por que todos os bancos estão em idle
-            comand      <= 4'b0010; // Precharge
+            command      <= 4'b0010; // Precharge
             nop_cnt_rst <= 1'b1;
             next_state  <= pall_nop;    
         end
@@ -82,7 +86,7 @@ always @(*) begin
             next_state  <= ref_nop;
         end
         ref_nop: begin
-            command    <= 4'0111;  // NOP
+            command    <= 4'b0111;  // NOP
             if(ref_nop_end == 1'b1) begin
                 end_ref    <= 1'b1;
                 next_state <= idle;
@@ -92,3 +96,4 @@ always @(*) begin
         end
     endcase
 end
+endmodule

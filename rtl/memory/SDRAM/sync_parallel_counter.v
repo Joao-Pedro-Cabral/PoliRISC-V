@@ -16,7 +16,7 @@ module sync_parallel_counter(clock, reset, enable, load, load_value, value);
         for(i = 0; i < size; i = i + 1) begin
             // gero os size registradores T usando registradores D
             register_d #(.N(1), .reset_value(init_value[i])) register_T 
-                (.clock(clock), .reset(reset), .enable(load or enable_vector[i]), .D(reg_T_in[i]), .Q(reg_T_out[i]));
+                (.clock(clock), .reset(reset), .enable(load | enable_vector[i]), .D(reg_T_in[i]), .Q(reg_T_out[i]));
             // gero os enables dos registradores
             assign enable_vector[i] = enable_aux[i] & enable;
             // gero os enable_aux(concatenação de AND de 2 entradas)

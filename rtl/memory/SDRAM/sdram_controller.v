@@ -27,7 +27,7 @@ module sdram_controller(
 	output wire        dram_we_n,
     output wire        dram_ldqm,
     output wire        dram_udqm,
-    inout  wire [15:0] dram_dq,
+    inout  wire [15:0] dram_dq
 );
 
 // Refresh counter
@@ -179,3 +179,4 @@ always @(*) begin
         end
     endcase
 end
+endmodule

@@ -44,7 +44,7 @@ reg  udqm;
 integer i;
 
 // DUT
-sdram_controller DUT (.clock(clock), .reset(reset), .rd_enable(rd_enable), .wr_enable(wr_enable)
+sdram_controller DUT (.clock(clock), .reset(reset), .rd_enable(rd_enable), .wr_enable(wr_enable),
     .address(address), .rd_wr_size(rd_wr_size), .write_data(write_data), .busy(busy), 
     .read_data(read_data), .dram_clk(dram_clk), .dram_cke(dram_cke), .dram_addr(dram_addr), 
     .dram_ba(dram_ba), .dram_cs_n(dram_cs_n), .dram_ras_n(dram_ras_n), .dram_cas_n(dram_cas_n), 
@@ -136,3 +136,4 @@ initial begin: testbench
     end
     $stop;
 end
+endmodule
