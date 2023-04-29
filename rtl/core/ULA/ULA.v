@@ -33,13 +33,15 @@ module ULA(A, B, seletor, sub, arithmetic, Y, zero, negative, carry_out, overflo
     wire carry_out_;
     wire overflow_;
 
+
+    wire sub_ = sub | (~seletor[2] & seletor[1]);
+
     // operações da ULA
         // operações aritméticas
-    sklansky_adder       #(.INPUT_SIZE(N)) adder (.A(A), .B(B ^ {N{sub}}), .c_in(sub), .c_out(carry_out_), .S(add_sub));
+    sklansky_adder       #(.INPUT_SIZE(N)) adder (.A(A), .B(B ^ {N{sub_}}), .c_in(sub_), .c_out(carry_out_), .S(add_sub));
     left_barrel_shifter  #(.XLEN(N))       shifter_left (.in_data(A), .shamt(B[$clog2(N) - 1:0]), .out_data(sll));
-    //assign sll     = A << (B[$clog2(N)-1:0]);
-    assign slt     = negative_ ^ overflow_;
-    assign sltu    = ~ carry_out_;
+    assign slt     = {{63{1'b0}}, negative_ ^ overflow_};
+    assign sltu    = {{63{1'b0}}, ~carry_out_};
     barrel_shifter_r #(.N($clog2(N)))      shifter_right (.A(A), .shamt(B[$clog2(N) - 1:0]), .arithmetic(arithmetic), .Y(sr));
 
         // operações lógicas
@@ -52,7 +54,7 @@ module ULA(A, B, seletor, sub, arithmetic, Y, zero, negative, carry_out, overflo
 
     // flags da ULA
     assign negative_  = add_sub[N-1];
-    assign overflow_  = (~(A[N-1] ^ B[N-1] ^ sub)) & (A[N-1] ^ add_sub[N-1]);
+    assign overflow_  = (~(A[N-1] ^ B[N-1] ^ sub_)) & (A[N-1] ^ add_sub[N-1]);
     assign zero       = ~(|add_sub);
     assign negative   = negative_;
     assign carry_out  = carry_out_;

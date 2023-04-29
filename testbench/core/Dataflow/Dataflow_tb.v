@@ -16,7 +16,7 @@
 // Veja que db_reg_data é usada apenas para depuração (dado a ser escrito no banco)
 
 `timescale 1 ns / 100 ps
-`define program_size 287
+
 
 module Dataflow_tb();
     // sinais do DUT
@@ -100,11 +100,11 @@ module Dataflow_tb();
      .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./MIFs/memory/ROM/set_less_than.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
                             .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/set_less_than.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
                         .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
     // Instanciação do barramento
@@ -183,16 +183,16 @@ module Dataflow_tb();
                 4'b0001: // SLL
                     ULA_function = A << (B[5:0]);
                 4'b0010: begin // SLT
-                    xorB     = B ^ 64'sb11;
+                    xorB     = B ^ -64'b1;
                     add_sub  = xorB + A + 64'b01;
                     negative = add_sub[63];
-                    overflow = (~(A[63] ^ B[63])) & (A[63] ^ add_sub[63]);
-                    ULA_function = negative ^ overflow;
+                    overflow = (~(A[63] ^ B[63] ^ 1'b1)) & (A[63] ^ add_sub[63]);
+                    ULA_function = {{63{1'b0}}, negative ^ overflow};
                 end
                 4'b0011: begin // SLTU
-                    xorB                  = B ^ 64'sb11;
+                    xorB                  = B ^ -64'b1;
                     {carry_out, add_sub}  = xorB + A + 64'b01;
-                    ULA_function          = ~ carry_out;
+                    ULA_function          = {{63{1'b0}}, ~carry_out};
                 end
                 4'b0100: // XOR
                     ULA_function = A ^ B;
