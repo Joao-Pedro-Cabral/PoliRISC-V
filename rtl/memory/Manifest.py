@@ -2,6 +2,7 @@ modules = {
     "local" : [
         "ROM",
         "RAM",
-        "Controller"
+        "Controller",
+        "SDRAM"
     ],
 }

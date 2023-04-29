@@ -25,7 +25,7 @@ reg  contador_reset;                                // reset do contador
 reg  contador_reset2;                               // reset do contador
 wire [14:0] contagem;                               // contador 
 wire [3:0] contagem2;                               // contador
-wire power_up_end = (contagem  >= 20000);           // Espera até a SDRAM estabilizar(100 us)
+wire power_up_end = (contagem  >= 5);               // Espera até a SDRAM estabilizar(100 us)
 wire pall_auto    = (contagem2 >= 1);               // 2 NOPs: Trp
 wire auto_auto    = (contagem2 >= 8);               // 9 NOPs: Trc (tempo entre refreshes)
 wire auto_ref_end = (contagem  >= 63);              // Refresh Pós-PALL: 8 AUTO Refresh + 56 NOP

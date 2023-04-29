@@ -1,5 +1,5 @@
 import subprocess
-TOPLEVEL= "control_unit"
+TOPLEVEL= "sdram_controller"
 
 action   = "simulation"
 sim_tool = "modelsim"
