@@ -53,7 +53,6 @@ module sdram_controller(
     wire [2:0] rd_wr_num;
     wire end_rd_wr;
     wire [63:0] wr_data; // write data tratado para permitir a correta escrita na memória
-    wire [63:0] byte_write_data; // write data para SB
     wire [12:0] rd_wr_dram_addr;
     wire [1:0]  rd_wr_dram_ba;
     wire        rd_wr_dram_cs_n;
@@ -127,11 +126,7 @@ module sdram_controller(
     // Logo, devemos dar o wr_data com os << necessários para colocar os dados na parte mais significativa
     // 11: SD -> Sem shift; 10: SW -> Shift de 32 bits; 01: SH -> Shift de 48 bits; 00: SB -> Shift de 56 bits
     gen_mux #(.size(64), .N(2)) wr_data_mux (.A({write_data, {write_data[31:0], 32'b0}, {write_data[15:0], 48'b0},
-        byte_write_data}), .S(rd_wr_size), .Y(wr_data));
-
-    // Faço isso apenas para o SB, pois ele tem apenas 1 único byte que pode ser escrito tanto no LSB quanto no MSB
-    // Para os demais o MSB do wr_data sempre será colocado no MSB dos 16 bits da memória
-    assign byte_write_data = address[0] ? {write_data[7:0], 56'b0} : {8'b0, write_data[7:0], 48'b0};
+        {write_data[7:0], 56'b0}}), .S(rd_wr_size), .Y(wr_data));
 
     // transição de estados
     always @(posedge clock, posedge reset) begin

@@ -56,7 +56,6 @@ module sdram_read_write(
     reg  wr_data_load;           // carregar dado da entrada no registrador de escrita
     wire [63:0] shift_write_data;// Dado a ser escrito no registrador
     wire [63:0] write_data;      // Dado a ser escrito na SDRAM
-    wire [63:0] write_data_MSB;  // Dado a ser escrito no registrador após um MSB
 
     // Sinais de controle da operação
     reg  [1:0] op_dqm;           // dqm da operação
@@ -110,7 +109,7 @@ module sdram_read_write(
     assign ops_end = ~(|(op_count ^ op_num)); // compara op_count com op_num
 
     // Escrevendo no barramento bidirecional
-    assign dram_dq[7:0]  = (writing & ~dqm[0]) ? write_data[55:48] : {8{1'bz}}; // LSB
+    assign dram_dq[7:0]  = (writing & ~dqm[0]) ? (dqm[1] ? write_data[63:56] : write_data[55:48]) : {8{1'bz}}; // LSB(10: O LSB está no MSB do write_data)
     assign dram_dq[15:8] = (writing & ~dqm[1]) ? write_data[63:56] : {8{1'bz}}; // MSB
 
     assign rd_data_o = read_data;
@@ -129,12 +128,7 @@ module sdram_read_write(
     // Multiplexador para determinar o próximo valor a ser escrito a partir do op_dqm e do wr_data_load
     // load: 1 -> wr_data_i; op_dqm: 00 -> escrever 2 bytes; 01: escrever MSB; 10: escrever LSB; 11: atualizar com wr_data_i
     gen_mux #(.size(64), .N(2)) write_data_mux (.A({wr_data_i, {write_data[55:0], 8'b0}, 
-        write_data_MSB, {write_data[47:0], 16'b0}}), .S(op_dqm | {2{wr_data_load}}), .Y(shift_write_data));
-
-    // op_num >= 2 -> Após um MSB o próximo op_dqm será 00 -> Realizar shift de 8 bits
-    // op_num == 1 -> Após o MSB escreveremos um LSB -> Sem shift
-    // op_num = 0  -> Don't care
-    assign write_data_MSB = (op_num[1] | op_num[2]) ? {write_data[55:0], 8'b0} : write_data;
+        {write_data[55:0], 8'b0}, {write_data[47:0], 16'b0}}), .S(op_dqm | {2{wr_data_load}}), .Y(shift_write_data));
 
     // FSM
     always @(*) begin
@@ -220,7 +214,7 @@ module sdram_read_write(
                 command         <= 4'b0111;    // NOP
                 dram_addr       <= 0;          // don't care
                 dram_ba         <= 2'b00;      // don't care
-                dqm             <= 2'b00;      // Barramento habilitado
+                dqm             <= 2'b11;      // Barramento desabilitado
                 if(op_act_end == 1'b1)     
                     next_state  <= op_end;     // 3 NOPs -> Terminar a operação
                 else
@@ -230,7 +224,7 @@ module sdram_read_write(
                 command         <= 4'b0111;    // NOP
                 dram_addr       <= 0;          // don't care
                 dram_ba         <= 2'b00;      // don't care
-                dqm             <= 2'b00;      // Barramento habilitado
+                dqm             <= 2'b11;      // Barramento desabilitado
                 address_enable  <= 1'b1;       // Gerar novo endereço da próxima operação
                 op_cnt_enable   <= 1'b1;       // Incrementar o número de operações
                 if(rd_enable == 1'b1)

@@ -40,7 +40,7 @@ module sdram_controller_tb;
     reg  [63:0]  wr_data; // dado escrito na memória
     reg  ldqm;
     reg  udqm;
-    reg  [7:0] rd_addr; 
+    reg  [6:0] rd_addr; 
     // variáveis de iteração
     integer i;
 
@@ -59,8 +59,8 @@ module sdram_controller_tb;
         #3;
     end
 
-    assign dram_dq[7:0]  = rd_en & ~ldqm ? memory[rd_addr[7:0]][7:0]  : {{8'bz}}; // tri-state
-    assign dram_dq[15:8] = rd_en & ~udqm ? memory[rd_addr[7:0]][15:8] : {{8'bz}}; // tri-state
+    assign dram_dq[7:0]  = rd_en & ~ldqm ? memory[rd_addr][7:0]  : {{8'bz}}; // tri-state
+    assign dram_dq[15:8] = rd_en & ~udqm ? memory[rd_addr][15:8] : {{8'bz}}; // tri-state
 
     // leitura
     always @(posedge clock) begin
@@ -71,7 +71,7 @@ module sdram_controller_tb;
         if(command == 4'b0101) begin // READ
             ldqm    <= dram_ldqm;
             udqm    <= dram_udqm;
-            rd_addr <= dram_addr[7:0];
+            rd_addr <= dram_addr[6:0];
             wait (clock == 1'b0);
             wait (clock == 1'b1);
             wait (clock == 1'b0);
@@ -115,7 +115,7 @@ module sdram_controller_tb;
             rd_wr_size    = i/2;        // testas todos os 4 tamanhos
             address[25:1] = $random;    // resto do endereço: aleatório
             wr_addr       = address;    // guardando endereço de escrita
-            write_data    = $random;    // escrever dado qualquer
+            write_data    = {$random, $random};    // escrever dado qualquer
             wr_data       = write_data; // guardando dado escrito
             wr_enable     = 1'b1;       // habilitar escrita
             wait (busy == 1'b1);

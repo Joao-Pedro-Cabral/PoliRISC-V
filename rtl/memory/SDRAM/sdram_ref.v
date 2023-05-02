@@ -29,13 +29,13 @@ module sdram_ref(
     wire  ref_nop_end  = (nop_cnt >= 8); // 9 NOPs: Trc -> O último NOP é o idle do controller
 
     // Endereços não importam com exceção de A10(All banks)
-    assign dram_addr = {3'b001, 10'b0}; // A0 = 1
+    assign dram_addr = {3'b001, 10'b0}; // A10 = 1
     assign dram_ba   = 2'b00;
 
     // Comando a ser executado pela SDRAM
     assign {dram_cs_n, dram_ras_n, dram_cas_n, dram_we_n} = command;
 
-    reg [1:0] present_state, next_state; // Estado da FSM
+    reg [2:0] present_state, next_state; // Estado da FSM
 
     // contador
     sync_parallel_counter #(.size(4), .init_value(0)) contador (.clock(clock), .reset(nop_cnt_rst), .load(1'b0),
@@ -71,7 +71,7 @@ module sdram_ref(
                     next_state <= idle;
             end
             pall: begin // Precharge All Banks -> Acho que não precisa por que todos os bancos estão em idle
-                command      <= 4'b0010; // Precharge
+                command     <= 4'b0010; // Precharge
                 nop_cnt_rst <= 1'b1;
                 next_state  <= pall_nop;    
             end
@@ -80,7 +80,7 @@ module sdram_ref(
                 if(pall_nop_end == 1'b1)
                     next_state <= ref;  // Após 2 NOPs -> Refresh
                 else
-                    next_state <= idle;            
+                    next_state <= pall_nop;            
             end
             ref: begin
                 command     <= 4'b0001;  // Refresh
