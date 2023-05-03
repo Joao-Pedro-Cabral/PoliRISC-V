@@ -57,44 +57,44 @@ module sdram_ref(
             present_state <= next_state;
     end
 
-    // lógica de saída
+    // lógica de saída e de próximo estado
     always @(*) begin
-        end_ref     <= 1'b0;
-        nop_cnt_rst <= 1'b0;
+        end_ref     = 1'b0;
+        nop_cnt_rst = 1'b0;
         case (present_state)
             idle: begin
-                command     <= 4'b0111; // NOP
-                nop_cnt_rst <= 1'b1;
+                command     = 4'b0111; // NOP
+                nop_cnt_rst = 1'b1;
                 if(enable == 1'b1)
-                    next_state <= pall;
+                    next_state = pall;
                 else
-                    next_state <= idle;
+                    next_state = idle;
             end
             pall: begin // Precharge All Banks -> Acho que não precisa por que todos os bancos estão em idle
-                command     <= 4'b0010; // Precharge
-                nop_cnt_rst <= 1'b1;
-                next_state  <= pall_nop;    
+                command     = 4'b0010; // Precharge
+                nop_cnt_rst = 1'b1;
+                next_state  = pall_nop;    
             end
             pall_nop: begin
-                command <= 4'b0111;     // NOP
+                command = 4'b0111;     // NOP
                 if(pall_nop_end == 1'b1)
-                    next_state <= ref;  // Após 2 NOPs -> Refresh
+                    next_state = ref;  // Após 2 NOPs -> Refresh
                 else
-                    next_state <= pall_nop;            
+                    next_state = pall_nop;            
             end
             ref: begin
-                command     <= 4'b0001;  // Refresh
-                nop_cnt_rst <= 1'b1;
-                next_state  <= ref_nop;
+                command     = 4'b0001;  // Refresh
+                nop_cnt_rst = 1'b1;
+                next_state  = ref_nop;
             end
             ref_nop: begin
-                command    <= 4'b0111;  // NOP
+                command    = 4'b0111;  // NOP
                 if(ref_nop_end == 1'b1) begin
-                    end_ref    <= 1'b1;
-                    next_state <= idle;
+                    end_ref    = 1'b1;
+                    next_state = idle;
                 end
                 else
-                    next_state <= ref_nop;
+                    next_state = ref_nop;
             end
         endcase
     end

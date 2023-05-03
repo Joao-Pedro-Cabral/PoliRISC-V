@@ -130,117 +130,117 @@ module sdram_read_write(
     gen_mux #(.size(64), .N(2)) write_data_mux (.A({wr_data_i, {write_data[55:0], 8'b0}, 
         {write_data[55:0], 8'b0}, {write_data[47:0], 16'b0}}), .S(op_dqm | {2{wr_data_load}}), .Y(shift_write_data));
 
-    // FSM
+    // lógica de saída e de próximo estado
     always @(*) begin
-        end_op          <= 0;
-        nop_count_reset <= 0;
-        address_load    <= 0;
-        address_enable  <= 0;
-        op_cnt_reset    <= 0;
-        op_cnt_enable   <= 0;
-        writing         <= 0;
-        reading         <= 0;
-        rd_data_reset   <= 1'b0;
-        wr_data_load    <= 1'b0;
+        end_op          = 0;
+        nop_count_reset = 0;
+        address_load    = 0;
+        address_enable  = 0;
+        op_cnt_reset    = 0;
+        op_cnt_enable   = 0;
+        writing         = 0;
+        reading         = 0;
+        rd_data_reset   = 1'b0;
+        wr_data_load    = 1'b0;
         case(present_state)
             idle: begin
-                command         <= 4'b0111; // NOP
-                dram_addr       <= 0;       // don't care
-                dram_ba         <= 2'b00;   // don't care
-                dqm             <= 2'b11;   // Barramento desabilitado
-                address_load    <= 1'b1;    // Carregar endereço inicial da operação
-                op_cnt_reset    <= 1'b1;    // Resetar contador da operação
-                nop_count_reset <= 1'b1;    // Resetar o contador de NOPs
+                command         = 4'b0111; // NOP
+                dram_addr       = 0;       // don't care
+                dram_ba         = 2'b00;   // don't care
+                dqm             = 2'b11;   // Barramento desabilitado
+                address_load    = 1'b1;    // Carregar endereço inicial da operação
+                op_cnt_reset    = 1'b1;    // Resetar contador da operação
+                nop_count_reset = 1'b1;    // Resetar o contador de NOPs
                 if(rd_enable == 1'b1 || wr_enable == 1'b1)
-                    next_state  <= start;
+                    next_state  = start;
                 else
-                    next_state  <= idle;
+                    next_state  = idle;
             end
             start: begin // uso para evitar glitches dos resets
-                op_cnt_reset    <= 1'b1;    // Resetar contador da operação
-                nop_count_reset <= 1'b1;    // Resetar o contador de NOPs
-                rd_data_reset   <= 1'b1;    // limpar o registrador de leitura
-                wr_data_load    <= 1'b1;    // limpar o registrador de escrita
-                op_dqm          <= 2'b11;   // inicializar
-                next_state      <= pre_active;
+                op_cnt_reset    = 1'b1;    // Resetar contador da operação
+                nop_count_reset = 1'b1;    // Resetar o contador de NOPs
+                rd_data_reset   = 1'b1;    // limpar o registrador de leitura
+                wr_data_load    = 1'b1;    // limpar o registrador de escrita
+                op_dqm          = 2'b11;   // inicializar
+                next_state      = pre_active;
             end
             pre_active: begin // Ciclo anterior ao Active -> Decide como será a operação
-                command        <= 4'b0111; // NOP
-                dram_addr      <= 0;       // don't care
-                dram_ba        <= 2'b00;   // don't care
-                dqm            <= 2'b11;   // Barramento desabilitado
+                command        = 4'b0111; // NOP
+                dram_addr      = 0;       // don't care
+                dram_ba        = 2'b00;   // don't care
+                dqm            = 2'b11;   // Barramento desabilitado
                 if(op_count == 0)
-                    op_dqm   <= init_dqm;  // DQM inicial
+                    op_dqm   = init_dqm;  // DQM inicial
                 else if(ops_end == 1'b1)
-                    op_dqm   <= {init_dqm[0], init_dqm[1]}; // ultima operação -> inverso da inicial(valores válidos: 00 e 01)
+                    op_dqm   = {init_dqm[0], init_dqm[1]}; // ultima operação -> inverso da inicial(valores válidos: 00 e 01)
                 else
-                    op_dqm   <= 2'b00; // Caso contrário: habilitar todo o barramento
-                next_state   <= active;
+                    op_dqm   = 2'b00; // Caso contrário: habilitar todo o barramento
+                next_state   = active;
             end
             active: begin // Ativar o banco com a linha escolhida
-                command         <= 4'b0011;    // Ativar
-                dram_addr       <= row;        // Linha desejada
-                dram_ba         <= bank;       // Banco escolhido
-                dqm             <= 2'b11;      // Barramento desabilitado
-                nop_count_reset <= 1'b1;
-                next_state      <= active_nop;
+                command         = 4'b0011;    // Ativar
+                dram_addr       = row;        // Linha desejada
+                dram_ba         = bank;       // Banco escolhido
+                dqm             = 2'b11;      // Barramento desabilitado
+                nop_count_reset = 1'b1;
+                next_state      = active_nop;
             end
             active_nop: begin // 4 NOPs após Active -> Tras
-                command        <= 4'b0111;    // NOP
-                dram_addr      <= 0;          // don't care
-                dram_ba        <= 2'b00;      // don't care
-                dqm            <= 2'b11;      // Barramento desabilitado
+                command        = 4'b0111;    // NOP
+                dram_addr      = 0;          // don't care
+                dram_ba        = 2'b00;      // don't care
+                dqm            = 2'b11;      // Barramento desabilitado
                 if(active_end == 1'b1)
-                    next_state <= op_act;     // 2 NOPs -> Read
+                    next_state = op_act;     // 2 NOPs -> Read
                 else
-                    next_state <= active_nop; // Não deu 2 NOPs
+                    next_state = active_nop; // Não deu 2 NOPs
             end
             op_act: begin
                 if(rd_enable == 1'b1)
-                    command       <= 4'b0101;   // Ativar leitura
+                    command       = 4'b0101;   // Ativar leitura
                 else begin
-                    command       <= 4'b0100;   // Ativar escrita
-                    writing       <= 1'b1;
+                    command       = 4'b0100;   // Ativar escrita
+                    writing       = 1'b1;
                 end
-                dram_ba           <= bank;
-                dram_addr[12:11]  <= 2'b00;    // don't care
-                dram_addr[10]     <= 1'b1;     // 64 bits -> Auto Precharge
-                dram_addr[9:0]    <= column;
-                dqm               <= op_dqm;   // 2 bytes
-                nop_count_reset   <= 1'b1;
-                next_state        <= op_nop;
+                dram_ba           = bank;
+                dram_addr[12:11]  = 2'b00;    // don't care
+                dram_addr[10]     = 1'b1;     // 64 bits -> Auto Precharge
+                dram_addr[9:0]    = column;
+                dqm               = op_dqm;   // 2 bytes
+                nop_count_reset   = 1'b1;
+                next_state        = op_nop;
             end
             op_nop: begin
-                command         <= 4'b0111;    // NOP
-                dram_addr       <= 0;          // don't care
-                dram_ba         <= 2'b00;      // don't care
-                dqm             <= 2'b11;      // Barramento desabilitado
+                command         = 4'b0111;    // NOP
+                dram_addr       = 0;          // don't care
+                dram_ba         = 2'b00;      // don't care
+                dqm             = 2'b11;      // Barramento desabilitado
                 if(op_act_end == 1'b1)     
-                    next_state  <= op_end;     // 3 NOPs -> Terminar a operação
+                    next_state  = op_end;     // 3 NOPs -> Terminar a operação
                 else
-                    next_state  <= op_nop;     // Não deu 3 NOPs
+                    next_state  = op_nop;     // Não deu 3 NOPs
             end
             op_end: begin 
-                command         <= 4'b0111;    // NOP
-                dram_addr       <= 0;          // don't care
-                dram_ba         <= 2'b00;      // don't care
-                dqm             <= 2'b11;      // Barramento desabilitado
-                address_enable  <= 1'b1;       // Gerar novo endereço da próxima operação
-                op_cnt_enable   <= 1'b1;       // Incrementar o número de operações
+                command         = 4'b0111;    // NOP
+                dram_addr       = 0;          // don't care
+                dram_ba         = 2'b00;      // don't care
+                dqm             = 2'b11;      // Barramento desabilitado
+                address_enable  = 1'b1;       // Gerar novo endereço da próxima operação
+                op_cnt_enable   = 1'b1;       // Incrementar o número de operações
                 if(rd_enable == 1'b1)
-                    reading     <= 1'b1;       // Realizar leitura
+                    reading     = 1'b1;       // Realizar leitura
                 if(ops_end == 1'b1) begin
-                    end_op      <= 1'b1;       // Fim das operações
-                    next_state  <= idle; 
+                    end_op      = 1'b1;       // Fim das operações
+                    next_state  = idle; 
                 end
                 else
-                    next_state <= pre_active;  // Ir para a próxima operação
+                    next_state = pre_active;  // Ir para a próxima operação
             end
             default: begin // Impossível
-                command         <= 4'b0111;    // NOP
-                dram_addr       <= 0;          // don't care
-                dram_ba         <= 2'b00;      // don't care
-                dqm             <= 2'b11;      // Barramento desabilitado
+                command         = 4'b0111;    // NOP
+                dram_addr       = 0;          // don't care
+                dram_ba         = 2'b00;      // don't care
+                dqm             = 2'b11;      // Barramento desabilitado
             end 
         endcase
     end

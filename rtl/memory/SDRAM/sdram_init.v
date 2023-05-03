@@ -63,70 +63,70 @@ module sdram_init(
     end
 
     always @(*) begin
-        end_init        <= 0;
-        contador_reset  <= 0;
-        contador_reset2 <= 0;
-        dram_addr       <= 0; // don't care com exceção no Mode Register Set e no PALL
+        end_init        = 0;
+        contador_reset  = 0;
+        contador_reset2 = 0;
+        dram_addr       = 0; // don't care com exceção no Mode Register Set e no PALL
         case(present_state)
             idle: begin
-                command         <= 4'b0111; // NOP
-                contador_reset  <= 1;       // Resetar contadores
-                contador_reset2 <= 1;        
+                command         = 4'b0111; // NOP
+                contador_reset  = 1;       // Resetar contadores
+                contador_reset2 = 1;        
                 if(enable == 1'b1)
-                    next_state <= power_up;
+                    next_state = power_up;
                 else
-                    next_state <= idle;
+                    next_state = idle;
             end
             power_up: begin
-                command         <= 4'b0111;   // NOP
+                command         = 4'b0111;   // NOP
                 if(power_up_end == 1'b1)      // SDRAM estável
-                    next_state  <= pall;
+                    next_state  = pall;
                 else
-                    next_state  <= power_up;
+                    next_state  = power_up;
             end
             pall: begin // Precharge All Banks
-                command         <= 4'b0010;           // Precharge
-                dram_addr       <= 13'b0010000000000; // A10 = 1 -> All Banks
-                contador_reset2 <= 1;                 // Reiniciar contagem2 -> pall_auto  
-                next_state      <= nop;
+                command         = 4'b0010;           // Precharge
+                dram_addr       = 13'b0010000000000; // A10 = 1 -> All Banks
+                contador_reset2 = 1;                 // Reiniciar contagem2 -> pall_auto  
+                next_state      = nop;
             end
             nop: begin
-                command         <= 4'b0111;   // NOP
-                contador_reset  <= 1;
+                command         = 4'b0111;   // NOP
+                contador_reset  = 1;
                 if(pall_auto == 1'b1)
-                    next_state  <= auto_ref;  // Começar ciclo de Auto Refresh
+                    next_state  = auto_ref;  // Começar ciclo de Auto Refresh
                 else
-                    next_state  <= nop;    
+                    next_state  = nop;    
             end
             auto_ref: begin // Auto Refresh Pós-Pall
-                command         <= 4'b0001;   // Auto Refresh
-                contador_reset2 <= 1'b1;      // contar REF to REF time(Trc)
-                next_state      <= nop2;
+                command         = 4'b0001;   // Auto Refresh
+                contador_reset2 = 1'b1;      // contar REF to REF time(Trc)
+                next_state      = nop2;
             end
             nop2: begin
-                command         <= 4'b0111;   // NOP
+                command         = 4'b0111;   // NOP
                 if(auto_ref_end == 1'b1)
-                    next_state  <= mode_reg;  // Fim do Ciclo de Auto Refresh
+                    next_state  = mode_reg;  // Fim do Ciclo de Auto Refresh
                 else if(auto_auto == 1'b1)
-                    next_state  <= auto_ref;  // Auto Refresh denovo    
+                    next_state  = auto_ref;  // Auto Refresh denovo    
                 else 
-                    next_state  <= nop2;       // Ainda não está na hora de outro Auto Refresh    
+                    next_state  = nop2;       // Ainda não está na hora de outro Auto Refresh    
             end
             mode_reg: begin
-                command           <= 4'b0000;  // Mode Register Set
+                command           = 4'b0000;  // Mode Register Set
                 // Configuração da SDRAM
-                dram_addr[12:10]  <= 3'b000;   // A12, A11, A10: Reservados
-                dram_addr[9]      <= 1'b1;     // A9 = 1: Single Location Acess
-                dram_addr[8:7]    <= 2'b00;    // A8, A7 = 0: Operação Normal(Demais valores são reservados)
-                dram_addr[6:4]    <= 3'b011;   // A6, A5, A4 = 3: CAS = 3
-                dram_addr[3]      <= 1'b0;     // A3: Burst Sequencial
-                dram_addr[2:0]    <= 3'b000;   // A2, A1, A0 = 0: Apenas 1 endereço
-                end_init          <= 1'b1;     // fim da inicialização
-                next_state        <= idle;     // Tmrc é cumprido pelo idle do controller
+                dram_addr[12:10]  = 3'b000;   // A12, A11, A10: Reservados
+                dram_addr[9]      = 1'b1;     // A9 = 1: Single Location Acess
+                dram_addr[8:7]    = 2'b00;    // A8, A7 = 0: Operação Normal(Demais valores são reservados)
+                dram_addr[6:4]    = 3'b011;   // A6, A5, A4 = 3: CAS = 3
+                dram_addr[3]      = 1'b0;     // A3: Burst Sequencial
+                dram_addr[2:0]    = 3'b000;   // A2, A1, A0 = 0: Apenas 1 endereço
+                end_init          = 1'b1;     // fim da inicialização
+                next_state        = idle;     // Tmrc é cumprido pelo idle do controller
             end
             default: begin
-                command        <= 4'b0111;   // NOP
-                next_state     <= idle;   
+                command        = 4'b0111;   // NOP
+                next_state     = idle;   
             end
         endcase   
     end   

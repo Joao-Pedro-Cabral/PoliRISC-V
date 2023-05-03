@@ -136,48 +136,48 @@ module sdram_controller(
             present_state <= next_state;
     end
 
-    // FSM principal
+    // Lógica de próximo estado e de saída
     always @(*) begin
-        busy          <= 1'b0;
-        ref_rst       <= 1'b0;
-        ref_cnt_en    <= 1'b0;
-        init_enable   <= 1'b0;
-        rd_wr_enable  <= 1'b0;
-        ref_enable    <= 1'b0;
+        busy          = 1'b0;
+        ref_rst       = 1'b0;
+        ref_cnt_en    = 1'b0;
+        init_enable   = 1'b0;
+        rd_wr_enable  = 1'b0;
+        ref_enable    = 1'b0;
         case(present_state)
             init_mode: begin
-                init_enable    <= 1'b1; // Habilitar inicialização(não contamos ciclo de refresh no inicio)
-                ref_rst        <= 1'b1; // zerar o refresh cnt
+                init_enable    = 1'b1; // Habilitar inicialização(não contamos ciclo de refresh no inicio)
+                ref_rst        = 1'b1; // zerar o refresh cnt
                 if(end_init)
-                    next_state <= idle_mode;
+                    next_state = idle_mode;
                 else
-                    next_state <= init_mode;
+                    next_state = init_mode;
             end
             idle_mode: begin
-                ref_cnt_en     <= 1'b1;
+                ref_cnt_en     = 1'b1;
                 if(ref_start == 1'b1)
-                    next_state <= ref_mode; // Começar o refresh
+                    next_state = ref_mode; // Começar o refresh
                 else if(rd_enable == 1'b1 || wr_enable == 1'b1)
-                    next_state <= rd_wr_mode; // Começar a operação
+                    next_state = rd_wr_mode; // Começar a operação
                 else
-                    next_state <= idle_mode;  // Manter em idle
+                    next_state = idle_mode;  // Manter em idle
             end
             rd_wr_mode: begin
-                busy           <= 1'b1; // Realizando operação
-                rd_wr_enable   <= 1'b1; // Habilitar operação
-                ref_cnt_en     <= 1'b1; // Contar ciclos de refresh
+                busy           = 1'b1; // Realizando operação
+                rd_wr_enable   = 1'b1; // Habilitar operação
+                ref_cnt_en     = 1'b1; // Contar ciclos de refresh
                 if(end_rd_wr)
-                    next_state <= idle_mode;
+                    next_state = idle_mode;
                 else
-                    next_state <= rd_wr_mode;
+                    next_state = rd_wr_mode;
             end
             ref_mode: begin
-                ref_enable     <= 1'b1; // Realizar refresh
-                ref_rst        <= 1'b1; // Resetar contador de refresh
+                ref_enable     = 1'b1; // Realizar refresh
+                ref_rst        = 1'b1; // Resetar contador de refresh
                 if(end_ref)
-                    next_state <= idle_mode;
+                    next_state = idle_mode;
                 else
-                    next_state <= ref_mode;
+                    next_state = ref_mode;
             end
         endcase
     end
