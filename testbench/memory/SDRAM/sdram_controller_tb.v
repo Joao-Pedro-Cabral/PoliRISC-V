@@ -64,10 +64,10 @@ module sdram_controller_tb;
 
     // leitura
     always @(posedge clock) begin
-    rd_en   <= 0;      // alta impedância
-    ldqm    <= 1'b1;
-    udqm    <= 1'b1;
-    rd_addr <= 0;
+        rd_en   <= 0;      // alta impedância
+        ldqm    <= 1'b1;
+        udqm    <= 1'b1;
+        rd_addr <= 0;
         if(command == 4'b0101) begin // READ
             ldqm    <= dram_ldqm;
             udqm    <= dram_udqm;

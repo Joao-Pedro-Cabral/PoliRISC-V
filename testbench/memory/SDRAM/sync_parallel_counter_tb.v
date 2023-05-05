@@ -1,3 +1,9 @@
+//
+//! @file   sync_parallel_counter_tb.v
+//! @brief  Testbench do Contador
+//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
+//! @date   2023-04-29
+//
 
 `timescale 1ns / 100ps
 
