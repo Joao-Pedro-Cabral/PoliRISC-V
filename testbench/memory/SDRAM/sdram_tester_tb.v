@@ -121,6 +121,7 @@ module sdram_tester_tb();
         ativar  = 1; // ativo baixo
         chaves  = 0;
         rd_en   = 0;
+        $display("SOT!");
         #2;
         reset_n = 0; // reset por 2 ciclos
         wait (clock == 1'b1);
@@ -132,6 +133,7 @@ module sdram_tester_tb();
         #600; // Esperar inicialização acabar
         for(i = 0; i < 8; i = i + 1) begin // 8 pares (rd_wr_size, address[0]) possíveis
             #0.1; // Esperar um pouco
+            $display("Test: %d", i);
             // Selecionando os parâmetros da operação
             address[0]    = (i%2);      // oscilar entre endereços pares e ímpares
             rd_wr_size    = i/2;        // testas todos os 4 tamanhos
@@ -194,6 +196,7 @@ module sdram_tester_tb();
                 end
             end 
         end
+        $display("EOT!");
         $stop;
     end
 endmodule

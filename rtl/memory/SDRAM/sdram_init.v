@@ -67,7 +67,7 @@ module sdram_init(
         contador_reset  = 0;
         contador_reset2 = 0;
         dram_addr       = 0; // don't care com exceção no Mode Register Set e no PALL
-        case(present_state)
+        case(present_state) // synthesis parallel_case
             idle: begin
                 command         = 4'b0111; // NOP
                 contador_reset  = 1;       // Resetar contadores

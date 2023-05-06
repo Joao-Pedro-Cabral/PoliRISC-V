@@ -14,7 +14,7 @@ module sdram_controller(
     input  wire [25:0] address,      // endereço da operação
     input  wire [1:0]  rd_wr_size,   // 00: Byte, 01: Half Word, 10: Word, 11: Double Word
     input  wire [63:0] write_data,   // dado a ser escrito na SDRAM
-    output reg         busy,
+    output wire        busy,
     output wire [63:0] read_data,    // dado lido da SDRAM
     // SDRAM
     output wire        dram_clk,
@@ -74,6 +74,9 @@ module sdram_controller(
     wire [18:0] ref_dram = {ref_dram_addr, ref_dram_ba, ref_dram_cs_n, 
         ref_dram_ras_n, ref_dram_cas_n, ref_dram_we_n}; // Sinais do ref para a SDRAM
 
+    // busy
+    reg busy_d; // entrada D do busy_reg
+
     wire [18:0] idle_dram = {13'b0, 2'b00, 4'b0111}; // Sinais do idle para a SDRAM (NOP -> addr e ba: dont'care)
 
     wire [18:0] dram; // Sinais de endereço e de controle da SDRAM
@@ -128,6 +131,10 @@ module sdram_controller(
     gen_mux #(.size(64), .N(2)) wr_data_mux (.A({write_data, {write_data[31:0], 32'b0}, {write_data[15:0], 48'b0},
         {write_data[7:0], 56'b0}}), .S(rd_wr_size), .Y(wr_data));
 
+    // busy -> levanta na borda de clock seguinte ao levantamento de um dos enables
+    // busy -> desce sincronamente com o fim da operação
+    register_d #(.N(1), .reset_value(0)) busy_reg (.clock(clock), .reset(reset), .enable(rd_enable | wr_enable), .D(busy_d), .Q(busy)); 
+
     // transição de estados
     always @(posedge clock, posedge reset) begin
         if(reset) 
@@ -138,13 +145,13 @@ module sdram_controller(
 
     // Lógica de próximo estado e de saída
     always @(*) begin
-        busy          = 1'b0;
+        busy_d        = 1'b1; // valor padrão da entrada: 1
         ref_rst       = 1'b0;
         ref_cnt_en    = 1'b0;
         init_enable   = 1'b0;
         rd_wr_enable  = 1'b0;
         ref_enable    = 1'b0;
-        case(present_state)
+        case(present_state) // synthesis parallel_case
             init_mode: begin
                 init_enable    = 1'b1; // Habilitar inicialização(não contamos ciclo de refresh no inicio)
                 ref_rst        = 1'b1; // zerar o refresh cnt
@@ -163,11 +170,12 @@ module sdram_controller(
                     next_state = idle_mode;  // Manter em idle
             end
             rd_wr_mode: begin
-                busy           = 1'b1; // Realizando operação
                 rd_wr_enable   = 1'b1; // Habilitar operação
                 ref_cnt_en     = 1'b1; // Contar ciclos de refresh
-                if(end_rd_wr)
+                if(end_rd_wr) begin
+                    busy_d     = 1'b0; // fim da operação -> busy abaixa no próximo ciclo
                     next_state = idle_mode;
+                end
                 else
                     next_state = rd_wr_mode;
             end

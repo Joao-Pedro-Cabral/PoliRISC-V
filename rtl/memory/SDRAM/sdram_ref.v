@@ -61,7 +61,7 @@ module sdram_ref(
     always @(*) begin
         end_ref     = 1'b0;
         nop_cnt_rst = 1'b0;
-        case (present_state)
+        case (present_state) // synthesis parallel_case
             idle: begin
                 command     = 4'b0111; // NOP
                 nop_cnt_rst = 1'b1;

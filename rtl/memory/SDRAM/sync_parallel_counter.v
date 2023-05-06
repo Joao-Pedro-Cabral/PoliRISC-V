@@ -13,7 +13,7 @@ module sync_parallel_counter(clock, reset, enable, load, load_value, value);
 
     // gero o contador
     generate
-        for(i = 0; i < size; i = i + 1) begin
+        for(i = 0; i < size; i = i + 1) begin: count_gen
             // gero os size registradores T usando registradores D
             register_d #(.N(1), .reset_value(init_value[i])) register_T 
                 (.clock(clock), .reset(reset), .enable(load | enable_vector[i]), .D(reg_T_in[i]), .Q(reg_T_out[i]));

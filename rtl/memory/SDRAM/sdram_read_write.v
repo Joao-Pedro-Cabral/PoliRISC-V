@@ -58,7 +58,10 @@ module sdram_read_write(
     wire [63:0] write_data;      // Dado a ser escrito na SDRAM
 
     // Sinais de controle da operação
-    reg  [1:0] op_dqm;           // dqm da operação
+    wire  [1:0] op_dqm;          // dqm da operação
+    wire  [1:0] op_dqm_mux_out;  // entrada do registrador do op_dqm
+    reg  op_dqm_en;              // habilitar escrita do novo op_dqm
+    reg   [1:0] op_dqm_src;      // escolher o op_dqm_mux_out
     wire ops_end;                // 1: fim da operação
 
     // Contagens
@@ -130,6 +133,11 @@ module sdram_read_write(
     gen_mux #(.size(64), .N(2)) write_data_mux (.A({wr_data_i, {write_data[55:0], 8'b0}, 
         {write_data[55:0], 8'b0}, {write_data[47:0], 16'b0}}), .S(op_dqm | {2{wr_data_load}}), .Y(shift_write_data));
 
+    // op_dqm -> reset : op_dqm = 2'b11
+    register_d #(.N(2), .reset_value(3)) op_dqm_reg (.clock(clock), .reset(reset), .enable(op_dqm_en), .D(op_dqm_mux_out), .Q(op_dqm));
+
+    gen_mux #(.size(2), .N(2)) op_dqm_mux (.A({2'b00, {init_dqm[0], init_dqm[1]}, init_dqm, 2'b11}), .S(op_dqm_src), .Y(op_dqm_mux_out));
+
     // lógica de saída e de próximo estado
     always @(*) begin
         end_op          = 0;
@@ -142,7 +150,13 @@ module sdram_read_write(
         reading         = 0;
         rd_data_reset   = 1'b0;
         wr_data_load    = 1'b0;
-        case(present_state)
+        command         = 4'b0111;
+        dram_addr       = 0;
+        dram_ba         = 2'b00;
+        dqm             = 2'b11;
+        op_dqm_en       = 0;
+        op_dqm_src      = 2'b00;
+        case(present_state) // synthesis parallel_case
             idle: begin
                 command         = 4'b0111; // NOP
                 dram_addr       = 0;       // don't care
@@ -161,7 +175,6 @@ module sdram_read_write(
                 nop_count_reset = 1'b1;    // Resetar o contador de NOPs
                 rd_data_reset   = 1'b1;    // limpar o registrador de leitura
                 wr_data_load    = 1'b1;    // limpar o registrador de escrita
-                op_dqm          = 2'b11;   // inicializar
                 next_state      = pre_active;
             end
             pre_active: begin // Ciclo anterior ao Active -> Decide como será a operação
@@ -169,13 +182,14 @@ module sdram_read_write(
                 dram_addr      = 0;       // don't care
                 dram_ba        = 2'b00;   // don't care
                 dqm            = 2'b11;   // Barramento desabilitado
+                op_dqm_en      = 1'b1;    // atualizar op_dqm
                 if(op_count == 0)
-                    op_dqm   = init_dqm;  // DQM inicial
+                    op_dqm_src = 2'b01;  // DQM inicial
                 else if(ops_end == 1'b1)
-                    op_dqm   = {init_dqm[0], init_dqm[1]}; // ultima operação -> inverso da inicial(valores válidos: 00 e 01)
+                    op_dqm_src = 2'b10;  // ultima operação -> inverso da inicial(valores válidos: 00 e 01)
                 else
-                    op_dqm   = 2'b00; // Caso contrário: habilitar todo o barramento
-                next_state   = active;
+                    op_dqm_src = 2'b11;  // Caso contrário: habilitar todo o barramento
+                next_state     = active;
             end
             active: begin // Ativar o banco com a linha escolhida
                 command         = 4'b0011;    // Ativar

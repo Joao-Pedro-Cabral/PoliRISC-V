@@ -100,6 +100,7 @@ module sdram_controller_tb;
         rd_wr_size = 0;
         write_data = 0;
         reset      = 0;
+        $display("SOT!");
         #2;
         reset = 1'b1; // reset por 2 ciclos
         wait (clock == 1'b1);
@@ -110,6 +111,7 @@ module sdram_controller_tb;
         reset = 1'b0;
         #600; // Esperar inicialização acabar
         for(i = 0; i < 8; i = i + 1) begin
+            $display("Test: %d", i);
             // Escrita
             address[0]    = (i%2);      // oscilar entre endereços pares e ímpares
             rd_wr_size    = i/2;        // testas todos os 4 tamanhos
@@ -156,6 +158,7 @@ module sdram_controller_tb;
             rd_enable     = 0;    
             wait (clock == 1'b0);       // Borda de descida: nova operação       
         end
+        $display("EOT!");
         $stop;
     end
 endmodule
