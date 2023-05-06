@@ -71,7 +71,7 @@ module sdram_read_write(
     wire [1:0] nop_count;        // numeros de nops
     wire [2:0] op_count;         // número de operações a serem executadas
     wire active_end = (nop_count >= 3);  // 4 NOPs após active
-    wire op_act_end = (nop_count >= 2);  // 2 NOPs após comando READ/WRITE (CAS_n latency)
+    wire op_act_end = (nop_count >= 1);  // 2 NOPs após comando READ/WRITE (CAS_n latency)
 
     // Estado da FSM
     reg [2:0] present_state, next_state;
@@ -230,9 +230,9 @@ module sdram_read_write(
                 dram_ba         = 2'b00;      // don't care
                 dqm             = 2'b11;      // Barramento desabilitado
                 if(op_act_end == 1'b1)     
-                    next_state  = op_end;     // 3 NOPs -> Terminar a operação
+                    next_state  = op_end;     // 2 NOPs -> Terminar a operação
                 else
-                    next_state  = op_nop;     // Não deu 3 NOPs
+                    next_state  = op_nop;     // Não deu 2 NOPs
             end
             op_end: begin 
                 command         = 4'b0111;    // NOP

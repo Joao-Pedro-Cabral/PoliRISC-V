@@ -112,8 +112,8 @@ module sdram_controller(
         .dram_ras_n(ref_dram_ras_n), .dram_cas_n(ref_dram_cas_n), .dram_we_n(ref_dram_we_n));
 
     // Saídas da SDRAM
-    assign dram_cke = 1'b1;  // clock sempre habilitado
-    assign dram_clk = clock; // componentes sincronizados
+    assign dram_cke = 1'b1;   // clock sempre habilitado
+    assign dram_clk = ~clock; // respeitar hold e setup time -> amostro na borda de descida
     assign {dram_addr, dram_ba, dram_cs_n, dram_ras_n, dram_cas_n, dram_we_n} = dram;
 
     // Multiplexador para os sinais de endereço e controle da SDRAM com base no estado atual da FSM

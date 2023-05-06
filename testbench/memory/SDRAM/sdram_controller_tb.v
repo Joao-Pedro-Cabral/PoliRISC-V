@@ -59,11 +59,12 @@ module sdram_controller_tb;
         #3;
     end
 
+    // "Memória"
     assign dram_dq[7:0]  = rd_en & ~ldqm ? memory[rd_addr][7:0]  : {{8'bz}}; // tri-state
     assign dram_dq[15:8] = rd_en & ~udqm ? memory[rd_addr][15:8] : {{8'bz}}; // tri-state
 
     // leitura
-    always @(posedge clock) begin
+    always @(posedge dram_clk) begin
         rd_en   <= 0;      // alta impedância
         ldqm    <= 1'b1;
         udqm    <= 1'b1;
@@ -72,18 +73,18 @@ module sdram_controller_tb;
             ldqm    <= dram_ldqm;
             udqm    <= dram_udqm;
             rd_addr <= dram_addr[6:0];
-            wait (clock == 1'b0);
-            wait (clock == 1'b1);
-            wait (clock == 1'b0);
-            wait (clock == 1'b1);
-            wait (clock == 1'b0);
-            wait (clock == 1'b1); // CAS latency = 3
+            wait (dram_clk == 1'b0);
+            wait (dram_clk == 1'b1);
+            wait (dram_clk == 1'b0);
+            wait (dram_clk == 1'b1);
+            wait (dram_clk == 1'b0);
+            wait (dram_clk == 1'b1); // CAS latency = 3
             rd_en <= 1;
         end
     end
 
     // escrita
-    always @(posedge clock) begin
+    always @(posedge dram_clk) begin
         if(command == 4'b0100) begin // WRITE
             if(dram_ldqm == 1'b0)
                 memory[dram_addr[6:0]][7:0]  <= dram_dq[7:0];
