@@ -15,7 +15,7 @@
 // Para isso irei verificar as saídas da UC
 
 `timescale 1 ns / 100 ps
-`define program_size 287
+// `define program_size 287
 
 module control_unit_tb();
     // sinais do DUT
@@ -97,11 +97,11 @@ module control_unit_tb();
     .ram_byte_enable(ram_byte_enable));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/memory/ROM/set_less_than.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_time(12)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./MIFs/memory/ROM/set_less_than.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
                             .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/set_less_than.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_TIME(12)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/set_less_than.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
                         .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
 

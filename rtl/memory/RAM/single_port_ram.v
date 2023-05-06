@@ -13,7 +13,7 @@ module single_port_ram
     parameter ADDR_SIZE=2,
     parameter BYTE_SIZE=4,
     parameter DATA_SIZE=4,
-    parameter BUSY_TIME=3
+    parameter BUSY_CYCLES=3
 )
 (
     input clk,
@@ -72,10 +72,14 @@ module single_port_ram
                 busy_flag <= 1'b1;
     end
 
+    integer k;
     always @ (posedge clk) begin
         if(busy_flag === 1'b1) begin
             busy = 1'b1;
-            #(BUSY_TIME);
+            for(k = 0; k < BUSY_CYCLES; k = k +1) begin
+                wait(clk == 1'b0);
+                wait(clk == 1'b1);
+            end
             busy = 1'b0;
             busy_flag = 1'b0;
         end

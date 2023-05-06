@@ -13,7 +13,7 @@ module ROM(clock, enable, addr, data, busy);
     parameter word_size = 8;
     parameter addr_size = 8;
     parameter offset = 2;
-    parameter busy_time = 3; // tempo em que busy = 1
+    parameter busy_cycles = 3; // numero de ciclos que busy está ativo
     input  wire clock;
     input  wire enable;
     input  wire [addr_size - 1:0] addr;
@@ -27,6 +27,7 @@ module ROM(clock, enable, addr, data, busy);
 
     // variáveis de iteração
     genvar i;
+    integer j;
 
     // inicializando a memória
     initial begin
@@ -57,7 +58,10 @@ module ROM(clock, enable, addr, data, busy);
     always @ (posedge clock) begin: busy_enable
         if(busy_flag === 1'b1) begin
             busy = 1'b1;
-            #(busy_time);
+            for(j = 0; j < busy_cycles; j = j +1) begin
+                wait(clock == 1'b0);
+                wait(clock == 1'b1);
+            end
             busy = 1'b0;
             busy_flag = 1'b0;
         end
