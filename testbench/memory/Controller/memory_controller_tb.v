@@ -136,7 +136,7 @@ module memory_controller_tb;
 
     // Teste da ROM
     mem_byte_en = 8'hFF;
-    for(i = 0; i < 16; i = i + 1) begin
+    for(i = 0; i < 8; i = i + 1) begin
       @(negedge clock);
       mem_addr = 8*i; // acesso da ROM
       mem_rd_en = 1;

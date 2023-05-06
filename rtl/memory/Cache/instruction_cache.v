@@ -43,7 +43,6 @@ module instruction_cache
 
   reg [2**(OFFSET+3)-1:0] cache_data  [DEPTH-1:0];
   reg [TAG-1:0]           cache_tag   [DEPTH-1:0];
-  reg [INDEX-1:0]         cache_index [DEPTH-1:0];
   reg [DEPTH-1:0]         cache_valid;
   wire                    hit;
 
@@ -61,7 +60,6 @@ module instruction_cache
   wire [DEPTH-1:0] tag_comparisson;
   wire [31:0] instruction; // dados lidos da cache
   genvar i;
-  genvar sum;
   generate
     for(i=0; i<(4)/(2**OFFSET); i=i+1)
     begin : dado_saida
@@ -131,15 +129,17 @@ module instruction_cache
   wire write_condition = (current_state==miss_state && inst_busy==1'b0) ? 1'b1 : 1'b0;
   always @(write_condition, reset)
   begin
-    if(reset==1'b1)
-	    cache_valid   <= 'b0;
+   if(reset==1'b1)
+	   cache_valid   <= 'b0;
 	 else if(write_condition==1'b1)
 	 begin
 		 /* Escreve 8 bytes na memória cache */
 		 for(j=0; j<(8)/(2**OFFSET); j=j+1)
-			  cache_data[index+j] <= inst_data[(j+1)*(2**(OFFSET+3))-1-:(2**(OFFSET+3))];
-		 cache_tag[index] <= tag;
-		 cache_valid[index] <= 1'b1;
+		 begin
+		  cache_data[index+j] <= inst_data[(j+1)*(2**(OFFSET+3))-1-:(2**(OFFSET+3))];
+		  cache_tag[index+j] <= tag;
+		  cache_valid[index+j] <= 1'b1;
+		 end
 	 end
   end
 endmodule
