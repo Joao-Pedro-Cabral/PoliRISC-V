@@ -12,7 +12,8 @@ module memory_controller_tb;
 
   // Sinais do testbench
   reg  clock;
-  reg [63:0] rom_memory [7:0];
+  reg  reset;
+  reg [63:0] inst_cache_memory [7:0];
   reg [63:0] ram_memory [7:0];
   integer i;
 
@@ -27,11 +28,17 @@ module memory_controller_tb;
   wire [63:0] rd_data;
   wire mem_busy;
   
-  // Interface da ROM
-  wire [63:0] rom_data;
-  wire rom_busy;
-  wire rom_enable;
-  wire [63:0] rom_addr;
+  // Interface da Cache
+  wire [63:0] inst_cache_data;
+  wire inst_cache_busy;
+  wire inst_cache_enable;
+  wire [63:0] inst_cache_addr;
+
+  // Interface da ROM com a Cache
+  wire [63:0] inst_data;
+  wire inst_busy;
+  wire inst_enable;
+  wire [63:0] inst_addr;
   
   // Interface da RAM
   wire [63:0] ram_read_data;
@@ -39,11 +46,12 @@ module memory_controller_tb;
   wire [63:0] ram_address;
   wire [63:0] ram_write_data;
   wire ram_output_enable;
+  wire ram_write_enable;
   wire ram_chip_select;
-  wire [7:0] ram_byte_write_enable;
+  wire [7:0] ram_byte_enable;
 
   // Instanciação do DUT
-  memory_controller DUT (
+  memory_controller DUT(
     .mem_rd_en(mem_rd_en),
     .mem_wr_en(mem_wr_en),
     .mem_byte_en(mem_byte_en),
@@ -51,22 +59,36 @@ module memory_controller_tb;
     .mem_addr(mem_addr),
     .rd_data(rd_data),
     .mem_busy(mem_busy),
-    .rom_data(rom_data),
-    .rom_busy(rom_busy),
-    .rom_enable(rom_enable),
-    .rom_addr(rom_addr),
+    .inst_cache_data(inst_cache_data),
+    .inst_cache_busy(inst_cache_busy),
+    .inst_cache_enable(inst_cache_enable),
+    .inst_cache_addr(inst_cache_addr),
     .ram_read_data(ram_read_data),
     .ram_busy(ram_busy),
     .ram_address(ram_address),
     .ram_write_data(ram_write_data),
     .ram_output_enable(ram_output_enable),
+    .ram_write_enable(ram_write_enable),
     .ram_chip_select(ram_chip_select),
-    .ram_byte_write_enable(ram_byte_write_enable)
+    .ram_byte_enable(ram_byte_enable)
   );
 
+  instruction_cache cache (
+    .clock(clock),
+    .reset(reset),
+    .inst_data(inst_data),
+    .inst_busy(inst_busy),
+    .inst_enable(inst_enable),
+    .inst_addr(inst_addr),
+    .inst_cache_enable(inst_cache_enable),
+    .inst_cache_addr(inst_cache_addr),
+    .inst_cache_data(inst_cache_data),
+    .inst_cache_busy(inst_cache_busy)
+  ); 
+  
   // Instanciação da memória ROM
   ROM #(.rom_init_file("./MIFs/memory/ROM/rom_init_file.mif"), .word_size(8), .addr_size(6), .offset(3), .busy_time(12))
-      rom (.clock(clock), .enable(rom_enable), .addr(rom_addr[5:0]), .data(rom_data), .busy(rom_busy));
+      rom (.clock(clock), .enable(inst_enable), .addr(inst_addr[5:0]), .data(inst_data), .busy(inst_busy));
 
   // Instanciação da memória RAM
   single_port_ram
@@ -83,8 +105,9 @@ module memory_controller_tb;
       .address(ram_address),
       .write_data(ram_write_data),
       .output_enable(ram_output_enable),
+      .write_enable(ram_write_enable),
       .chip_select(ram_chip_select),
-      .byte_write_enable(ram_byte_write_enable),
+      .byte_enable(ram_byte_enable),
       .read_data(ram_read_data),
       .busy(ram_busy)
   );
@@ -94,28 +117,51 @@ module memory_controller_tb;
   always #3 clock = ~clock;
 
   initial begin
-    $readmemb("./MIFs/memory/ROM/rom_tb_file.mif", rom_memory);
+    $readmemb("./MIFs/memory/ROM/rom_tb_file.mif", inst_cache_memory);
     $readmemb("./MIFs/memory/RAM/ram_tb_file.mif", ram_memory);
 
     // Inicialização das entradas
     clock = 0;
+    reset = 0;
     mem_rd_en = 0;
     mem_byte_en = 0;
     wr_data = 0;
     mem_addr = 0;
 
+    // Resetando a cache
+    @(negedge clock);
+    reset = 1;
+    @(negedge clock);
+    reset = 0;
+
     // Teste da ROM
     mem_byte_en = 8'hFF;
-    for(i = 0; i < 8; i = i + 1) begin
+    for(i = 0; i < 16; i = i + 1) begin
       @(negedge clock);
       mem_addr = 8*i; // acesso da ROM
       mem_rd_en = 1;
       @(posedge mem_busy);
       @(negedge mem_busy);
-      if(rd_data !== rom_memory[i]) 
-        $warning("Erro no teste %d da rom:\n\trom = 0x%h\n\tcontrolador = 0x%h\n", i+1, rom_memory[i], rd_data);
+      if(rd_data[31:0] !== inst_cache_memory[i][31:0]) begin
+        $warning("Erro no teste %d.1 da rom[31:0]:\n\trom[31:0] = 0x%h\n\tcontrolador[31:0] = 0x%h\n", i+1, inst_cache_memory[i][31:0], rd_data[31:0]);
+        $warning("Erro no teste %d.1 da rom:\n\trom = 0x%h\n\tcontrolador = 0x%h\n", i+1, inst_cache_memory[i], rd_data);
+      end
       else
-        $display("Acerto no teste %d da ROM", i+1);
+        $display("Acerto no teste %d.1 da ROM", i+1);
+
+      mem_rd_en = 0;
+
+      @(negedge clock);
+      mem_addr = 8*i + 4; // acesso da ROM
+      mem_rd_en = 1;
+      @(posedge mem_busy);
+      @(negedge mem_busy);
+      if(rd_data[31:0] !== inst_cache_memory[i][63:32]) begin
+        $warning("Erro no teste %d.2 da rom[63:32]:\n\trom[63:32] = 0x%h\n\tcontrolador[31:0] = 0x%h\n", i+1, inst_cache_memory[i][63:32], rd_data[31:0]);
+        $warning("Erro no teste %d.2 da rom:\n\trom = 0x%h\n\tcontrolador = 0x%h\n", i+1, inst_cache_memory[i], rd_data);
+      end
+      else
+        $display("Acerto no teste %d.2 da ROM", i+1);
       mem_rd_en = 0;
     end
     
