@@ -28,7 +28,7 @@ module instruction_cache #(
     input inst_cache_enable,
     input [63:0] inst_cache_addr,
     output [63:0] inst_cache_data,
-    output reg inst_cache_busy
+    output inst_cache_busy
     /* //// */
 
 );
