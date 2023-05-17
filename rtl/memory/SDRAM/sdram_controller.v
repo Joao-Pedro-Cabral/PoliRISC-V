@@ -171,7 +171,7 @@ module sdram_controller(
             end
             rd_wr_mode: begin
                 rd_wr_enable   = 1'b1; // Habilitar operação
-                ref_cnt_en     = 1'b1; // Contar ciclos de refresh
+                ref_cnt_en     = 1'b1; // Contar ciclos de refresh (necessário?)
                 if(end_rd_wr) begin
                     busy_d     = 1'b0; // fim da operação -> busy abaixa no próximo ciclo
                     next_state = idle_mode;
