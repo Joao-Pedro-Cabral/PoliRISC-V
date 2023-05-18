@@ -56,6 +56,7 @@ module instruction_cache_control (
 
       HitState: begin
         inst_cache_busy = 1'b1;
+        cache_write_enable = 1'b0;
         next_state = DefaultState;
       end
 
