@@ -7,6 +7,7 @@ modules = {
         "../../../rtl/core/ControlUnit",
         "../../../rtl/core/ImmediateExtender",
         "../../../rtl/core/RegisterFile",
-        "../../../rtl/memory/ROM"
+        "../../../rtl/memory/ROM",
+        "../../../rtl/memory/Cache"
     ],
 }

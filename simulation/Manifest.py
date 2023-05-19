@@ -1,11 +1,11 @@
 import subprocess
-TOPLEVEL= "memory_controller"
+TOPLEVEL= "Dataflow"
 
 action   = "simulation"
 sim_tool = "modelsim"
 sim_top  = TOPLEVEL + "_tb"
-use_mif  = False
-mif_path = "./MIFs/core/RV64I/power.mif"
+use_mif  = True
+mif_path = "./MIFs/memory/ROM/power.mif"
 
 vlog_opt = " -vlog01compat +define+program_size=" + str(int(subprocess.check_output(["wc", "-l", mif_path]).split()[0]))
 

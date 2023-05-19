@@ -8,6 +8,7 @@ modules = {
         "../../../rtl/core/ImmediateExtender",
         "../../../rtl/core/RegisterFile",
         "../../../rtl/memory/ROM",
-        "../../../rtl/memory/RAM"
+        "../../../rtl/memory/RAM",
+        "../../../rtl/memory/Cache"
     ],
 }

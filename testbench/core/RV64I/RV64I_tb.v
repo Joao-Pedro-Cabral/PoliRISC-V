@@ -51,7 +51,7 @@ module RV64I_tb();
     wire mem_op;                                // 1, caso esteja sendo executado um S* ou L*
     // Sinais do Barramento
         // Instruction Memory
-    wire [31:0] rom_data;
+    wire [63:0] rom_data;
     wire [63:0] rom_addr;
     wire rom_enable;
     wire rom_busy;
@@ -71,28 +71,88 @@ module RV64I_tb();
     wire overflow_;
     wire [63:0] xorB;
     wire [63:0] add_sub;
+    // Sinais da Cache
+    wire    [  63:0] inst_data;
+    wire             inst_busy;
+    wire             inst_enable;
+    wire    [  63:0] inst_addr;
     // variáveis
     integer limit = 1000;                       // tamanho do programa que será executado
     integer i;
     integer estado = 0;                         // sinal de depuração -> 0: Idle, 1: Fetch, 2: Decode, 3: Execute  
 
     // DUT
-    RV64I DUT (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .mem_addr(mem_addr), .mem_busy(mem_busy),
-    .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_wr_en(mem_wr_en), .db_reg_data(db_reg_data));
+    RV64I DUT (
+        .clock(clock),
+        .reset(reset),
+        .rd_data(rd_data),
+        .wr_data(wr_data),
+        .mem_addr(mem_addr),
+        .mem_busy(mem_busy),
+        .mem_rd_en(mem_rd_en),
+        .mem_byte_en(mem_byte_en),
+        .mem_wr_en(mem_wr_en),
+        .db_reg_data(db_reg_data)
+    );
+
+    // Instanciação do barramento
+    memory_controller BUS (
+        .mem_rd_en(mem_rd_en),
+        .mem_wr_en(mem_wr_en),
+        .mem_byte_en(mem_byte_en),
+        .wr_data(wr_data),
+        .mem_addr(mem_addr),
+        .rd_data(rd_data),
+        .mem_busy(mem_busy),
+        .inst_cache_data(rom_data),
+        .inst_cache_busy(rom_busy),
+        .inst_cache_enable(rom_enable),
+        .inst_cache_addr(rom_addr),
+        .ram_read_data(ram_read_data),
+        .ram_busy(ram_busy),
+        .ram_address(ram_address),
+        .ram_write_data(ram_write_data),
+        .ram_output_enable(ram_output_enable),
+        .ram_write_enable(ram_write_enable),
+        .ram_chip_select(ram_chip_select),
+        .ram_byte_enable(ram_byte_enable)
+    );
+
+  instruction_cache #(
+      .L2_CACHE_SIZE(3),
+      .L2_BLOCK_SIZE(2)
+  ) cache (
+      .clock(clock),
+      .reset(reset),
+      .inst_data(inst_data),
+      .inst_busy(inst_busy),
+      .inst_enable(inst_enable),
+      .inst_addr(inst_addr),
+      .inst_cache_enable(rom_enable),
+      .inst_cache_addr(rom_addr),
+      .inst_cache_data(rom_data),
+      .inst_cache_busy(rom_busy)
+  );
+
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
-                            .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
+    ROM #(
+        .rom_init_file("./MIFs/memory/ROM/power.mif"),
+        .word_size(8),
+        .addr_size(10),
+        .offset(3),
+        .busy_cycles(2)
+    ) Instruction_Memory (
+        .clock(clock),
+        .enable(inst_enable),
+        .addr(inst_addr[9:0]),
+        .data(inst_data),
+        .busy(inst_busy)
+    );
 
     // Data Memory
     single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
                         .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
-
-    // Instanciação do barramento
-    memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
-    .mem_busy(mem_busy), .rom_data({32'b0, rom_data}), .rom_busy(rom_busy), .rom_enable(rom_enable), .rom_addr(rom_addr), .ram_read_data(ram_read_data), 
-    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
-    .ram_byte_enable(ram_byte_enable));
 
     // Componentes auxiliares para a verificação
     ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
