@@ -15,7 +15,11 @@ module control_unit
     input      mem_busy,
     output reg mem_rd_en,
     output reg mem_wr_en,
-    output reg [7:0] mem_byte_en,
+    `ifdef RV64I // 64 bits = 8 bytes
+        output reg [7:0] mem_byte_en,
+    `else // 32 bits = 4 bytes
+        output reg [3:0] mem_byte_en,
+    `ifdef
 
     // Vindo do Fluxo de Dados
     input [6:0] opcode,
@@ -29,7 +33,9 @@ module control_unit
     // Sinais de Controle do Fluxo de Dados
     output reg alua_src,
     output reg alub_src,
-    output reg aluy_src,
+    `ifdef RV64I
+        output reg aluy_src,
+    `endif
     output reg [2:0] alu_src,
     output reg sub,
     output reg arithmetic,
@@ -68,10 +74,12 @@ module control_unit
     begin
         mem_wr_en       = 1'b0;
         mem_rd_en       = 1'b0;
-        mem_byte_en     = 8'b0;
+        mem_byte_en     =  'b0;       
         alua_src        = 1'b0;
         alub_src        = 1'b0;
-        aluy_src        = 1'b0;
+        `ifdef RV64I
+            aluy_src    = 1'b0;
+        `endif   
         alu_src         = 3'b000;
         sub             = 1'b0;
         arithmetic      = 1'b0;
@@ -98,7 +106,7 @@ module control_unit
     wire blt_bge = (negative ^ overflow) ^ funct3[0];
     wire bltu_bgeu = carry_out ~^ funct3[0];
     wire cond = funct3[1]==0 ? (funct3[2]==0 ? beq_bne : blt_bge) : bltu_bgeu;
-    wire [7:0] byte_en = funct3[1]==0 ? (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF);
+    wire [7:0] byte_en = funct3[1]==0 ? (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF); // uso sempre 8 bits aqui -> truncamento automático na atribuição do always
 
     // máquina de estados principal
     always @(*) begin
@@ -116,7 +124,7 @@ module control_unit
 
             fetch:
             begin
-                mem_byte_en = 8'b01111;
+                mem_byte_en = 'hF;
                 mem_rd_en = 1'b1;
                 if(mem_busy)
                     proximo_estado = fetch2;
@@ -125,7 +133,7 @@ module control_unit
             end
             fetch2:
             begin
-                mem_byte_en = 8'b01111;
+                mem_byte_en = 'hF;
                 if(!mem_busy) begin
                     mem_rd_en = 1'b0;
                     ir_en = 1'b1;
@@ -182,7 +190,9 @@ module control_unit
 
             registrador_registrador:
             begin
-                aluy_src = opcode[3];
+                `ifdef RV64I
+                    aluy_src = opcode[3];
+                `endif 
                 alu_src = funct3;
                 sub = funct7[5];
                 arithmetic = funct7[5];
@@ -195,7 +205,9 @@ module control_unit
             lui:
             begin
                 alub_src = 1'b1;
-                aluy_src = 1'b1;
+                `ifdef RV64I
+                    aluy_src = 1'b1;
+                `endif 
                 pc_en = 1'b1;
                 wr_reg_en = 1'b1;
 
@@ -205,7 +217,9 @@ module control_unit
             registrador_imediato:
             begin
                 alub_src = 1'b1;
-                aluy_src = opcode[3];
+                `ifdef RV64I
+                    aluy_src = opcode[3];
+                `endif   
                 alu_src = funct3;
                 arithmetic = funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
                 pc_en = 1'b1;
