@@ -1,6 +1,6 @@
 
 //
-//! @file   control_unit_tb.v
+//! @file   control_unit_RV64I_tb.v
 //! @brief  Testbench da control_unit
 //! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
 //! @date   2023-03-03
@@ -15,9 +15,8 @@
 // Para isso irei verificar as saídas da UC
 
 `timescale 1 ns / 100 ps
-// `define program_size 287
 
-module control_unit_tb();
+module control_unit_RV64I_tb();
     // sinais do DUT
         // Common
     reg clock;
@@ -79,29 +78,31 @@ module control_unit_tb();
     genvar j;
 
     // DUT
-    control_unit DUT (.clock(clock), .reset(reset), .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_busy(mem_busy), .opcode(opcode), .funct3(funct3), 
+    control_unit #(.RV64I(1), .BYTE_NUM(8)) DUT 
+    (.clock(clock), .reset(reset), .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_busy(mem_busy), .opcode(opcode), .funct3(funct3), 
     .funct7(funct7), .zero(zero), .ir_en(ir_en), .negative(negative), .carry_out(carry_out), .overflow(overflow), .alua_src(alua_src), .alub_src(alub_src), 
     .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src),
     .wr_reg_en(wr_reg_en), .mem_addr_src(mem_addr_src), .mem_wr_en(mem_wr_en));
 
     // Dataflow
-    Dataflow DF (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr(mem_addr), .alua_src(alua_src), .alub_src(alub_src), 
+    Dataflow #(.RV64I(1), .DATA_SIZE(64)) DF 
+    (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr(mem_addr), .alua_src(alua_src), .alub_src(alub_src), 
      .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
      .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), 
      .db_reg_data(), .mem_addr_src(mem_addr_src));
 
     // Instanciação do barramento
     memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
-    .mem_busy(mem_busy), .rom_data({32'b0, rom_data}), .rom_busy(rom_busy), .rom_enable(rom_enable), .rom_addr(rom_addr), .ram_read_data(ram_read_data), 
+    .mem_busy(mem_busy), .inst_cache_data({32'b0, rom_data}), .inst_cache_busy(rom_busy), .inst_cache_enable(rom_enable), .inst_cache_addr(rom_addr), .ram_read_data(ram_read_data), 
     .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
     .ram_byte_enable(ram_byte_enable));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/memory/ROM/set_less_than.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./ROM.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
                             .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/set_less_than.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+    single_port_ram #(.RAM_INIT_FILE("./RAM.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
                         .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
 
@@ -161,13 +162,13 @@ module control_unit_tb();
     // testar o DUT
     initial begin: Testbench
         $display("Program  size: %d", `program_size);
-        $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc);
+        $readmemb("./MIFs/core/core/RV64I.mif", LUT_uc);
         $display("SOT!");
         // Idle
         #2;
         reset = 1'b1; // Reseto
         #0.1;
-        // Confiro se a UC está em Idle
+        // Confiro se a UC está em Idle 
         if(db_df_src !== 0) begin
             $display("Error Idle: db_df_src = %x", db_df_src);
             $stop;

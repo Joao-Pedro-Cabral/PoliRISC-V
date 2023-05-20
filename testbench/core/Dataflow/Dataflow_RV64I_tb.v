@@ -118,7 +118,7 @@ module Dataflow_RV64I_tb();
     .ram_byte_enable(ram_byte_enable));
 
     // Componentes auxiliares para a verificação -> Supostamente corretos
-    ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
+    ImmediateExtender #(.N(64)) extensor_imediato (.immediate(immediate), .instruction(instruction));
     register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(wr_reg_en), .read_address1(instruction[19:15]),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 
