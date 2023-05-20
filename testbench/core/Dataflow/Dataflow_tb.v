@@ -5,11 +5,11 @@
 //! @date   2023-02-23
 //
 
-// Ideia do testbench: testar ciclo a ciclo o comportamento do Dataflow
+// Ideia do testbench: testar ciclo a ciclo o comportamento do Dataflow 
 // de acordo com a instrução executada
 // Para isso considero as seguintes hipóteses:
 // RAM, ROM, Extensor de Imediato e Banco de Registradores estão corretos.
-// Com isso, basta testar se o Dataflow consegue interligar os componentes
+// Com isso, basta testar se o Dataflow consegue interligar os componentes 
 // e se os componentes funcionam corretamente.
 // Para isso irei verificar as saídas do DF (principalmente pc e db_reg_data,
 // pois elas determinam o contexto)
@@ -19,7 +19,6 @@
 
 
 module Dataflow_tb();
-
     // sinais do DUT
         // Common
     reg clock;
@@ -57,7 +56,7 @@ module Dataflow_tb();
     wire [63:0] db_reg_data;
     // Sinais do Barramento
         // Instruction Memory
-    wire [63:0] rom_data;
+    wire [31:0] rom_data;
     wire [63:0] rom_addr;
     wire rom_enable;
     wire rom_busy;
@@ -80,8 +79,7 @@ module Dataflow_tb();
     reg  [63:0]   reg_data;         // write data do banco de registradores
     wire [63:0]   A;                // read data 1 do banco de registradores
     wire [63:0]   B;                // read data 2 do banco de registradores
-    reg  [63:0]   pc = 0;           // pc -> Uso esse pc para acessar a memória de instrução
-                                    //(para tentar achar mais erros)
+    reg  [63:0]   pc = 0;           // pc -> Uso esse pc para acessar a memória de instrução(para tentar achar mais erros)
     reg  [63:0]   pc_imm;           // pc + (imediato << 1) OU {A + immediate[63:1], 0} -> JALR
     reg  [63:0]   pc_4;             // pc + 4
     // flags da ULA ->  geradas de forma simulada
@@ -91,140 +89,38 @@ module Dataflow_tb();
     wire overflow_;
     wire [63:0] xorB;
     wire [63:0] add_sub;
-    // Sinais da Cache
-    wire    [  63:0] inst_data;
-    wire             inst_busy;
-    wire             inst_enable;
-    wire    [  63:0] inst_addr;
     // variáveis
     integer limit = 10000; // número máximo de iterações a serem feitas(evitar loop infinito)
     integer i;
     genvar  j;
 
     // DUT
-    Dataflow DUT (
-        .clock(clock),
-        .reset(reset),
-        .rd_data(rd_data),
-        .wr_data(wr_data),
-        .ir_en(ir_en),
-        .mem_addr_src(mem_addr_src),
-        .mem_addr(mem_addr),
-        .alua_src(alua_src),
-        .alub_src(alub_src),
-        .aluy_src(aluy_src),
-        .alu_src(alu_src),
-        .sub(sub),
-        .arithmetic(arithmetic),
-        .alupc_src(alupc_src),
-        .pc_src(pc_src),
-        .pc_en(pc_en),
-        .wr_reg_src(wr_reg_src),
-        .wr_reg_en(wr_reg_en),
-        .opcode(opcode),
-        .funct3(funct3),
-        .funct7(funct7),
-        .zero(zero),
-        .negative(negative),
-        .carry_out(carry_out),
-        .overflow(overflow),
-        .db_reg_data(db_reg_data)
-    );
-
-    // Instanciação do barramento
-    memory_controller BUS (
-        .mem_rd_en(mem_rd_en),
-        .mem_wr_en(mem_wr_en),
-        .mem_byte_en(mem_byte_en),
-        .wr_data(wr_data),
-        .mem_addr(mem_addr),
-        .rd_data(rd_data),
-        .mem_busy(mem_busy),
-        .inst_cache_data(rom_data),
-        .inst_cache_busy(rom_busy),
-        .inst_cache_enable(rom_enable),
-        .inst_cache_addr(rom_addr),
-        .ram_read_data(ram_read_data),
-        .ram_busy(ram_busy),
-        .ram_address(ram_address),
-        .ram_write_data(ram_write_data),
-        .ram_output_enable(ram_output_enable),
-        .ram_write_enable(ram_write_enable),
-        .ram_chip_select(ram_chip_select),
-        .ram_byte_enable(ram_byte_enable)
-    );
-
-  instruction_cache #(
-      .L2_CACHE_SIZE(3),
-      .L2_BLOCK_SIZE(2)
-  ) cache (
-      .clock(clock),
-      .reset(reset),
-      .inst_data(inst_data),
-      .inst_busy(inst_busy),
-      .inst_enable(inst_enable),
-      .inst_addr(inst_addr),
-      .inst_cache_enable(rom_enable),
-      .inst_cache_addr(rom_addr),
-      .inst_cache_data(rom_data),
-      .inst_cache_busy(rom_busy)
-  );
+    Dataflow DUT (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr_src(mem_addr_src), .mem_addr(mem_addr), .alua_src(alua_src), 
+     .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
+     .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(
-        .rom_init_file("./MIFs/memory/ROM/power.mif"),
-        .word_size(8),
-        .addr_size(10),
-        .offset(3),
-        .busy_cycles(2)
-    ) Instruction_Memory (
-        .clock(clock),
-        .enable(inst_enable),
-        .addr(inst_addr[9:0]),
-        .data(inst_data),
-        .busy(inst_busy)
-    );
+    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
+                            .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(
-        .RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"),
-        .ADDR_SIZE(12),
-        .BYTE_SIZE(8),
-        .DATA_SIZE(64),
-        .BUSY_CYCLES(2)
-    ) Data_Memory (
-        .clk(clock),
-        .address(ram_address),
-        .write_data(ram_write_data),
-        .output_enable(ram_output_enable),
-        .write_enable(ram_write_enable),
-        .chip_select(ram_chip_select),
-        .byte_enable(ram_byte_enable),
-        .read_data(ram_read_data),
-        .busy(ram_busy)
-    );
+    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+                        .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
+    // Instanciação do barramento
+    memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
+    .mem_busy(mem_busy),
+    .inst_cache_data({32'b0, rom_data}),
+    .inst_cache_busy(rom_busy),
+    .inst_cache_enable(rom_enable),
+    .inst_cache_addr(rom_addr), .ram_read_data(ram_read_data), 
+    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
+    .ram_byte_enable(ram_byte_enable));
 
     // Componentes auxiliares para a verificação -> Supostamente corretos
-    ImmediateExtender extensor_imediato (
-        .immediate(immediate),
-        .instruction(instruction)
-    );
-
-    register_file #(
-        .size(64),
-        .N(5)
-    ) banco_de_registradores (
-        .clock(clock),
-        .reset(reset),
-        .write_enable(wr_reg_en),
-        .read_address1(instruction[19:15]),
-        .read_address2(instruction[24:20]),
-        .write_address(instruction[11:7]),
-        .write_data(reg_data),
-        .read_data1(A),
-        .read_data2(B)
-    );
+    ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
+    register_file #(.size(64), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(wr_reg_en), .read_address1(instruction[19:15]),
+                                .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 
     // geração do clock
     always begin
@@ -345,7 +241,7 @@ module Dataflow_tb();
         reset = 1'b1;
         #6; // 6ns = 1 ciclo de clock
         reset = 1'b0;
-        #6;
+        #6; 
         // fim do reset
         for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
@@ -376,10 +272,8 @@ module Dataflow_tb();
             wait (clock == 1'b1); // espero o clock subir
             #0.1;
             // Decode (testo se a saída do IR está correta: opcode, funct3, funct7)
-            if(opcode !== instruction[6:0] || funct3 !== instruction[14:12]
-                || funct7 !== instruction[31:25]) begin
-                $display("Error Decode: opcode = %x, funct3 = %x, funct7 = %x",
-                    opcode, funct3, funct7);
+            if(opcode !== instruction[6:0] || funct3 !== instruction[14:12] || funct7 !== instruction[31:25]) begin
+                $display("Error Decode: opcode = %x, funct3 = %x, funct7 = %x", opcode, funct3, funct7);
                 $stop;
             end
             // Obtenho os sinais da UC
@@ -423,8 +317,7 @@ module Dataflow_tb();
                     #0.1;
                     // Caso L* -> confiro a leitura
                     if(opcode[5] === 1'b0 && db_reg_data !== reg_data) begin
-                        $display("Error Load: db_reg_data = %x, reg_data = %x",
-                            db_reg_data, reg_data);
+                        $display("Error Load: db_reg_data = %x, reg_data = %x", db_reg_data, reg_data);
                         $stop;
                     end
                     // Incremento PC
@@ -477,7 +370,7 @@ module Dataflow_tb();
                         $stop;
                     end
                     // Incremento pc
-                    if(pc_src === 1'b1)
+                    if(pc_src === 1'b1) 
                         pc = pc_imm;
                     else
                         pc = pc_4;
