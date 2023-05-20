@@ -1,6 +1,6 @@
 //
-//! @file   Dataflow_tb.v
-//! @brief  Testbench do Dataflow
+//! @file   Dataflow_RV64I_tb.v
+//! @brief  Testbench do Dataflow do RV64I
 //! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
 //! @date   2023-02-23
 //
@@ -17,8 +17,7 @@
 
 `timescale 1 ns / 100 ps
 
-
-module Dataflow_tb();
+module Dataflow_RV64I_tb();
     // sinais do DUT
         // Common
     reg clock;
@@ -95,16 +94,17 @@ module Dataflow_tb();
     genvar  j;
 
     // DUT
-    Dataflow DUT (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr_src(mem_addr_src), .mem_addr(mem_addr), .alua_src(alua_src), 
+    Dataflow #(.RV64I(1), .DATA_SIZE(64)) DUT
+    (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr_src(mem_addr_src), .mem_addr(mem_addr), .alua_src(alua_src), 
      .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
      .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./MIFs/memory/ROM/power.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
+    ROM #(.rom_init_file("./ROM.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
                             .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./MIFs/memory/RAM/power.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+    single_port_ram #(.RAM_INIT_FILE("./RAM.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
                         .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
     // Instanciação do barramento
@@ -137,7 +137,7 @@ module Dataflow_tb();
     endgenerate
 
     // função para determinar os seletores(sinais provenientes da UC) a partir do opcode, funct3 e funct7
-    function [23:0] find_instruction( [6:0] opcode,  [2:0] funct3,  [6:0] funct7,  [2008:0] LUT_linear);
+    function automatic [23:0] find_instruction( [6:0] opcode,  [2:0] funct3,  [6:0] funct7,  [2008:0] LUT_linear);
             integer i;
             reg [23:0] temp;
         begin
@@ -227,7 +227,7 @@ module Dataflow_tb();
     // testar o DUT
     initial begin
         $display("Program  size: %d", `program_size); // program size -> tamanho do programa a ser rodado
-        $readmemb("./MIFs/core/RV64I/RV64I.mif", LUT_uc); // mif com os valores da LUT_uc(google sheets)
+        $readmemb("./MIFs/core/core/RV64I.mif", LUT_uc); // mif com os valores da LUT_uc(google sheets)
         $display("SOT!");
         // desabilito os enables no começo
         pc_en = 1'b0;
@@ -343,7 +343,6 @@ module Dataflow_tb();
                         pc_src = zero_ ^ funct3[0];
                     else if(funct3[2:1] === 2'b10) begin
                         pc_src = negative_ ^ overflow ^ funct3[0];
-                        $display("B-type flags: overflow = %x, carry_out = %x, negative = %x, zero = %x, funct3 = %x", overflow_, carry_out_, negative_, zero_, funct3);
                     end
                     else if(funct3[2:1] === 2'b11)
                         pc_src = carry_out_ ~^ funct3[0];

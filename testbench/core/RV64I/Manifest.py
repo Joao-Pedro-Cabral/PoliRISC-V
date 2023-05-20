@@ -5,7 +5,7 @@ files = [
 modules = {
     "local" : [
         "../../../rtl/memory",
-        "../../../rtl/core/RV64I",
+        "../../../rtl/core/core",
         "../../../rtl/core/RegisterFile",
         "../../../rtl/core/ImmediateExtender",
         "../../../rtl/memory/Cache"

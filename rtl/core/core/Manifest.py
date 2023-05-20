@@ -1,5 +1,5 @@
 files = [
-    "RV64I.v"
+    "core.v"
 ]
 
 modules = {

@@ -74,12 +74,12 @@ module control_unit
     begin
         mem_wr_en       = 1'b0;
         mem_rd_en       = 1'b0;
-        mem_byte_en     =  'b0;       
+        mem_byte_en     =  'b0;
         alua_src        = 1'b0;
         alub_src        = 1'b0;
         `ifdef RV64I
             aluy_src    = 1'b0;
-        `endif   
+        `endif
         alu_src         = 3'b000;
         sub             = 1'b0;
         arithmetic      = 1'b0;
@@ -100,13 +100,15 @@ module control_unit
         else
             estado_atual <= proximo_estado;
     end
-    
+
     // decisores para desvios condicionais baseados nas flags da ULA
     wire beq_bne = zero ^ funct3[0];
     wire blt_bge = (negative ^ overflow) ^ funct3[0];
     wire bltu_bgeu = carry_out ~^ funct3[0];
     wire cond = funct3[1]==0 ? (funct3[2]==0 ? beq_bne : blt_bge) : bltu_bgeu;
-    wire [7:0] byte_en = funct3[1]==0 ? (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF); // uso sempre 8 bits aqui -> truncamento automático na atribuição do always
+    // uso sempre 8 bits aqui -> truncamento automático na atribuição do always
+    wire [7:0] byte_en = funct3[1]==0 ?
+        (funct3[0]==0 ? 8'h01 : 8'h03) : (funct3[0]==0 ? 8'h0F : 8'hFF);
 
     // máquina de estados principal
     always @(*) begin
@@ -192,7 +194,7 @@ module control_unit
             begin
                 `ifdef RV64I
                     aluy_src = opcode[3];
-                `endif 
+                `endif
                 alu_src = funct3;
                 sub = funct7[5];
                 arithmetic = funct7[5];
@@ -207,7 +209,7 @@ module control_unit
                 alub_src = 1'b1;
                 `ifdef RV64I
                     aluy_src = 1'b1;
-                `endif 
+                `endif
                 pc_en = 1'b1;
                 wr_reg_en = 1'b1;
 
@@ -219,7 +221,7 @@ module control_unit
                 alub_src = 1'b1;
                 `ifdef RV64I
                     aluy_src = opcode[3];
-                `endif   
+                `endif
                 alu_src = funct3;
                 arithmetic = funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
                 pc_en = 1'b1;
@@ -280,12 +282,12 @@ module control_unit
                 else
                     proximo_estado = load;
             end
-            load2:    
-            begin    
+            load2:
+            begin
                 mem_addr_src = 1'b1;
                 mem_byte_en = byte_en;
                 alub_src = 1'b1;
-                wr_reg_src = 2'b10;      
+                wr_reg_src = 2'b10;
                 if(!mem_busy) begin
                     mem_rd_en = 1'b0;
                     pc_en = 1'b1;
@@ -293,7 +295,7 @@ module control_unit
                     proximo_estado = fetch;
                 end
                 else begin
-                    mem_rd_en = 1'b1;  
+                    mem_rd_en = 1'b1;
                     proximo_estado = load2;
                 end
             end

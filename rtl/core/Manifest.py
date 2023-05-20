@@ -6,6 +6,6 @@ modules = {
         "RegisterFile",
         "ULA",
         "ControlUnit",
-        "RV64I"
+        "core"
     ],
 }
