@@ -12,11 +12,11 @@ module ImmediateExtender_tb();
     reg  [31:0] instruction;
     wire [63:0] immediate;
     // possíveis imediatos gerados
-    wire [63:0] I_type = {{53{$signed(instruction[31])}}, instruction[30:20]};
-    wire [63:0] S_type = {{53{$signed(instruction[31])}}, instruction[30:25], instruction[11:7]};
-    wire [63:0] B_type = {{52{$signed(instruction[31])}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
-    wire [63:0] U_type = {{33{$signed(instruction[31])}}, instruction[30:12], 12'b0};
-    wire [63:0] J_type = {{44{$signed(instruction[31])}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
+    wire [63:0] I_type = {{53{instruction[31]}}, instruction[30:20]};
+    wire [63:0] S_type = {{53{instruction[31]}}, instruction[30:25], instruction[11:7]};
+    wire [63:0] B_type = {{52{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
+    wire [63:0] U_type = {{33{instruction[31]}}, instruction[30:12], 12'b0};
+    wire [63:0] J_type = {{44{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0};
     // possíveis opcodes de instrução
     wire [6:0] instruction_opcode [8:0];
     // variáveis de iteração

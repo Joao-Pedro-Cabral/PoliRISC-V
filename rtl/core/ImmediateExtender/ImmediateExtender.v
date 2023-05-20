@@ -6,13 +6,14 @@
 //
 
 module ImmediateExtender(instruction, immediate);
+    parameter N = 64; // N >= 32, preferencialmente apenas 64 ou 32
     input  wire [31:0] instruction;
-    output wire [63:0] immediate;
+    output wire [N-1:0] immediate;
 
     wire imm11_int; // saida do mux intermediário para seleção do immediate[11]
 
     // muxes para formação do imediato
-    assign immediate[63:31] = {33{instruction[31]}};
+    assign immediate[N-1:31] = $signed({instruction[31]});
     assign immediate[30:20] = (~instruction[6] & instruction[2]) ? instruction[30:20] : {11{instruction[31]}};
     assign immediate[19:12] = ((~instruction[4] & instruction[3]) | ~instruction[6] & instruction[2])
                               ? instruction[19:12] : {8{instruction[31]}};
