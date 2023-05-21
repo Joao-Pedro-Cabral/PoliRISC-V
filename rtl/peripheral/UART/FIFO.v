@@ -21,9 +21,9 @@ module FIFO #(
 );
 
   // Registradores de Operação
-  wire [$clog2(DEPTH)-1] rd_reg;  // aponta para a posição da FIFO a ser lida
-  wire [$clog2(DEPTH)-1] wr_reg;  // aponta para a posição da FIFO a ser escrita
-  wire [$clog2(DEPTH)-1] watermark_reg;
+  wire [$clog2(DEPTH)-1:0] rd_reg;  // aponta para a posição da FIFO a ser lida
+  wire [$clog2(DEPTH)-1:0] wr_reg;  // aponta para a posição da FIFO a ser escrita
+  wire [$clog2(DEPTH)-1:0] watermark_reg;
 
   // FIFO
   reg [DATA_SIZE-1:0] fifo_memory[DEPTH-1:0];
@@ -37,7 +37,7 @@ module FIFO #(
   sync_parallel_counter #(
       .size($clog2(DEPTH)),
       .init_value(0)
-  ) contador (
+  ) rd_pointer (
       .clock(clock),
       .reset(reset),
       .load(1'b0),
@@ -50,7 +50,7 @@ module FIFO #(
   sync_parallel_counter #(
       .size($clog2(DEPTH)),
       .init_value(0)
-  ) contador (
+  ) wr_pointer (
       .clock(clock),
       .reset(reset),
       .load(1'b0),
@@ -64,7 +64,7 @@ module FIFO #(
   sync_parallel_counter #(
       .size($clog2(DEPTH)),
       .init_value(0)
-  ) contador (
+  ) watermark_counter (
       .clock(clock),
       .reset(reset),
       .load(1'b0),
