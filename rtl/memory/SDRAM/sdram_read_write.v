@@ -77,10 +77,12 @@ module sdram_read_write(
     reg [2:0] present_state, next_state;
 
     // contadores
-    sync_parallel_counter #(.size(2), .init_value(0))  nop_counter  (.clock(clock), .reset(nop_count_reset), .load(1'b0), .enable(1'b1), .load_value(2'b0), .value(nop_count));
+    sync_parallel_counter #(.size(2), .init_value(0))  nop_counter  (.clock(clock), .reset(nop_count_reset), .load(1'b0), 
+            .inc_enable(1'b1), .dec_enable(1'b0), .load_value(2'b0), .value(nop_count));
     sync_parallel_counter #(.size(25), .init_value(0)) addr_counter (.clock(clock), .reset(1'b0), .load(address_load), 
-                .enable(address_enable), .load_value(init_address), .value(address));
-    sync_parallel_counter #(.size(3), .init_value(0))  op_counter   (.clock(clock), .reset(op_cnt_reset), .load(1'b0), .enable(op_cnt_enable), .load_value(3'b0), .value(op_count));
+                .inc_enable(address_enable), .dec_enable(1'b0), .load_value(init_address), .value(address));
+    sync_parallel_counter #(.size(3), .init_value(0))  op_counter   (.clock(clock), .reset(op_cnt_reset), .load(1'b0), 
+                .inc_enable(op_cnt_enable), .dec_enable(1'b0), .load_value(3'b0), .value(op_count));
 
     // estados da FSM
     localparam [2:0]

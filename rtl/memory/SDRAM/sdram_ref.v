@@ -39,7 +39,7 @@ module sdram_ref(
 
     // contador
     sync_parallel_counter #(.size(4), .init_value(0)) contador (.clock(clock), .reset(nop_cnt_rst), .load(1'b0),
-        .load_value(4'b0), .enable(1'b1), .value(nop_cnt));
+        .load_value(4'b0), .inc_enable(1'b1), .dec_enable(1'b0), .value(nop_cnt));
 
     // estados da FSM
     localparam [2:0]

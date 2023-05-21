@@ -92,7 +92,7 @@ module sdram_controller(
 
     // Contador de tempo do refresh
     sync_parallel_counter #(.size(10), .init_value(0)) refresh_counter (.clock(clock), .reset(ref_rst), .load(1'b0),
-        .load_value(10'b0), .enable(ref_cnt_en), .value(ref_cnt));
+        .load_value(10'b0), .inc_enable(ref_cnt_en), .dec_enable(1'b0), .value(ref_cnt));
 
     // Controladores auxiliares
     sdram_init init (.clock(clock), .reset(reset), .enable(init_enable), .end_init(end_init), 
