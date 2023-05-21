@@ -10,9 +10,8 @@
 module sync_parallel_counter_tb ();
   // DUT
   reg clock, reset, inc_enable, dec_enable, load;
-  reg [2:0] load_value;
+  reg  [2:0] load_value;
   wire [2:0] value;
-  wire [2:0] tests[16:0];  // array de testes: {enable, reset}
 
   integer i, j;
 
@@ -30,25 +29,6 @@ module sync_parallel_counter_tb ();
       .value(value)
   );
 
-  // inicialização do array de testes
-  assign tests[0]  = 1'b1;
-  assign tests[1]  = 2'b10;
-  assign tests[2]  = 2'b10;
-  assign tests[3]  = 3'b110;
-  assign tests[4]  = 3'b100;
-  assign tests[5]  = 2'b10;
-  assign tests[6]  = 2'b11;
-  assign tests[7]  = 3'b110;
-  assign tests[8]  = 3'b110;
-  assign tests[9]  = 2'b10;
-  assign tests[10] = 2'b10;
-  assign tests[11] = 3'b110;
-  assign tests[12] = 1'b0;
-  assign tests[13] = 2'b10;
-  assign tests[14] = 2'b10;
-  assign tests[15] = 2'b10;
-  assign tests[16] = 3'b100;
-
   // geração do clock
   always begin
     clock = 0;
@@ -61,26 +41,20 @@ module sync_parallel_counter_tb ();
   initial begin
     #4 $display("SOT!");
     j = 0;
-    for (i = 0; i < 17; i = i + 1) begin
+    for (i = 0; i < 1000; i = i + 1) begin
+      // entradas aleatórias
       reset      = $random;
       inc_enable = $random;
       dec_enable = ~inc_enable;
       load       = $random;
-      load_value = $random;  // carga aleatória
-      // incremento 1 em j quando enable está alto
-      // testbench do contador
-      if (reset) j = 0;
+      load_value = $random;
+      #0.1;
+      // A partir das novas entradas, gero o novo j
+      if (reset) j = 2;
       else if (load) j = load_value;
       else if (inc_enable) j = (j + 1) % 8;
-      // carga paralela
-      if (tests[i][2] === 1'b1) j = load_value;
-      #0.1;
-      // j ultrapassou o limite 7
-      if (j === 8) j = 0;
-      #0.1;
-      // reseto j quando reset = 1
-      if (tests[i][0] === 1'b1) j = 2;
-      #4.8;
+      else if (dec_enable) j = (j + 7) % 8;  // j - 1 = j + 7 (mod 8)
+      #4.9;
       if (value !== j) begin
         $display("Error(teste: %d) value = %d, j = %d", i, value, j);
         $stop;

@@ -2,7 +2,7 @@ import subprocess
 
 action   = "simulation"
 sim_tool = "modelsim"
-sim_top  = "sdram_controller_tb"
+sim_top  = "sync_parallel_counter_tb"
 use_mif  = True
 mif_name = "set_less_than.mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name
