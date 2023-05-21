@@ -43,17 +43,19 @@ module sync_parallel_counter_tb ();
     j = 0;
     for (i = 0; i < 1000; i = i + 1) begin
       // entradas aleatórias
-      reset      = $random;
-      inc_enable = $random;
-      dec_enable = ~inc_enable;
-      load       = $random;
-      load_value = $random;
+      reset      = $urandom;
+      inc_enable = $urandom;
+      dec_enable = $urandom;
+      load       = $urandom;
+      load_value = $urandom;
       #0.1;
       // A partir das novas entradas, gero o novo j
       if (reset) j = 2;
       else if (load) j = load_value;
-      else if (inc_enable) j = (j + 1) % 8;
-      else if (dec_enable) j = (j + 7) % 8;  // j - 1 = j + 7 (mod 8)
+      else begin
+        if (inc_enable) j = (j + 1) % 8;
+        if (dec_enable) j = (j + 7) % 8;  // j - 1 = j + 7 (mod 8)
+      end
       #4.9;
       if (value !== j) begin
         $display("Error(teste: %d) value = %d, j = %d", i, value, j);

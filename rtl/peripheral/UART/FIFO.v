@@ -33,6 +33,8 @@ module FIFO #(
   wire _full;
   wire _empty;
 
+  wire [$clog2(DEPTH)-1:0] cte_0 = 0;
+
   // Contadores
   // Leitura não é permitido quando estiver vazio
   sync_parallel_counter #(
@@ -42,7 +44,7 @@ module FIFO #(
       .clock(clock),
       .reset(reset),
       .load(1'b0),
-      .load_value('b0),
+      .load_value(cte_0),
       .inc_enable(rd_en & (~_empty)),
       .dec_enable(1'b0),
       .value(rd_reg)
@@ -55,7 +57,7 @@ module FIFO #(
       .clock(clock),
       .reset(reset),
       .load(1'b0),
-      .load_value('b0),
+      .load_value(cte_0),
       .inc_enable(wr_en & (~_full)),
       .dec_enable(1'b0),
       .value(wr_reg)
@@ -69,7 +71,7 @@ module FIFO #(
       .clock(clock),
       .reset(reset),
       .load(1'b0),
-      .load_value('b0),
+      .load_value(cte_0),
       .inc_enable(wr_en & (~_full)),
       .dec_enable(rd_en & (~_empty)),
       .value(watermark_reg)

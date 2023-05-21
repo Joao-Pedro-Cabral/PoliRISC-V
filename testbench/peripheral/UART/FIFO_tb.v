@@ -24,9 +24,9 @@ module FIFO_tb ();
   wire full;
 
   // Sinais intermediários
-  reg [DatSize-1:0] wr_reg_mem;
-  reg [DataSize-1:0] rd_reg_mem;
-  reg [DataSize-1:0] watermark_reg_mem;
+  reg [$clog2(Depth)-1:0] wr_reg_mem;
+  reg [$clog2(Depth)-1:0] rd_reg_mem;
+  reg [$clog2(Depth)-1:0] watermark_reg_mem;
   wire local_empty;
   wire local_full;
 
@@ -49,7 +49,7 @@ module FIFO_tb ();
   );
 
   always #10 clock = ~clock;
-  assign full_mem = ~(|(watermark_reg_mem ^ watermark_level));
+  assign local_full  = ~(|(watermark_reg_mem ^ watermark_level));
   assign local_empty = (watermark_reg_mem == 0);
 
   integer i;
@@ -73,27 +73,30 @@ module FIFO_tb ();
       wr_en   = $urandom;
       rd_en   = $urandom;
       wr_data = $urandom;
-      @(negedge clock);
 
       // leitura de FIFO não vazia
-      if (~((rd_en & empty) | (~rd_en))) begin
+      if (~((rd_en & empty) | ~rd_en)) begin
         rd_reg_mem = rd_reg_mem + 1;  // atualiza ponteiro
         watermark_reg_mem = watermark_reg_mem - 1;
       end
+
+      // escrita de FIFO não cheia
+      if (~((wr_en & full) | ~wr_en)) begin
+        local_fifo_memory[wr_reg_mem] = wr_data;  // Primeiro escreve
+        wr_reg_mem = wr_reg_mem + 1;  // Depois incrementa
+        watermark_reg_mem = watermark_reg_mem + 1;
+      end
+
+      @(negedge clock);
 
       // Compara ponteiro e dado lido
       if (rd_reg_mem !== DUT.rd_reg || local_fifo_memory[rd_reg_mem] !== rd_data) begin
         $display("Falha na leitura da FIFO (teste: %d) DUT.rd_reg = 0x%h, \
                  rd_reg_mem = 0x%h, rd_data = 0x%h, local_fifo = 0x%h,\
                  fifo = 0x%h, full = 0b%d, empty = 0b%d", i, DUT.rd_reg,
-                 rd_reg_mem, rd_data, local_fifo_memory[rd_reg_mem], full, empty);
-      end
-
-      // escrita de FIFO não cheia
-      if (~((wr_en & full) | (~wr_en))) begin
-        local_fifo_memory[wr_reg_mem] = wr_data;  // Primeiro escreve
-        wr_reg_mem = wr_reg_mem + 1;  // Depois incrementa
-        watermark_reg_mem = watermark_reg_mem + 1;
+                 rd_reg_mem, rd_data, local_fifo_memory[rd_reg_mem], DUT.fifo_memory[DUT.rd_reg-1],
+                 full, empty);
+        $stop;
       end
 
       // Compara ponteiro e dado escrito
@@ -104,6 +107,7 @@ module FIFO_tb ();
                  fifo = 0x%h, full = 0b%d, empty = 0b%d", i, DUT.wr_reg,
                  wr_reg_mem, wr_data, local_fifo_memory[wr_reg_mem-1],
                  DUT.fifo_memory[DUT.wr_reg-1], full, empty);
+        $stop;
       end
 
       // Teste do watermark
@@ -111,6 +115,7 @@ module FIFO_tb ();
         $display("Falha no watermark (teste %d) DUT.watermark_reg = 0x%h,\
                  watermark_reg_mem = 0x%h", i, DUT.watermark_reg,
                  watermark_reg_mem);
+        $stop;
       end
 
       // Flags testadas ao fim, com valores locais atualizados
@@ -118,6 +123,7 @@ module FIFO_tb ();
         $display("Erro nas flags (teste %d) full = 0b%d, empty = 0b%d,\
                   local_full = 0b%d, local_empty = 0b%d", i, full, empty,
                  local_full, local_empty);
+        $stop;
       end
     end
     $display("EOT!");
