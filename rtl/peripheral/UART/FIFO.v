@@ -1,7 +1,8 @@
 //
 //! @file   FIFO.v
 //! @brief  FIFO(Fila)
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br) e Gor Pontes Tresolavy (tresolavy@usp.br)
+//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
+//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
 //! @date   2023-05-20
 //
 
