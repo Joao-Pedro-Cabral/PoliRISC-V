@@ -1,5 +1,7 @@
 modules = {
     "local" : [
-        "UART",
+        "core",
+        "memory",
+        "peripheral"
     ],
 }
