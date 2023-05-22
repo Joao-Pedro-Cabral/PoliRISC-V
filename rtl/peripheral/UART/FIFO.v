@@ -88,6 +88,7 @@ module FIFO #(
   // Saídas de Controle
   assign _empty = (watermark_reg == 0);  // vazio, caso watermark_reg = 0
   assign _full = ~(|(watermark_reg ^ watermark_level));  // cheio
+  // assign _full = (watermark_reg > watermark_level); // Quero conferir se isso é sintetizável bonitinho com o Bruno
   assign empty = _empty;
   assign full = _full;
 
