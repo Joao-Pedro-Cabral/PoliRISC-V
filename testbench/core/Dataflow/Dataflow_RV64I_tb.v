@@ -99,7 +99,7 @@ module Dataflow_RV64I_tb();
      .alub_src(alub_src), .aluy_src(aluy_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
      .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
 
-    // Instruction Memory
+    //  Instruction Memory
     ROM #(.rom_init_file("./ROM.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
                             .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
 
@@ -107,8 +107,9 @@ module Dataflow_RV64I_tb();
     single_port_ram #(.RAM_INIT_FILE("./RAM.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(64), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
                         .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
-    // Instanciação do barramento
-    memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
+    //  Instanciação do barramento
+    memory_controller #(.BYTE_AMNT(8)) BUS
+    (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
     .mem_busy(mem_busy),
     .inst_cache_data({32'b0, rom_data}),
     .inst_cache_busy(rom_busy),

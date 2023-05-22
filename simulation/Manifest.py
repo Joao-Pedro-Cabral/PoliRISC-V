@@ -2,9 +2,9 @@ import subprocess
 
 action   = "simulation"
 sim_tool = "modelsim"
-sim_top  = "FIFO_tb"
+sim_top  = "memory_controller_tb"
 use_mif  = False
-mif_name = "set_less_than.mif"
+mif_name = "power.mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/" + mif_name
 

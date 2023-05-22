@@ -66,7 +66,7 @@ module Dataflow_RV32I_tb();
     wire ram_output_enable;
     wire ram_write_enable;
     wire ram_chip_select;
-    wire [7:0] ram_byte_enable;
+    wire [3:0] ram_byte_enable;
     wire ram_busy;
     // Sinais intermediários de teste
     reg  [35:0]   LUT_uc [48:0];    // UC simulada com tabela(google sheets)
@@ -108,13 +108,15 @@ module Dataflow_RV32I_tb();
                         .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
 
     // Instanciação do barramento
-    memory_controller BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
+    memory_controller #(.BYTE_AMNT(4))
+    BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
     .mem_busy(mem_busy),
-    .inst_cache_data({32'b0, rom_data}),
+    .inst_cache_data(rom_data),
     .inst_cache_busy(rom_busy),
     .inst_cache_enable(rom_enable),
-    .inst_cache_addr(rom_addr), .ram_read_data(ram_read_data), 
-    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
+    .inst_cache_addr(rom_addr), .ram_read_data(ram_read_data),
+    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data),
+    .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
     .ram_byte_enable(ram_byte_enable));
 
     // Componentes auxiliares para a verificação -> Supostamente corretos

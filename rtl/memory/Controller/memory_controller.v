@@ -36,7 +36,7 @@ module memory_controller #(
     /* Interface com o processador */
     input mem_rd_en,
     input mem_wr_en,
-    input [7:0] mem_byte_en,
+    input [BYTE_AMNT-1:0] mem_byte_en,
     input [8*BYTE_AMNT-1:0] wr_data,
     input [8*BYTE_AMNT-1:0] mem_addr,
 
@@ -58,7 +58,7 @@ module memory_controller #(
 
   assign ram_output_enable = s_ram_chip_select ? mem_rd_en : 1'b0;
   assign ram_write_enable = s_ram_chip_select ? mem_wr_en : 1'b0;
-  assign ram_byte_enable = s_ram_chip_select ? mem_byte_en : 8'b0;
+  assign ram_byte_enable = s_ram_chip_select ? mem_byte_en : 0;
   /* //// */
 
   /* Endereçamento */
