@@ -121,7 +121,7 @@ module uart_tx (
       Stop1: begin
         txd = 1'b1;  // 1º Stop bit
         if (nstop) next_state = Stop2;  // 2 stop bits
-        else next_state = Stop1;
+        else next_state = Idle;
       end
       Stop2: begin
         txd = 1'b1;  // 2º Stop bit
