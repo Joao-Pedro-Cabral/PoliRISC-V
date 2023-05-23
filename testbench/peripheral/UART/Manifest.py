@@ -1,5 +1,7 @@
 files = [
-    "FIFO_tb.v"
+    "FIFO_tb.v",
+    "uart_tx_tb.v",
+    "uart_rx_tb.v"
 ]
 
 modules = {

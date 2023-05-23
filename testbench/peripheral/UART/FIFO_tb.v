@@ -6,6 +6,8 @@
 //! @date   2023-05-20
 //
 
+`timescale 1ns / 100ps
+
 module FIFO_tb ();
 
   localparam integer DataSize = 32;

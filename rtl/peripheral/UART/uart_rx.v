@@ -37,6 +37,10 @@ module uart_rx (
   wire [3:0] sample_cnt;
   wire sample_end = &sample_cnt;  // fim da contagem de 16 ciclos
 
+  // Contador de dados amostrados
+  reg data_cnt_rst;
+  wire [2:0] data_cnt;
+
   // Registrador Serial-Paralelo
   wire [7:0] data_reg;
   reg data_en;  // habilita a escrita no registrador
@@ -51,7 +55,9 @@ module uart_rx (
 
   wire data_vld;  // Dado Válido
 
-  reg transmit_end;  // fim da transmissão
+  // fim da transmissão
+  reg transmit_end_en;
+  wire transmit_end;
 
   // Amostragem por voto da maioria
   // Decide qual o dado recebido
@@ -94,10 +100,10 @@ module uart_rx (
       .reset_value(0)
   ) rx_reg (
       .clock(clock),
-      .reset(1'b0),
-      // Enable: RX Ativo, Estado Data, Fim da contagem de amostragem
+      .reset(reset),
+      // Enable: Estado Data, Fim da contagem de amostragem
       // (garante que sampled bit seja válido)
-      .enable(rx_en & data_en & (sample_end)),
+      .enable(data_en & sample_end),
       .D({sampled_bit, data_reg[7:1]}),
       .Q(data_reg)
   );
@@ -119,10 +125,10 @@ module uart_rx (
   // Verifica se houve erro de paridade
   register_d #(
       .N(1),
-      .init_value(0)
+      .reset_value(0)
   ) parity_reg (
       .clock(clock),
-      .reset(reset),
+      .reset(reset | data_cnt_rst),  // limpa o erro de paridade antigo
       .enable(check_parity & sample_end),
       // Checa se a paridade obtida é a correta
       .D((^data_reg) ^ parity_type[0] ^ sampled_bit),
@@ -132,7 +138,7 @@ module uart_rx (
   // Verifica se houve erro de framing
   register_d #(
       .N(1),
-      .init_value(0)
+      .reset_value(0)
   ) framing_reg (
       .clock(clock),
       .reset(reset),
@@ -142,24 +148,38 @@ module uart_rx (
       .Q(framing_er)
   );
 
+  // Registrador do sinal de fim da transmissão
+  register_d #(
+      .N(1),
+      .reset_value(0)
+  ) transmit_end_reg (
+      .clock(clock),
+      .reset(reset),
+      .enable(transmit_end_en | transmit_end),
+      .D(~transmit_end),
+      .Q(transmit_end)
+  );
+
   // Saídas Bufferizadas
   register_d #(
       .N(3),
-      .init_value(0)
+      .reset_value(0)
   ) output_reg (
       .clock(clock),
-      .reset(reset),
+      .reset(reset | data_cnt_rst),  // reseto as saídas no Start
       .enable(transmit_end),
       .D({parity_er, framing_er, data_vld}),
-      .Q({parity_error, framing_error, data_valid})
+      .Q({parity_error, frame_error, data_valid})
   );
 
+  assign data_out = data_reg;
+
   // Dado válido após o fim da recepção e sem erros
-  assign data_vld = transmit_end & ~parity_er & ~framing_er;
+  assign data_vld = ~parity_er & ~framing_er;
 
   // Transição de Estado
   always @(posedge clock, posedge reset) begin
-    if (reset) present_state <= idle;
+    if (reset) present_state <= Idle;
     else present_state <= next_state;
   end
 
@@ -170,7 +190,7 @@ module uart_rx (
     data_cnt_rst = 1'b0;
     check_parity = 1'b0;
     check_framing = 1'b0;
-    transmit_end = 1'b0;
+    transmit_end_en = 1'b0;
     case (present_state)  // synthesis parallel case
       Idle: begin
         // Caso RX habilitado e um 0 seja detectado -> Start
@@ -187,7 +207,7 @@ module uart_rx (
       end
       Data: begin
         data_en = 1'b1;
-        if (&data_cnt) begin
+        if (&data_cnt & sample_end) begin
           if (parity_type[1]) next_state = Parity;  // Paridade está sendo transmitida
           else next_state = Stop1;  // Sem paridade
         end else next_state = Data;
@@ -202,8 +222,8 @@ module uart_rx (
         if (sample_end) begin
           if (nstop) next_state = Stop2;
           else begin
-            transmit_end = 1'b1;  // Fim da transmissão
-            next_state   = Idle;
+            transmit_end_en = 1'b1;  // Fim da transmissão
+            next_state = Idle;
           end
         end else next_state = Stop1;
       end
@@ -211,8 +231,8 @@ module uart_rx (
         // Sem erro no stop1 -> checar stop2
         check_framing = ~framing_er;
         if (sample_end) begin
-          transmit_end = 1'b1;  // Fim da transmissão
-          next_state   = Idle;
+          transmit_end_en = 1'b1;  // Fim da transmissão
+          next_state = Idle;
         end else next_state = Stop2;
       end
       default: begin

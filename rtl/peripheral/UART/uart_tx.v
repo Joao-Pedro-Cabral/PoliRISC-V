@@ -47,7 +47,7 @@ module uart_tx (
   ) tx_reg (
       .clock(clock),
       .reset(1'b0),
-      .enable(tx_en & (data_en | data_valid)),
+      .enable(data_en | (tx_en & data_valid)),
       .D(mux_data),
       .Q(data_reg)
   );
@@ -83,7 +83,7 @@ module uart_tx (
 
   // Transição de Estado
   always @(posedge clock, posedge reset) begin
-    if (reset) present_state <= idle;
+    if (reset) present_state <= Idle;
     else present_state <= next_state;
   end
 
