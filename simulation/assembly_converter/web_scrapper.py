@@ -68,7 +68,7 @@ browser.get("https://luplab.gitlab.io/rvcodecjs/")
 browser.find_element("id", "parameter-button").click()
 isa = browser.find_element("id", "isa")
 dropdown = Select(isa)
-dropdown.select_by_value("RV64I")
+dropdown.select_by_value(input("Selecione arquitetura (RV32I ou RV64I): "))
 browser.find_element("id", "close").click()
 
 for searchterm in searchterms:

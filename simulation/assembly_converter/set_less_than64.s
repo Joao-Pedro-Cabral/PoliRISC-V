@@ -1,5 +1,5 @@
-lui sp,16777216 ; main 
-lui x5,4096     
+lui sp,4096 ; main 
+lui x5,1     
 or sp,sp,x5     
 addi sp,sp,-96
 sd s0,88(sp)
@@ -45,7 +45,7 @@ andi a5,a5,0xff
 sd a5,-80(s0)
 lbu a5,-34(s0)  ; a5 <-- 200
 sltiu a5,a5,100 ; 200 < 100 ? 1 : 0 
-andi a5,a5,0xff  
+andi a5,a5,0xff
 sb a5,-81(s0)
 lbu a5,-34(s0)  ; a5 <-- 200
 sltiu a5,a5,300 ; 200 < 300 ? 1 : 0 
