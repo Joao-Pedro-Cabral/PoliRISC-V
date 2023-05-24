@@ -5,14 +5,15 @@
 //! @date   2023-03-04
 //
 
-module core 
-    #( parameter RV64I = 1,
-       parameter DATA_SIZE = 64) (
+module core #(
+    parameter RV64I = 1,
+    parameter DATA_SIZE = 64
+) (
     input wire clock,
     input wire reset,
 
     // Bus Interface
-    input wire  [DATA_SIZE-1:0] rd_data,
+    input wire [DATA_SIZE-1:0] rd_data,
     output wire [DATA_SIZE-1:0] wr_data,
     output wire [DATA_SIZE-1:0] mem_addr,
     input wire mem_busy,
@@ -47,10 +48,10 @@ module core
   wire overflow;
 
   // Dataflow
-  Dataflow 
-    #(.RV64I(RV64I),
-      .DATA_SIZE(DATA_SIZE))
-    DF (
+  Dataflow #(
+      .RV64I(RV64I),
+      .DATA_SIZE(DATA_SIZE)
+  ) DF (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),
@@ -80,10 +81,10 @@ module core
   );
 
   // Control Unit
-  control_unit 
-      #(.RV64I(RV64I),
-      .BYTE_NUM(DATA_SIZE/8))
-    UC (
+  control_unit #(
+      .RV64I(RV64I),
+      .BYTE_NUM(DATA_SIZE / 8)
+  ) UC (
       .clock(clock),
       .reset(reset),
       .mem_rd_en(mem_rd_en),

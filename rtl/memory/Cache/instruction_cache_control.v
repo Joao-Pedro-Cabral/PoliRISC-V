@@ -1,7 +1,6 @@
 //
 //! @file   instruction_cache_control.v
-//! @brief  Implementação de um controlador de cache para uma memória
-//          ROM de instruções
+//! @brief  Implementação de um controlador de cache
 //! @author Igor Pontes Tresolavy (tresolavy@usp.br)
 //! @date   2023-05-16
 //

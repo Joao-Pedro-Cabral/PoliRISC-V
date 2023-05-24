@@ -2,9 +2,9 @@ import subprocess
 
 action   = "simulation"
 sim_tool = "modelsim"
-sim_top  = "uart_rx_tb"
-use_mif  = False
-mif_name = "power.mif"
+sim_top  = "RV32I" + "_tb"
+use_mif  = True
+mif_name = "set_less_than32.mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/" + mif_name
 

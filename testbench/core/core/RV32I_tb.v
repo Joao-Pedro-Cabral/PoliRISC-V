@@ -11,7 +11,7 @@
 // RAM, ROM, Extensor de Imediato e Banco de Registradores estão corretos.
 // Com isso, basta testar se o toplevel consegue interligar a UC e o DF
 // corretamente e se o comportamento desses componentes está sincronizado
-// Para isso irei verificar as saídas do toplevel 
+// Para isso irei verificar as saídas do toplevel
 // Veja que db_reg_data é usada apenas para depuração (dado a ser escrito no banco)
 
 `timescale 1 ns / 100 ps
@@ -31,10 +31,10 @@ module RV32I_tb();
         // depuracao
     wire [31:0] db_reg_data;
     // Sinais intermediários de teste
-    wire [6:0]  opcode;                         // opcode simulado pelo TB            
-    wire [2:0]  funct3;                         // funct3 simulado pelo TB            
-    wire [6:0]  funct7;                         // funct7 simulado pelo TB     
-    reg  [31:0] instruction;                    // Instrução executada pelo DUT       
+    wire [6:0]  opcode;                         // opcode simulado pelo TB
+    wire [2:0]  funct3;                         // funct3 simulado pelo TB
+    wire [6:0]  funct7;                         // funct7 simulado pelo TB
+    reg  [31:0] instruction;                    // Instrução executada pelo DUT
     wire [31:0] immediate;                      // Saída do Extensor de Imediato do TB
     wire [31:0] A_immediate;                    // A + imediato
     reg  wr_reg_en;                             // write enable do banco de registradores
@@ -44,7 +44,8 @@ module RV32I_tb();
     reg  [31:0] reg_data;                       // write data do banco de registradores
     wire [31:0] A;                              // read data 1 do banco de registradores
     wire [31:0] B;                              // read data 2 do banco de registradores
-    reg  [31:0] pc = 0;                         // pc -> Uso esse pc para acessar a memória de instrução(para tentar achar mais erros)
+    reg  [31:0] pc = 0;                         // pc -> Uso esse pc para acessar a memória de
+                                                // instrução (para tentar achar mais erros)
     reg  pc_src;                                // seletor da entrada do registrador PC
     reg  [31:0] pc_imm;                         // pc + imediato
     reg  [31:0] pc_4;                           // pc + 4
@@ -96,7 +97,7 @@ module RV32I_tb();
     .ram_byte_enable(ram_byte_enable));
 
     // Componentes auxiliares para a verificação
-    ImmediateExtender extensor_imediato (.immediate(immediate), .instruction(instruction));
+    ImmediateExtender #(.N(32)) extensor_imediato (.immediate(immediate), .instruction(instruction));
     register_file #(.size(32), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(wr_reg_en), .read_address1(instruction[19:15]),
                                 .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
 

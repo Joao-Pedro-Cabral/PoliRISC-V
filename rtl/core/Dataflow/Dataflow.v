@@ -5,9 +5,10 @@
 //! @date   2023-03-04
 //
 
-module Dataflow 
-    #(parameter integer RV64I = 1, // 1: usar o RV64I
-     parameter integer DATA_SIZE = 64) (
+module Dataflow #(
+    parameter integer RV64I = 1,  // 1: usar o RV64I
+    parameter integer DATA_SIZE = 64
+) (
     // Common
     input wire clock,
     input wire reset,
@@ -41,7 +42,7 @@ module Dataflow
 );
   // Fios intermediários
   // Register File
-  wire [           4:0] reg_addr_source_1;
+  wire [          4:0] reg_addr_source_1;
   wire [DATA_SIZE-1:0] reg_data_source_1;
   wire [DATA_SIZE-1:0] reg_data_source_2;
   wire [DATA_SIZE-1:0] reg_data_destiny;
@@ -65,7 +66,7 @@ module Dataflow
   // PC
   wire [DATA_SIZE-1:0] pc;
   // Instruction Register(IR)
-  wire [          31:0] ir;
+  wire [         31:0] ir;
 
   // Instanciação de Componentes
   // Register File
@@ -116,18 +117,18 @@ module Dataflow
       .S(alub_src),
       .Y(aluB)
   );
-generate
-  if(RV64I == 1) begin
-  mux2to1 #(
-      .size(32)
-  ) muxaluY (
-      .A(aluY[DATA_SIZE-1:32]),
-      .B({32{aluY[31]}}),
-      .S(aluy_src),
-      .Y(muxaluY_out[DATA_SIZE-1:32])
-  );
-  end
-endgenerate
+  generate
+    if (RV64I == 1) begin
+      mux2to1 #(
+          .size(32)
+      ) muxaluY (
+          .A(aluY[DATA_SIZE-1:32]),
+          .B({32{aluY[31]}}),
+          .S(aluy_src),
+          .Y(muxaluY_out[DATA_SIZE-1:32])
+      );
+    end
+  endgenerate
 
   ULA #(
       .N(DATA_SIZE)
@@ -147,7 +148,7 @@ endgenerate
   sklansky_adder #(
       .INPUT_SIZE(DATA_SIZE)
   ) pc_4 (
-      .A(pc), 
+      .A(pc),
       .B(cte_4),
       .c_in(1'b0),
       .c_out(),
@@ -188,6 +189,7 @@ endgenerate
       .S(pc_src),
       .Y(muxpc_out)
   );
+
   register_d #(
       .N(DATA_SIZE),
       .reset_value(0)

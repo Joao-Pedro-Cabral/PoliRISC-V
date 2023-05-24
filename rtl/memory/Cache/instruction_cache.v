@@ -1,7 +1,6 @@
 //
-//! @file   micro_cache.v
-//! @brief  Implementação de um cache para uma memória
-//          ROM de instruções alinhada em 16 bits
+//! @file   instruction_cache.v
+//! @brief  Implementação de um cache
 //! @author Igor Pontes Tresolavy (tresolavy@usp.br)
 //! @date   2023-05-02
 //
