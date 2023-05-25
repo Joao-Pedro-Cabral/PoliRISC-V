@@ -37,8 +37,7 @@ module Dataflow #(
     output wire zero,
     output wire negative,
     output wire carry_out,
-    output wire overflow,
-    output wire [DATA_SIZE-1:0] db_reg_data  // depuracao
+    output wire overflow
 );
   // Fios intermediários
   // Register File
@@ -241,7 +240,5 @@ module Dataflow #(
   assign opcode = ir[6:0];
   assign funct3 = ir[14:12];
   assign funct7 = ir[31:25];
-  // Depuracao
-  assign db_reg_data = reg_data_destiny;
 
 endmodule

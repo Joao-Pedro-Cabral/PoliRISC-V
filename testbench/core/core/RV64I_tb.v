@@ -11,8 +11,7 @@
 // RAM, ROM, Extensor de Imediato e Banco de Registradores estão corretos.
 // Com isso, basta testar se o toplevel consegue interligar a UC e o DF
 // corretamente e se o comportamento desses componentes está sincronizado
-// Para isso irei verificar as saídas do toplevel 
-// Veja que db_reg_data é usada apenas para depuração (dado a ser escrito no banco)
+// Para isso irei verificar as saídas do toplevel
 
 `timescale 1 ns / 100 ps
 
@@ -28,8 +27,6 @@ module RV64I_tb();
     wire mem_rd_en;
     wire mem_wr_en;
     wire [7:0] mem_byte_en;
-        // depuracao
-    wire [63:0] db_reg_data;
     // Sinais intermediários de teste
     wire [6:0]  opcode;                         // opcode simulado pelo TB            
     wire [2:0]  funct3;                         // funct3 simulado pelo TB            
@@ -78,7 +75,7 @@ module RV64I_tb();
 
     // DUT
     core #(.RV64I(1), .DATA_SIZE(64)) DUT (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .mem_addr(mem_addr), .mem_busy(mem_busy),
-    .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_wr_en(mem_wr_en), .db_reg_data(db_reg_data));
+    .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_wr_en(mem_wr_en));
 
     // Instruction Memory
     ROM #(.rom_init_file("./ROM.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
@@ -271,8 +268,8 @@ module RV64I_tb();
                         $stop;
                     end
                     // Caso L* -> confiro a leitura
-                    if(opcode[5] === 1'b0 && db_reg_data !== reg_data) begin
-                        $display("Error Load: db_reg_data = %b, reg_data = %b, funct3 = %b", db_reg_data, reg_data, funct3);
+                    if(opcode[5] === 1'b0 && DUT.DF.reg_data_destiny !== reg_data) begin
+                        $display("Error Load: DUT_reg_data = %b, reg_data = %b, funct3 = %b", DUT.DF.reg_data_destiny, reg_data, funct3);
                         $stop;
                     end
                     pc = pc + 4;
@@ -331,9 +328,9 @@ module RV64I_tb();
                     else
                         reg_data = mem_addr + immediate; // AUIPC
                     #0.1;
-                    // Confiro se db_reg_data está correto
-                    if(reg_data !== db_reg_data) begin
-                        $display("Error AUIPC/LUI: reg_data = %b, db_reg_data = %b, opcode = %b", reg_data, db_reg_data, opcode);
+                    // Confiro se reg_data está correto
+                    if(reg_data !== DUT.DF.reg_data_destiny) begin
+                        $display("Error AUIPC/LUI: reg_data = %b, DUT_reg_data = %b, opcode = %b", reg_data, DUT.DF.reg_data_destiny, opcode);
                         $stop;
                     end
                     // Verifico se os enables estão desligados
@@ -364,8 +361,8 @@ module RV64I_tb();
                     reg_data = pc + 4; // escrever pc + 4 no banco -> Link
                     #0.1;
                     // Confiro a escrita no banco
-                    if(db_reg_data !== reg_data) begin
-                        $display("Error JAL/JALR: reg_data = %b, reg_data = %b, opcode = %b", db_reg_data, reg_data, opcode);
+                    if(DUT.DF.reg_data_destiny !== reg_data) begin
+                        $display("Error JAL/JALR: DUT_reg_data = %b, reg_data = %b, opcode = %b", DUT.DF.reg_data_destiny, reg_data, opcode);
                         $stop;
                     end
                     // Verifico se os enables estão desligados
@@ -399,8 +396,8 @@ module RV64I_tb();
                         reg_data = {{32{reg_data[31]}},reg_data[31:0]};
                     #0.1;
                     // Confiro a escrita no banco
-                    if(reg_data !== db_reg_data) begin
-                        $display("Error ULA R/I-type: reg_data = %b, db_reg_data = %b, funct7 = %b, funct3 = %b", reg_data, db_reg_data, funct7, funct3);
+                    if(reg_data !== DUT.DF.reg_data_destiny) begin
+                        $display("Error ULA R/I-type: reg_data = %b, DUT_reg_data = %b, funct7 = %b, funct3 = %b", reg_data, DUT.DF.reg_data_destiny, funct7, funct3);
                         $stop;
                     end
                     // Verifico se os enables estão desligados
