@@ -19,16 +19,16 @@ module instruction_cache #(
     /* //// */
 
     /* Interface com a memória de instruções */
-    input [63:0] inst_data,
+    input [2**(L2_BLOCK_SIZE+3)-1:0] inst_data,
     input inst_busy,
     output inst_enable,
-    output [63:0] inst_addr,
+    output [2**L2_ADDR_SIZE-1:0] inst_addr,
     /* //// */
 
     /* Interface com o controlador de memória */
     input inst_cache_enable,
-    input [63:0] inst_cache_addr,
-    output [63:0] inst_cache_data,
+    input [2**L2_ADDR_SIZE-1:0] inst_cache_addr,
+    output [2**(L2_DATA_SIZE+3)-1:0] inst_cache_data,
     output inst_cache_busy
     /* //// */
 
@@ -49,7 +49,9 @@ module instruction_cache #(
 
   instruction_cache_path #(
       .L2_CACHE_SIZE(L2_CACHE_SIZE),
-      .L2_BLOCK_SIZE(L2_BLOCK_SIZE)
+      .L2_BLOCK_SIZE(L2_BLOCK_SIZE),
+      .L2_ADDR_SIZE (L2_ADDR_SIZE),
+      .L2_DATA_SIZE (L2_DATA_SIZE)
   ) path (
       .reset(reset),
       .inst_data(inst_data),

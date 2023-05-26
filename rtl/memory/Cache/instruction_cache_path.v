@@ -37,43 +37,32 @@ module instruction_cache_path #(
   localparam integer BYTE_OFFSET = L2_DATA_SIZE;
   localparam integer BLOCK_OFFSET = L2_BLOCK_SIZE - L2_DATA_SIZE;
   localparam integer INDEX = L2_CACHE_SIZE - OFFSET;
-  localparam integer TAG = 64 - OFFSET - INDEX;
+  localparam integer TAG = 2 ** (L2_DATA_SIZE + 3) - OFFSET - INDEX;
   localparam integer DEPTH = 2 ** (L2_CACHE_SIZE - L2_BLOCK_SIZE);
 
-  reg  [2**(OFFSET+3)-1:0] cache_data      [DEPTH-1:0];
-  reg  [          TAG-1:0] cache_tag       [DEPTH-1:0];
-  reg  [        DEPTH-1:0] cache_valid;
+  reg [2**(OFFSET+3)-1:0] cache_data[DEPTH-1:0];
+  reg [TAG-1:0] cache_tag[DEPTH-1:0];
+  reg [DEPTH-1:0] cache_valid;
 
 
-  wire [        DEPTH-1:0] tag_comparisson;
+  wire [DEPTH-1:0] tag_comparisson;
 
   /* separação dos campos correspondentes nos sinais de entrada vindos da
   * memória */
-  generate
-    if (OFFSET != 0) begin : g_offset_if
-      wire [OFFSET-1:0] offset = inst_cache_addr[OFFSET-1:0];
-      wire [BYTE_OFFSET-1:0] byte_offset = offset[BYTE_OFFSET-1:0];
-      wire [BLOCK_OFFSET-1:0] block_offset = offset[OFFSET-1:BYTE_OFFSET];
-    end else begin : g_offset_else
-      wire offset = 0;
-      wire byte_offset = 0;
-      wire block_offset = 0;
-    end
+  wire [(OFFSET>0 ? OFFSET-1 : 0):0] offset = OFFSET > 0 ? inst_cache_addr[OFFSET-1:0] : 0;
+  wire [(BYTE_OFFSET>0 ? BYTE_OFFSET-1 : 0):0] byte_offset = BYTE_OFFSET > 0 ? offset[BYTE_OFFSET-1:0] : 0;
+  wire [(BLOCK_OFFSET>0 ? BLOCK_OFFSET-1 : 0):0] block_offset = BLOCK_OFFSET > 0 ? offset[OFFSET-1:BYTE_OFFSET] : 0;
 
-  endgenerate
-  generate
-    if (INDEX != 0) wire [INDEX-1:0] index = inst_cache_addr[INDEX+OFFSET-1:OFFSET];
-    else wire index = 0;
-  endgenerate
+  wire [(INDEX>0 ? INDEX-1 : 0):0] index = INDEX>0 ? inst_cache_addr[INDEX+OFFSET-1:OFFSET] : 0;
 
   wire [TAG-1:0] tag = inst_cache_addr[2**L2_ADDR_SIZE-1:INDEX+OFFSET];
 
-  assign inst_cache_data = cache_data[index][(block_offset+1)*(2**(OFFSET+3))-1-:(2**(OFFSET+3))];
+  assign inst_cache_data = cache_data[index][(block_offset+1)*(2**(BYTE_OFFSET+3))-1-:(2**(BYTE_OFFSET+3))];
 
   genvar i;
   generate
     for (i = 0; i < DEPTH; i = i + 1) begin : gen_comparadores
-      assign tag_comparisson[i] = ~(|(tag[TAG-1:0] ^ cache_tag[i]));
+      assign tag_comparisson[i] = ~(|(tag ^ cache_tag[i]));
     end
   endgenerate
 
@@ -81,7 +70,6 @@ module instruction_cache_path #(
 
   assign inst_addr = inst_cache_addr;
 
-  integer j;
   always @(posedge cache_write_enable, posedge reset) begin
     if (reset) cache_valid <= 'b0;
     else if (cache_write_enable) begin
