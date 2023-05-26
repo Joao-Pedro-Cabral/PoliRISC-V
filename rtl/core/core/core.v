@@ -19,10 +19,7 @@ module core #(
     input wire mem_busy,
     output wire mem_rd_en,
     output wire mem_wr_en,
-    output wire [DATA_SIZE/8-1:0] mem_byte_en,
-
-    // depuracao
-    output wire [DATA_SIZE-1:0] db_reg_data
+    output wire [DATA_SIZE/8-1:0] mem_byte_en
 );
 
   // Sinais comuns do DF e da UC
@@ -76,8 +73,7 @@ module core #(
       .zero(zero),
       .negative(negative),
       .carry_out(carry_out),
-      .overflow(overflow),
-      .db_reg_data(db_reg_data)
+      .overflow(overflow)
   );
 
   // Control Unit

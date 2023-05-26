@@ -5,15 +5,14 @@
 //! @date   2023-02-23
 //
 
-// Ideia do testbench: testar ciclo a ciclo o comportamento do Dataflow 
+// Ideia do testbench: testar ciclo a ciclo o comportamento do Dataflow
 // de acordo com a instrução executada
 // Para isso considero as seguintes hipóteses:
 // RAM, ROM, Extensor de Imediato e Banco de Registradores estão corretos.
-// Com isso, basta testar se o Dataflow consegue interligar os componentes 
+// Com isso, basta testar se o Dataflow consegue interligar os componentes
 // e se os componentes funcionam corretamente.
-// Para isso irei verificar as saídas do DF (principalmente pc e db_reg_data,
+// Para isso irei verificar as saídas do DF (principalmente pc e reg_data,
 // pois elas determinam o contexto)
-// Veja que db_reg_data é usada apenas para depuração (dado a ser escrito no banco)
 
 `timescale 1 ns / 100 ps
 
@@ -52,7 +51,6 @@ module Dataflow_RV32I_tb();
     wire negative;
     wire carry_out;
     wire overflow;
-    wire [31:0] db_reg_data;
     // Sinais do Barramento
         // Instruction Memory
     wire [31:0] rom_data;
@@ -97,7 +95,7 @@ module Dataflow_RV32I_tb();
     Dataflow #(.RV64I(0), .DATA_SIZE(32)) DUT
     (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr_src(mem_addr_src), .mem_addr(mem_addr), .alua_src(alua_src), 
      .alub_src(alub_src), .aluy_src(1'b0), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
-     .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow), .db_reg_data(db_reg_data));
+     .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow));
 
     // Instruction Memory
     ROM #(.rom_init_file("./ROM.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
@@ -317,8 +315,8 @@ module Dataflow_RV32I_tb();
                     mem_rd_en = 1'b0;        // desabilito a memória
                     #0.1;
                     // Caso L* -> confiro a leitura
-                    if(opcode[5] === 1'b0 && db_reg_data !== reg_data) begin
-                        $display("Error Load: db_reg_data = %x, reg_data = %x", db_reg_data, reg_data);
+                    if(opcode[5] === 1'b0 && DUT.reg_data_destiny !== reg_data) begin
+                        $display("Error Load: reg_data = %x, DUT_reg_data = %x", DUT.reg_data_destiny, reg_data);
                         $stop;
                     end
                     // Incremento PC
@@ -387,9 +385,9 @@ module Dataflow_RV32I_tb();
                     else
                         reg_data = pc + immediate; // AUIPC
                     #0.1;
-                    // Confiro se db_reg_data está correto
-                    if(reg_data !== db_reg_data) begin
-                        $display("Error AUIPC/LUI: reg_data = %x, db_reg_data = %x, opcode = %x", reg_data, db_reg_data, opcode);
+                    // Confiro se reg_data está correto
+                    if(reg_data !== DUT.reg_data_destiny) begin
+                        $display("Error AUIPC/LUI: reg_data = %x, DUT_reg_data = %x, opcode = %x", reg_data, DUT.reg_data_destiny, opcode);
                         $stop;
                     end
                     pc_4 = pc + 4;
@@ -417,8 +415,8 @@ module Dataflow_RV32I_tb();
                     reg_data = pc + 4; // escrever pc + 4 no banco -> Link
                     #0.1;
                     // Confiro a escrita no banco
-                    if(db_reg_data !== reg_data) begin
-                        $display("Error JAL/JALR: db_reg_data = %x, reg_data = %x, opcode = %x", db_reg_data, reg_data, opcode);
+                    if(DUT.reg_data_destiny !== reg_data) begin
+                        $display("Error JAL/JALR: reg_data = %x, DUT_reg_data = %x, opcode = %x", DUT.reg_data_destiny, reg_data, opcode);
                         $stop;
                     end
                     wait (clock == 1'b1);
@@ -447,9 +445,9 @@ module Dataflow_RV32I_tb();
                     else
                         reg_data = ULA_function(A, immediate, {1'b0, funct3});
                     #0.1;
-                    // Verifico db_reg_data
-                    if(reg_data !== db_reg_data) begin
-                        $display("Error ULA R/I-type: reg_data = %x, db_reg_data = %x, opcode = %x, funct3 = %x, funct7 = %x", reg_data, db_reg_data, opcode, funct3, funct7);
+                    // Verifico reg_data
+                    if(reg_data !== DUT.reg_data_destiny) begin
+                        $display("Error ULA R/I-type: reg_data = %x, DUT_reg_data = %x, opcode = %x, funct3 = %x, funct7 = %x", reg_data, DUT.reg_data_destiny, opcode, funct3, funct7);
                         $stop;
                     end
                     pc_4 = pc + 4;
