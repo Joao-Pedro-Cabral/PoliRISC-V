@@ -1,6 +1,6 @@
 //
-//! @file   .v
-//! @brief  Implementação de um cache para uma memória
+//! @file   instruction_cache_tb.v
+//! @brief  Testbench de um cache para uma memória
 //          ROM de instruções alinhada em 16 bits
 //! @author Igor Pontes Tresolavy (tresolavy@usp.br)
 //! @date   2023-05-02
