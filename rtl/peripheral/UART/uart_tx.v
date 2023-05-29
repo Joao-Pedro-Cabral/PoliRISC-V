@@ -18,7 +18,7 @@ module uart_tx (
     // Paralela
     input wire [7:0] data_in,
     input wire data_valid,  // 1: data_in é válido
-    output reg tx_rdy  // 1: tx está pronto para enviar um dado
+    output reg tx_rdy  // 1: tx está pronto para receber um dado
 );
 
   reg [2:0] present_state, next_state;  // Estado da transmissão
