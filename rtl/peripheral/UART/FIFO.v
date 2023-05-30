@@ -39,7 +39,7 @@ module FIFO #(
   // Leitura não é permitido quando estiver vazio
   sync_parallel_counter #(
       .size($clog2(DEPTH)),
-      .init_value(0)
+      .init_value(-1'b1)
   ) rd_pointer (
       .clock(clock),
       .reset(reset),

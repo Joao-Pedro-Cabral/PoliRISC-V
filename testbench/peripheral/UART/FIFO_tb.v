@@ -56,8 +56,8 @@ module FIFO_tb ();
 
   integer i;
   initial begin
-    {clock, wr_en, rd_en, wr_data, rd_reg_mem, wr_reg_mem, watermark_reg_mem} = 0;
-
+    {clock, wr_en, rd_en, wr_data, wr_reg_mem, watermark_reg_mem} = 0;
+    rd_reg_mem = -1'b1;
 
     // Inicializando a FIFO
     watermark_level = $urandom;
@@ -96,7 +96,7 @@ module FIFO_tb ();
         $display("Falha na leitura da FIFO (teste: %d) DUT.rd_reg = 0x%h, \
                  rd_reg_mem = 0x%h, rd_data = 0x%h, local_fifo = 0x%h,\
                  fifo = 0x%h, full = 0b%d, empty = 0b%d", i, DUT.rd_reg,
-                 rd_reg_mem, rd_data, local_fifo_memory[rd_reg_mem], DUT.fifo_memory[DUT.rd_reg-1],
+                 rd_reg_mem, rd_data, local_fifo_memory[rd_reg_mem], DUT.fifo_memory[DUT.rd_reg],
                  full, empty);
         $stop;
       end
