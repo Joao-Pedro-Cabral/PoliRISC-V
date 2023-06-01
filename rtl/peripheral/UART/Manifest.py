@@ -1,5 +1,6 @@
 files = [
     "FIFO.v",
     "uart_rx.v",
-    "uart_tx.v"
+    "uart_tx.v",
+    "uart.v"
 ]

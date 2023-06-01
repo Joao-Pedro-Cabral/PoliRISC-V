@@ -51,28 +51,30 @@ module uart #(
   // Tx Fifo
   wire tx_fifo_rd_en;
   wire tx_fifo_wr_en;
-  wire tx_fifo_rd_data;
+  wire [7:0] tx_fifo_rd_data;
   wire tx_fifo_empty;
   wire tx_fifo_full;
+  wire tx_fifo_less_than_watermark;
 
   // Rx Fifo
   wire rx_fifo_rd_en;
   wire rx_fifo_wr_en;
-  wire rx_fifo_rd_data;
+  wire [7:0] rx_fifo_rd_data;
+  wire [7:0] rx_fifo_wr_data;
   wire rx_fifo_empty;
-  wire rx_fifo_full;
+  wire rx_fifo_greater_than_watermark;
 
   // UART Tx
   wire tx_clock;
   wire tx_data_valid;
   wire tx_rdy;
-  wire tx_counter;
-  wire tx_data_valid_count;
+  wire [15:0] tx_counter;
+  wire [15:0] tx_data_valid_count;
 
   // UART Rx
   wire rx_clock;
   wire rx_data_valid;
-  wire rx_counter;
+  wire [11:0] rx_counter;
 
   register_d #(
       .N(1),
@@ -88,7 +90,7 @@ module uart #(
   register_d #(
       .N(1),
       .reset_value(0)
-  ) tx_fifo_wr_en_reg (
+  ) rx_fifo_rd_en_reg (
       .clock(clock),
       .reset(reset),
       .enable(1'b1),
@@ -150,7 +152,7 @@ module uart #(
       .clock(clock),
       .reset(reset),
       .enable(wr_en & (addr[4:2] == 3'b100)),
-      .D({wr_data[1], wr_data[0]}),
+      .D(wr_data[1:0]),
       .Q({e_rxwm, e_txwm})
   );
   // Interrupt Pending Register
@@ -161,7 +163,7 @@ module uart #(
       .clock(clock),
       .reset(reset),
       .enable(wr_en & (addr[4:2] == 3'b101)),
-      .D({rx_fifo_full & e_rxwm, tx_fifo_full & e_txwm}),
+      .D({rx_fifo_greater_than_watermark & e_rxwm, tx_fifo_less_than_watermark & e_txwm}),
       .Q({p_rxwm, p_txwm})
   );
   // Baud Rate Divisor Register
@@ -212,6 +214,7 @@ module uart #(
       .watermark_level(txcnt),
       .wr_data(txdata),
       .rd_data(tx_fifo_rd_data),
+      .less_than_watermark(tx_fifo_less_than_watermark),
       .empty(tx_fifo_empty),
       .full(tx_fifo_full)
   );
@@ -234,8 +237,8 @@ module uart #(
       .watermark_level(rxcnt),
       .wr_data(rx_fifo_wr_data),
       .rd_data(rx_fifo_rd_data),
-      .empty(rx_fifo_empty),
-      .full(rx_fifo_full)
+      .greater_than_watermark(rx_fifo_greater_than_watermark),
+      .empty(rx_fifo_empty)
   );
 
   uart_tx tx (
@@ -258,7 +261,7 @@ module uart #(
       .nstop(nstop),
       .rxd(rxd),
       .data_out(rx_fifo_wr_data),
-      .data_valid(rx_data_valid),
+      .data_valid(rx_data_valid)
   );
 
   sync_parallel_counter #(
@@ -266,7 +269,7 @@ module uart #(
       .init_value(0)
   ) tx_baud_rate_generator (
       .clock(clock),
-      .load(value == div),
+      .load(tx_counter == div),
       .load_value(16'b0),
       .reset(reset),
       .inc_enable(1'b1),
@@ -281,7 +284,7 @@ module uart #(
       .init_value(0)
   ) rx_baud_rate_generator (
       .clock(clock),
-      .load(value == div[16:4]),
+      .load(rx_counter == div[15:4]),
       .load_value(12'b0),
       .reset(reset),
       .inc_enable(1'b1),
@@ -289,7 +292,7 @@ module uart #(
       .value(rx_counter)
   );
 
-  assign rx_clock = div[16:4] == 0 ? clock : rx_counter == div[16:4];
+  assign rx_clock = div[15:4] == 0 ? clock : (rx_counter == div[15:4]);
 
   sync_parallel_counter #(
       .size(16),

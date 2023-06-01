@@ -1,6 +1,6 @@
 //
 //! @file   FIFO.v
-//! @brief  FIFO(Fila)
+//! @brief  FIFO (Fila)
 //! @author Igor Pontes Tresolavy (tresolavy@usp.br)
 //! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
 //! @date   2023-05-20
@@ -17,6 +17,8 @@ module FIFO #(
     input wire [$clog2(DEPTH)-1:0] watermark_level,
     input wire [DATA_SIZE-1:0] wr_data,
     output wire [DATA_SIZE-1:0] rd_data,
+    output wire less_than_watermark,
+    output wire greater_than_watermark,
     output wire empty,
     output wire full
 );
@@ -87,8 +89,10 @@ module FIFO #(
 
   // Saídas de Controle
   assign _empty = (watermark_reg == 0);  // vazio, caso watermark_reg = 0
-  assign _full = ~(|(watermark_reg ^ watermark_level));  // cheio
-  // assign _full = (watermark_reg > watermark_level); // Quero conferir se isso é sintetizável bonitinho com o Bruno
+  assign _full = (watermark_reg == DEPTH - 1);  // cheio
+  // Quero conferir se isso é sintetizável bonitinho com o Bruno
+  assign greater_than_watermark = (watermark_reg > watermark_level);
+  assign less_than_watermark = (watermark_reg < watermark_level);
   assign empty = _empty;
   assign full = _full;
 
