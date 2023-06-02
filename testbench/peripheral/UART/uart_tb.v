@@ -69,6 +69,10 @@ module uart_tb ();
   // Tx block
   reg   [ 7:0] tx_data;
   ////
+  // Sinais dos initial blocks
+  reg   [ 1:0] processor_initial;
+  reg   [ 2:0] rx_initial;
+  reg   [ 1:0] tx_initial;
 
   uart #(
       .CLOCK_FREQ_HZ(115200 * 32)
@@ -87,6 +91,7 @@ module uart_tb ();
 
   task automatic InterruptCheck;
     begin
+      processor_initial = 2'b0;
       // Ler Interrupt Pending Register
       //  Se houver interrupt de leitura, o serve
       //  Se houver interrupt de escrita, o serve
@@ -102,6 +107,7 @@ module uart_tb ();
 
   task automatic ReadOp;
     begin
+      processor_initial = 2'b01;
       // Operação de leitura:
       //  checa por empty antes
       //  Lê (aleatório)
@@ -124,6 +130,7 @@ module uart_tb ();
 
   task automatic WriteOp;
     begin
+      processor_initial = 2'b10;
       // Operação de escrita:
       //  checa por full antes
       //  escreve (aleatório)
@@ -242,6 +249,8 @@ module uart_tb ();
 
   task automatic RxStart;
     begin
+      rx_initial = 3'b000;
+
       rxd = 0;
       @(negedge tx_clock);
 
@@ -253,6 +262,8 @@ module uart_tb ();
   task automatic RxData;
     integer j;
     begin
+      rx_initial = 3'b001;
+
       for (j = 0; j < 8; j = j + 1) begin
         rxd = rx_data[j];
         @(negedge tx_clock);
@@ -263,6 +274,8 @@ module uart_tb ();
 
   task automatic RxStop1;
     begin
+      rx_initial = 3'b010;
+
       rxd = 1'b1;
       @(negedge tx_clock);
 
@@ -273,6 +286,7 @@ module uart_tb ();
 
   task automatic RxStop2;
     begin
+      rx_initial = 3'b011;
       rxd = 1'b1;
       @(negedge tx_clock);
 
@@ -283,6 +297,7 @@ module uart_tb ();
 
   task automatic EndRx;
     begin
+      rx_initial = 3'b100;
 
       rx_fifo[rx_write_ptr] = rx_data;
       rx_write_ptr = rx_write_ptr + 1'b1;
@@ -320,6 +335,7 @@ module uart_tb ();
 
   task automatic TxStart;
     begin
+      tx_initial = 2'b0;
       @(negedge tx_clock);
 
       `ASSERT(txd == 1'b0);
@@ -330,6 +346,7 @@ module uart_tb ();
   task automatic TxData;
     integer k;
     begin
+      tx_initial = 2'b01;
       tx_data = tx_fifo[tx_read_ptr];
       tx_read_ptr = tx_read_ptr + 1;
       tx_watermark_reg = tx_watermark_reg - 1;
@@ -345,6 +362,7 @@ module uart_tb ();
 
   task automatic TxStop1;
     begin
+      tx_initial = 2'b10;
 
       `ASSERT(txd == 1'b1);
 
@@ -353,6 +371,7 @@ module uart_tb ();
 
   task automatic TxStop2;
     begin
+      tx_initial = 2'b11;
       @(negedge tx_clock);
 
       `ASSERT(txd == 1'b1);
