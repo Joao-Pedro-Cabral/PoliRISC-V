@@ -23,6 +23,10 @@ module uart #(
 
   localparam integer DIV_INIT = CLOCK_FREQ_HZ / (115200) - 1;
 
+  // Internal read & write enable
+  reg _rd_en;
+  reg _wr_en;
+
   // Read-only register signals
   // Receive Data Register
   wire [7:0] rxdata;
@@ -30,7 +34,6 @@ module uart #(
   // Interrupt Pending Register
   wire p_txwm;
   wire p_rxwm;
-
 
   // Read-write register signals
   // Transmit Data Register
@@ -83,7 +86,7 @@ module uart #(
       .clock(clock),
       .reset(reset),
       .enable(1'b1),
-      .D(wr_en & (addr[4:2] == 3'b0)),
+      .D(_wr_en & (addr[4:2] == 3'b0)),
       .Q(tx_fifo_wr_en)
   );
 
@@ -94,7 +97,7 @@ module uart #(
       .clock(clock),
       .reset(reset),
       .enable(1'b1),
-      .D(rd_en),
+      .D(_rd_en),
       .Q(rx_data_en)
   );
 
@@ -106,7 +109,7 @@ module uart #(
   ) transmit_data_register (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en & (addr[4:2] == 3'b0)),
+      .enable(_wr_en & (addr[4:2] == 3'b0)),
       .D(wr_data[7:0]),
       .Q(txdata)
   );
@@ -128,7 +131,7 @@ module uart #(
   ) transmit_control_register (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en & (addr[4:2] == 3'b010)),
+      .enable(_wr_en & (addr[4:2] == 3'b010)),
       .D({wr_data[18:16], wr_data[1:0]}),
       .Q({txcnt, nstop, txen})
   );
@@ -139,7 +142,7 @@ module uart #(
   ) receive_control_register (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en & (addr[4:2] == 3'b011)),
+      .enable(_wr_en & (addr[4:2] == 3'b011)),
       .D({wr_data[18:16], wr_data[0]}),
       .Q({rxcnt, rxen})
   );
@@ -151,7 +154,7 @@ module uart #(
   ) interrupt_enable_register (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en & (addr[4:2] == 3'b100)),
+      .enable(_wr_en & (addr[4:2] == 3'b100)),
       .D(wr_data[1:0]),
       .Q({e_rxwm, e_txwm})
   );
@@ -162,7 +165,7 @@ module uart #(
   ) interrupt_pending_register (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en & (addr[4:2] == 3'b101)),
+      .enable(1'b1),
       .D({rx_fifo_greater_than_watermark & e_rxwm, tx_fifo_less_than_watermark & e_txwm}),
       .Q({p_rxwm, p_txwm})
   );
@@ -173,7 +176,7 @@ module uart #(
   ) baud_rate_divisor_register (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en & (addr[4:2] == 3'b110)),
+      .enable(_wr_en & (addr[4:2] == 3'b110)),
       .D(wr_data[15:0]),
       .Q(div)
   );
@@ -199,7 +202,7 @@ module uart #(
   edge_detector tx_fifo_rd_en_ed (
       .clock(clock),
       .reset(reset),
-      .sinal(tx_rdy),
+      .sinal(~tx_rdy),
       .pulso(tx_fifo_rd_en)
   );
 
@@ -216,7 +219,8 @@ module uart #(
       .rd_data(tx_fifo_rd_data),
       .less_than_watermark(tx_fifo_less_than_watermark),
       .empty(tx_fifo_empty),
-      .full(tx_fifo_full)
+      .full(tx_fifo_full),
+      .greater_than_watermark()
   );
 
   edge_detector rx_fifo_wr_en_ed (
@@ -233,12 +237,14 @@ module uart #(
       .clock(clock),
       .reset(reset),
       .wr_en(rx_fifo_wr_en),
-      .rd_en(rd_en),
+      .rd_en(_rd_en),
       .watermark_level(rxcnt),
       .wr_data(rx_fifo_wr_data),
       .rd_data(rx_fifo_rd_data),
       .greater_than_watermark(rx_fifo_greater_than_watermark),
-      .empty(rx_fifo_empty)
+      .empty(rx_fifo_empty),
+      .full(),
+      .less_than_watermark()
   );
 
   uart_tx tx (
@@ -261,7 +267,9 @@ module uart #(
       .nstop(nstop),
       .rxd(rxd),
       .data_out(rx_fifo_wr_data),
-      .data_valid(rx_data_valid)
+      .data_valid(rx_data_valid),
+      .parity_error(),
+      .frame_error()
   );
 
   sync_parallel_counter #(
@@ -310,10 +318,10 @@ module uart #(
   assign tx_data_valid = |tx_data_valid_count;
 
   // Lógica do busy
-  reg [2:0] present_state, next_state;  // Estado da transmissão
+  reg [1:0] present_state, next_state;  // Estado da transmissão
 
   // Estados possíveis
-  localparam reg Idle = 1'b0, Busy = 1'b1;
+  localparam reg [1:0] Idle = 2'b0, Read = 2'b01, Write = 2'b10, Nop = 2'b11;
 
   // Transição de Estado
   always @(posedge clock, posedge reset) begin
@@ -323,13 +331,27 @@ module uart #(
 
 
   always @(*) begin
+    busy   = 0;
+    _rd_en = 0;
+    _wr_en = 0;
     case (present_state)
       default: begin
-        busy = 0;
-        if (rd_en | wr_en) next_state = Busy;
+        if (rd_en) next_state = Read;
+        else if (wr_en) next_state = Write;
+        else next_state = Idle;
       end
-      Busy: begin
-        busy = 1;
+      Read: begin
+        busy = 1'b1;
+        _rd_en = 1'b1;
+        next_state = Nop;
+      end
+      Write: begin
+        busy = 1'b1;
+        _wr_en = 1'b1;
+        next_state = Nop;
+      end
+      Nop: begin
+        busy = 1'b1;
         next_state = Idle;
       end
     endcase

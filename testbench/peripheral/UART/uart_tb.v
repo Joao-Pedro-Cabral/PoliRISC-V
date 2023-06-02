@@ -6,7 +6,7 @@
 //! @date   2023-05-29
 //
 
-`timescale 1 ns / 100 ps
+`timescale 1 ns / 1 ns
 
 `define ASSERT(condition) if (!(condition)) $stop
 
@@ -71,7 +71,7 @@ module uart_tb ();
   ////
 
   uart #(
-      .CLOCK_FREQ_HZ(115200 * 20)
+      .CLOCK_FREQ_HZ(115200 * 32)
   ) DUT (
       .clock  (clock),
       .reset  (reset),
@@ -91,6 +91,7 @@ module uart_tb ();
       //  Se houver interrupt de leitura, o serve
       //  Se houver interrupt de escrita, o serve
       addr[4:2] = 3'b101;
+      @(negedge busy);
       @(negedge clock);
 
       `ASSERT(rd_data[0] === txwm);
@@ -105,8 +106,8 @@ module uart_tb ();
       //  checa por empty antes
       //  Lê (aleatório)
       addr[4:2] = 3'b001;
-      @(posedge busy);
       @(negedge busy);
+      @(negedge clock);
 
       `ASSERT(rx_empty === rd_data[31]);
 
@@ -117,7 +118,7 @@ module uart_tb ();
         `ASSERT(rx_read_ptr == DUT.rx_fifo.rd_reg);
         `ASSERT(rx_watermark_reg == DUT.rx_fifo.watermark_reg);
       end
-      @(negedge clock);
+
     end
   endtask
 
@@ -127,8 +128,8 @@ module uart_tb ();
       //  checa por full antes
       //  escreve (aleatório)
       addr[4:2] = 3'b000;
-      @(posedge busy);
       @(negedge busy);
+      @(negedge clock);
 
       `ASSERT(tx_full === rd_data[31]);
 
@@ -136,12 +137,10 @@ module uart_tb ();
         tx_fifo[tx_write_ptr] = wr_data[7:0];
         tx_write_ptr = tx_write_ptr + 1;
         tx_watermark_reg = tx_watermark_reg + 1'b1;
-        `ASSERT(tx_fifo[tx_write_ptr-1] === DUT.tx_fifo.fifo_memory[DUT.tx_fifo.wr_reg-1]);
         `ASSERT(tx_write_ptr == DUT.tx_fifo.wr_reg);
         `ASSERT(tx_watermark_reg == DUT.tx_fifo.watermark_reg);
+        `ASSERT(tx_fifo[tx_write_ptr-1] === DUT.tx_fifo.fifo_memory[DUT.tx_fifo.wr_reg-1]);
       end
-
-      @(negedge clock);
     end
   endtask
 
@@ -157,25 +156,24 @@ module uart_tb ();
   always #(ClockPeriod / 2) clock = ~clock;
 
   initial begin
+    @(posedge reset)
+    @(posedge clock)
     while (1) begin
-      if (rx_clock_en) begin
-        rx_clock = 0;
-        #(RxClockPeriod / 2);
-        rx_clock = 1;
-        #(RxClockPeriod / 2);
-      end
+      rx_clock = 0;
+      #(RxClockPeriod / 2);
+      rx_clock = 1;
+      #(RxClockPeriod / 2);
     end
   end
 
   initial begin
+    @(posedge reset)
+    @(posedge clock)
     while (1) begin
-      if (tx_clock_en) begin
-        tx_clock = 0;
-        #(TxClockPeriod / 2);
-        tx_clock = 1;
-        #(TxClockPeriod / 2);
-      end
-      else 
+      tx_clock = 0;
+      #(31 * TxClockPeriod / 32);
+      tx_clock = 1;
+      #(TxClockPeriod / 32);
     end
   end
 
@@ -185,22 +183,13 @@ module uart_tb ();
   // Processor's Initial Block
   initial begin
     {clock, reset, rd_en, wr_en, addr, wr_data, tx_watermark_level,
-      tx_watermark_reg, rx_watermark_level, rx_watermark_reg, tx_write_ptr} = 0;
+    tx_watermark_reg, rx_watermark_level, rx_watermark_reg, tx_write_ptr} = 0;
     rx_read_ptr = -3'b001;
 
-    fork
-      begin
-        @(negedge clock);
-        @(posedge clock);
-        {tx_clock_en, rx_clock_en} = 0;
-      end
-      begin
-        @(negedge clock);
-        reset = 1'b1;
-        @(negedge clock);
-        reset = 1'b0;
-      end
-    join
+    @(negedge clock);
+    reset = 1'b1;
+    @(negedge clock);
+    reset              = 1'b0;
 
 
     // Configurando Receive Control Register
@@ -209,7 +198,6 @@ module uart_tb ();
     wr_data[18:16]     = $urandom(Seed);
     rx_watermark_level = wr_data[18:16];
     wr_data[0]         = 1'b1;
-    @(posedge busy);
     @(negedge busy);
 
     // Configurando Transmit Control Register
@@ -217,13 +205,11 @@ module uart_tb ();
     wr_data[18:16]     = $urandom;
     tx_watermark_level = wr_data[18:16];
     wr_data[1:0]       = {Nstop, 1'b1};
-    @(posedge busy);
     @(negedge busy);
 
     // Configurando Interrupt Enable Register
     addr[4:2]    = 3'b100;
     wr_data[1:0] = 2'b11;
-    @(posedge busy);
     @(negedge busy);
     ->init;
 
@@ -239,11 +225,12 @@ module uart_tb ();
     @(negedge clock);
     for (i = 0; i < AmntOfTests; i = i + 1) begin
       rd_en   = 1'b1;
-      wr_en   = $urandom;
+      wr_en   = 1'b0;
       wr_data = $urandom;
 
       InterruptCheck();
 
+      wr_en = $urandom;
       rd_en = ~wr_en;
 
       if (rd_en) ReadOp();
@@ -256,7 +243,7 @@ module uart_tb ();
   task automatic RxStart;
     begin
       rxd = 0;
-      @(negedge rx_clock);
+      @(negedge tx_clock);
 
       `ASSERT(DUT.rx.present_state === DUT.rx.Start);
 
@@ -268,7 +255,7 @@ module uart_tb ();
     begin
       for (j = 0; j < 8; j = j + 1) begin
         rxd = rx_data[j];
-        @(negedge rx_clock);
+        @(negedge tx_clock);
         `ASSERT(DUT.rx.present_state === DUT.rx.Data);
       end
     end
@@ -277,7 +264,7 @@ module uart_tb ();
   task automatic RxStop1;
     begin
       rxd = 1'b1;
-      @(negedge rx_clock);
+      @(negedge tx_clock);
 
       `ASSERT(DUT.rx.present_state === DUT.rx.Stop1);
 
@@ -287,7 +274,7 @@ module uart_tb ();
   task automatic RxStop2;
     begin
       rxd = 1'b1;
-      @(negedge rx_clock);
+      @(negedge tx_clock);
 
       `ASSERT(DUT.rx.present_state === DUT.rx.Stop2);
 
@@ -300,7 +287,7 @@ module uart_tb ();
       rx_fifo[rx_write_ptr] = rx_data;
       rx_write_ptr = rx_write_ptr + 1'b1;
       rx_watermark_reg = rx_watermark_reg + 1'b1;
-      @(negedge rx_clock);
+      @(negedge clock);
 
       `ASSERT(rx_fifo[rx_write_ptr-1'b1] === DUT.rx_fifo.fifo_memory[DUT.rx_fifo.wr_reg-1'b1]);
       `ASSERT(rx_write_ptr === DUT.rx_fifo.wr_reg);
