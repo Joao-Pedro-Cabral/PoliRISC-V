@@ -25,9 +25,7 @@ module uart_tb ();
   // Sinais do DUT
   reg          clock;
   reg          rx_clock;
-  reg          rx_clock_en;
   reg          tx_clock;
-  reg          tx_clock_en;
   reg          reset;
   reg          rd_en;
   reg          wr_en;
@@ -48,19 +46,21 @@ module uart_tb ();
   reg   [ 2:0] rx_watermark_reg;
   reg   [ 2:0] tx_watermark_reg;
   //
-  // Read Operation
+  // Rx Operation
   reg   [ 7:0] rx_fifo            [7:0];
   reg   [ 2:0] rx_read_ptr;
   reg   [ 2:0] rx_write_ptr;
   wire         rx_empty;
   wire         rx_full;
   //
-  // Write Operation
+  // Tx Operation
   reg   [ 7:0] tx_fifo            [7:0];
   reg   [ 2:0] tx_read_ptr;
   reg   [ 2:0] tx_write_ptr;
   wire         tx_empty;
   wire         tx_full;
+  wire         tx_fifo_rd_en;
+  wire         tx_fifo_ed_rst;
   //
   ////
   // Rx block
@@ -113,17 +113,16 @@ module uart_tb ();
       //  Lê (aleatório)
       addr[4:2] = 3'b001;
       @(negedge busy);
+      if (~rx_empty) begin
+        rx_read_ptr = rx_read_ptr + 1'b1;
+        rx_watermark_reg = rx_watermark_reg - 1'b1;
+      end
       @(negedge clock);
 
       `ASSERT(rx_empty === rd_data[31]);
-
-      if (~rx_empty) begin
-        `ASSERT(rx_fifo[rx_read_ptr] === rd_data[7:0]);
-        rx_read_ptr = rx_read_ptr + 1'b1;
-        rx_watermark_reg = rx_watermark_reg - 1'b1;
-        `ASSERT(rx_read_ptr == DUT.rx_fifo.rd_reg);
-        `ASSERT(rx_watermark_reg == DUT.rx_fifo.watermark_reg);
-      end
+      `ASSERT(rx_fifo[rx_read_ptr] === rd_data[7:0]);
+      `ASSERT(rx_read_ptr == DUT.rx_fifo.rd_reg);
+      `ASSERT(rx_watermark_reg == DUT.rx_fifo.watermark_reg);
 
     end
   endtask
@@ -136,18 +135,17 @@ module uart_tb ();
       //  escreve (aleatório)
       addr[4:2] = 3'b000;
       @(negedge busy);
-      @(negedge clock);
-
-      `ASSERT(tx_full === rd_data[31]);
-
       if (~tx_full) begin
         tx_fifo[tx_write_ptr] = wr_data[7:0];
         tx_write_ptr = tx_write_ptr + 1;
         tx_watermark_reg = tx_watermark_reg + 1'b1;
-        `ASSERT(tx_write_ptr == DUT.tx_fifo.wr_reg);
-        `ASSERT(tx_watermark_reg == DUT.tx_fifo.watermark_reg);
-        `ASSERT(tx_fifo[tx_write_ptr-1] === DUT.tx_fifo.fifo_memory[DUT.tx_fifo.wr_reg-1]);
       end
+      @(negedge clock);
+
+      `ASSERT(tx_full === rd_data[31]);
+      `ASSERT(tx_write_ptr == DUT.tx_fifo.wr_reg);
+      `ASSERT(tx_watermark_reg == DUT.tx_fifo.watermark_reg);
+      `ASSERT(tx_fifo[tx_write_ptr-1] === DUT.tx_fifo.fifo_memory[DUT.tx_fifo.wr_reg-1]);
     end
   endtask
 
@@ -347,9 +345,6 @@ module uart_tb ();
     integer k;
     begin
       tx_initial = 2'b01;
-      tx_data = tx_fifo[tx_read_ptr];
-      tx_read_ptr = tx_read_ptr + 1;
-      tx_watermark_reg = tx_watermark_reg - 1;
       @(negedge tx_clock);
 
       for (k = 0; k < 8; k = k + 1) begin
@@ -379,6 +374,33 @@ module uart_tb ();
     end
   endtask
 
+  edge_detector tx_fifo_rd_en_ed (
+      .clock(clock),
+      .reset(reset | tx_fifo_ed_rst),
+      .sinal(DUT.tx_rdy & ~tx_empty),
+      .pulso(tx_fifo_rd_en)
+  );
+
+  register_d #(
+      .N(1),
+      .reset_value(0)
+  ) tx_fifo_rd_en_ed_reg (
+      .clock(clock),
+      .reset(reset | ~DUT.tx_rdy),
+      .enable(tx_fifo_rd_en),
+      .D(DUT.tx_rdy),
+      .Q(tx_fifo_ed_rst)
+  );
+
+  // Lê da Tx FIFO -> SImular comportamento de leitura do DUT
+  always @(posedge clock) begin
+    if (tx_fifo_rd_en) begin
+      tx_data = tx_fifo[tx_read_ptr];
+      tx_read_ptr = tx_read_ptr + 1;
+      tx_watermark_reg = tx_watermark_reg - 1;
+    end
+  end
+
   // Tx's Initial Block
   initial begin
     tx_read_ptr = -3'b001;
@@ -399,7 +421,6 @@ module uart_tb ();
       @(negedge tx_clock);
     end
   end
-
 
 endmodule
 

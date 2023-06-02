@@ -58,6 +58,7 @@ module uart #(
   wire tx_fifo_empty;
   wire tx_fifo_full;
   wire tx_fifo_less_than_watermark;
+  wire tx_fifo_ed_rst;
 
   // Rx Fifo
   wire rx_fifo_rd_en;
@@ -66,6 +67,7 @@ module uart #(
   wire [7:0] rx_fifo_wr_data;
   wire rx_fifo_empty;
   wire rx_fifo_greater_than_watermark;
+  wire rx_fifo_ed_rst;
 
   // UART Tx
   wire tx_clock;
@@ -201,9 +203,20 @@ module uart #(
 
   edge_detector tx_fifo_rd_en_ed (
       .clock(clock),
-      .reset(reset),
-      .sinal(~tx_rdy),
+      .reset(reset | tx_fifo_ed_rst),
+      .sinal(tx_rdy & ~tx_fifo_empty),
       .pulso(tx_fifo_rd_en)
+  );
+
+  register_d #(
+      .N(1),
+      .reset_value(0)
+  ) tx_fifo_rd_en_ed_reg (
+      .clock(clock),
+      .reset(reset | ~tx_rdy),
+      .enable(tx_fifo_rd_en),
+      .D(tx_rdy),
+      .Q(tx_fifo_ed_rst)
   );
 
   FIFO #(
@@ -225,9 +238,20 @@ module uart #(
 
   edge_detector rx_fifo_wr_en_ed (
       .clock(clock),
-      .reset(reset),
-      .sinal(rx_data_valid),
+      .reset(reset | rx_fifo_ed_rst),
+      .sinal(rx_data_valid & ~rx_fifo_full),
       .pulso(rx_fifo_wr_en)
+  );
+
+  register_d #(
+      .N(1),
+      .reset_value(0)
+  ) rx_fifo_rd_en_ed_reg (
+      .clock(clock),
+      .reset(reset | ~rx_data_valid),
+      .enable(rx_fifo_rd_en),
+      .D(rx_data_valid),
+      .Q(rx_fifo_ed_rst)
   );
 
   FIFO #(
