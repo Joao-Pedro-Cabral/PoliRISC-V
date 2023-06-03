@@ -66,6 +66,7 @@ module uart #(
   wire [7:0] rx_fifo_rd_data;
   wire [7:0] rx_fifo_wr_data;
   wire rx_fifo_empty;
+  wire rx_fifo_full;
   wire rx_fifo_greater_than_watermark;
   wire rx_fifo_ed_rst;
 
@@ -267,7 +268,7 @@ module uart #(
       .rd_data(rx_fifo_rd_data),
       .greater_than_watermark(rx_fifo_greater_than_watermark),
       .empty(rx_fifo_empty),
-      .full(),
+      .full(rx_fifo_full),
       .less_than_watermark()
   );
 

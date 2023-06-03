@@ -12,7 +12,7 @@
 
 module uart_tb ();
 
-  localparam integer AmntOfTests = 1000;
+  localparam integer AmntOfTests = 10000;
   localparam integer ClockPeriod = 20;
   localparam integer Seed = 106278;
 
@@ -52,6 +52,8 @@ module uart_tb ();
   reg   [ 2:0] rx_write_ptr;
   wire         rx_empty;
   wire         rx_full;
+  wire         rx_fifo_wr_en;
+  wire         rx_fifo_ed_rst;
   //
   // Tx Operation
   reg   [ 7:0] tx_fifo            [7:0];
@@ -89,6 +91,7 @@ module uart_tb ();
       .busy   (busy)
   );
 
+  // Tasks para checar a interação UART <-> Processador
   task automatic InterruptCheck;
     begin
       processor_initial = 2'b0;
@@ -121,8 +124,8 @@ module uart_tb ();
 
       `ASSERT(rx_empty === rd_data[31]);
       `ASSERT(rx_fifo[rx_read_ptr] === rd_data[7:0]);
-      `ASSERT(rx_read_ptr == DUT.rx_fifo.rd_reg);
-      `ASSERT(rx_watermark_reg == DUT.rx_fifo.watermark_reg);
+      `ASSERT(rx_read_ptr === DUT.rx_fifo.rd_reg);
+      `ASSERT(rx_watermark_reg === DUT.rx_fifo.watermark_reg);
 
     end
   endtask
@@ -143,8 +146,8 @@ module uart_tb ();
       @(negedge clock);
 
       `ASSERT(tx_full === rd_data[31]);
-      `ASSERT(tx_write_ptr == DUT.tx_fifo.wr_reg);
-      `ASSERT(tx_watermark_reg == DUT.tx_fifo.watermark_reg);
+      `ASSERT(tx_write_ptr === DUT.tx_fifo.wr_reg);
+      `ASSERT(tx_watermark_reg === DUT.tx_fifo.watermark_reg);
       `ASSERT(tx_fifo[tx_write_ptr-1] === DUT.tx_fifo.fifo_memory[DUT.tx_fifo.wr_reg-1]);
     end
   endtask
@@ -162,7 +165,7 @@ module uart_tb ();
 
   initial begin
     @(posedge reset)
-    @(posedge clock)
+    @(posedge clock)  // Sincronizando RxClock com rx_clock do DUT
     while (1) begin
       rx_clock = 0;
       #(RxClockPeriod / 2);
@@ -173,7 +176,7 @@ module uart_tb ();
 
   initial begin
     @(posedge reset)
-    @(posedge clock)
+    @(posedge clock)  // Sincronizando TxClock com tx_clock do DUT
     while (1) begin
       tx_clock = 0;
       #(31 * TxClockPeriod / 32);
@@ -245,6 +248,7 @@ module uart_tb ();
     $stop;
   end
 
+  // Tasks para checar a interação UART <-> Serial RX
   task automatic RxStart;
     begin
       rx_initial = 3'b000;
@@ -296,17 +300,40 @@ module uart_tb ();
   task automatic EndRx;
     begin
       rx_initial = 3'b100;
-
-      rx_fifo[rx_write_ptr] = rx_data;
-      rx_write_ptr = rx_write_ptr + 1'b1;
-      rx_watermark_reg = rx_watermark_reg + 1'b1;
-      @(negedge clock);
+      @(negedge tx_clock);
 
       `ASSERT(rx_fifo[rx_write_ptr-1'b1] === DUT.rx_fifo.fifo_memory[DUT.rx_fifo.wr_reg-1'b1]);
       `ASSERT(rx_write_ptr === DUT.rx_fifo.wr_reg);
-      `ASSERT(rx_watermark_reg == DUT.rx_fifo.watermark_reg);
+      `ASSERT(rx_watermark_reg === DUT.rx_fifo.watermark_reg);
     end
   endtask
+
+  // Detectar rx_fifo_wr_en do DUT
+  edge_detector rx_fifo_wr_en_ed (
+      .clock(clock),
+      .reset(reset | rx_fifo_ed_rst),
+      .sinal(DUT.rx_data_valid & ~rx_full),
+      .pulso(rx_fifo_wr_en)
+  );
+
+  register_d #(
+      .N(1),
+      .reset_value(0)
+  ) rx_fifo_wr_en_ed_reg (
+      .clock(clock),
+      .reset(reset | ~DUT.rx_data_valid),
+      .enable(rx_fifo_wr_en),
+      .D(DUT.rx_data_valid),
+      .Q(rx_fifo_ed_rst)
+  );
+  // Escreve na Rx FIFO -> Simular comportamento de escrita na FIFO do DUT
+  always @(posedge clock) begin
+    if (rx_fifo_wr_en) begin
+      rx_fifo[rx_write_ptr] = rx_data;
+      rx_write_ptr = rx_write_ptr + 1'b1;
+      rx_watermark_reg = rx_watermark_reg + 1'b1;
+    end
+  end
 
   // Rx's Initial Block
   initial begin
@@ -331,12 +358,13 @@ module uart_tb ();
     end
   end
 
+  // Tasks para checar a interação UART <-> Serial TX
   task automatic TxStart;
     begin
       tx_initial = 2'b0;
       @(negedge tx_clock);
 
-      `ASSERT(txd == 1'b0);
+      `ASSERT(txd === 1'b0);
 
     end
   endtask
@@ -348,7 +376,7 @@ module uart_tb ();
       @(negedge tx_clock);
 
       for (k = 0; k < 8; k = k + 1) begin
-        `ASSERT(txd == tx_data[k]);
+        `ASSERT(txd === tx_data[k]);
         @(negedge tx_clock);
       end
 
@@ -359,7 +387,8 @@ module uart_tb ();
     begin
       tx_initial = 2'b10;
 
-      `ASSERT(txd == 1'b1);
+      @(negedge tx_clock);
+      `ASSERT(txd === 1'b1);
 
     end
   endtask
@@ -369,11 +398,12 @@ module uart_tb ();
       tx_initial = 2'b11;
       @(negedge tx_clock);
 
-      `ASSERT(txd == 1'b1);
+      `ASSERT(txd === 1'b1);
 
     end
   endtask
 
+  // Detectar tx_fifo_rd_en do DUT
   edge_detector tx_fifo_rd_en_ed (
       .clock(clock),
       .reset(reset | tx_fifo_ed_rst),
@@ -392,11 +422,11 @@ module uart_tb ();
       .Q(tx_fifo_ed_rst)
   );
 
-  // Lê da Tx FIFO -> SImular comportamento de leitura do DUT
+  // Lê da Tx FIFO -> Simular comportamento de leitura da FIFO do DUT
   always @(posedge clock) begin
     if (tx_fifo_rd_en) begin
-      tx_data = tx_fifo[tx_read_ptr];
       tx_read_ptr = tx_read_ptr + 1;
+      tx_data = tx_fifo[tx_read_ptr];
       tx_watermark_reg = tx_watermark_reg - 1;
     end
   end
@@ -406,7 +436,6 @@ module uart_tb ();
     tx_read_ptr = -3'b001;
 
     @(init);
-    @(negedge tx_clock);
     for (i = 0; i < AmntOfTests; i = i + 1) begin
       if (~tx_empty) begin
 
@@ -418,7 +447,7 @@ module uart_tb ();
 
         if (Nstop) TxStop2();
       end
-      @(negedge tx_clock);
+      @(negedge clock);
     end
   end
 
