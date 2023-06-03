@@ -14,7 +14,7 @@ module uart_tb ();
 
   localparam integer AmntOfTests = 10000;
   localparam integer ClockPeriod = 20;
-  localparam integer Seed = 106278;
+  localparam integer Seed = 12553646;
 
   localparam reg Nstop = 1'b1;
   localparam integer TxClockPeriod = 32 * 20;
@@ -63,6 +63,7 @@ module uart_tb ();
   wire         tx_full;
   wire         tx_fifo_rd_en;
   wire         tx_fifo_ed_rst;
+  reg          clock_counter;
   //
   ////
   // Rx block
@@ -116,10 +117,6 @@ module uart_tb ();
       //  Lê (aleatório)
       addr[4:2] = 3'b001;
       @(negedge busy);
-      if (~rx_empty) begin
-        rx_read_ptr = rx_read_ptr + 1'b1;
-        rx_watermark_reg = rx_watermark_reg - 1'b1;
-      end
       @(negedge clock);
 
       `ASSERT(rx_empty === rd_data[31]);
@@ -138,11 +135,6 @@ module uart_tb ();
       //  escreve (aleatório)
       addr[4:2] = 3'b000;
       @(negedge busy);
-      if (~tx_full) begin
-        tx_fifo[tx_write_ptr] = wr_data[7:0];
-        tx_write_ptr = tx_write_ptr + 1;
-        tx_watermark_reg = tx_watermark_reg + 1'b1;
-      end
       @(negedge clock);
 
       `ASSERT(tx_full === rd_data[31]);
@@ -219,16 +211,20 @@ module uart_tb ();
     addr[4:2]    = 3'b100;
     wr_data[1:0] = 2'b11;
     @(negedge busy);
+
+    // Configurando baud rate
+    addr[4:2]     = 3'b110;
+    wr_data[15:0] = $urandom;
+    @(negedge busy);
+
+    // Configurando baud rate
+    addr[4:2]     = 3'b110;
+    wr_data[15:0] = 16'h001F;
+    @(negedge busy);
+
     ->init;
 
-    //  baud rate
-
     $display("[%0t] SOT", $time);
-
-    // Entradas randômicas:
-    //  rd_en
-    //  wr_en
-    //  wr_data
 
     @(negedge clock);
     for (i = 0; i < AmntOfTests; i = i + 1) begin
@@ -245,7 +241,6 @@ module uart_tb ();
       else WriteOp();
     end
     $display("[%0t] EOT", $time);
-    $stop;
   end
 
   // Tasks para checar a interação UART <-> Serial RX
@@ -332,6 +327,17 @@ module uart_tb ();
       rx_fifo[rx_write_ptr] = rx_data;
       rx_write_ptr = rx_write_ptr + 1'b1;
       rx_watermark_reg = rx_watermark_reg + 1'b1;
+    end
+  end
+
+  // Lê na Rx FIFO -> Simular comportamento de leitura na FIFO do DUT
+  always @(posedge clock) begin
+    if (rd_en) begin
+      @(posedge clock);
+      if (~rx_empty & (addr[4:2] == 3'b001)) begin
+        rx_read_ptr = rx_read_ptr + 1'b1;
+        rx_watermark_reg = rx_watermark_reg - 1'b1;
+      end
     end
   end
 
@@ -431,6 +437,19 @@ module uart_tb ();
     end
   end
 
+  // Escreve na Tx FIFO -> Simular comportamento de escrita da FIFO do DUT
+  always @(posedge clock) begin
+    if (wr_en) begin
+      @(posedge clock);
+      @(posedge clock);
+      if (~tx_full & (addr[4:2] == 3'b000)) begin
+        tx_fifo[tx_write_ptr] = wr_data[7:0];
+        tx_write_ptr = tx_write_ptr + 1;
+        tx_watermark_reg = tx_watermark_reg + 1'b1;
+      end
+    end
+  end
+
   // Tx's Initial Block
   initial begin
     tx_read_ptr = -3'b001;
@@ -449,13 +468,7 @@ module uart_tb ();
       end
       @(negedge clock);
     end
+    $stop;
   end
 
 endmodule
-
-// Transmit Data:
-//  full --> indica FIFO cheia
-//  txwm --> indica FIFO pouco cheia
-// Receive Data:
-//  empty --> indica FIFO vazia
-//  rxwm  --> indica FIFO pouco vazia

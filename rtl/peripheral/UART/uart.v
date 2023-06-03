@@ -61,7 +61,6 @@ module uart #(
   wire tx_fifo_ed_rst;
 
   // Rx Fifo
-  wire rx_fifo_rd_en;
   wire rx_fifo_wr_en;
   wire [7:0] rx_fifo_rd_data;
   wire [7:0] rx_fifo_wr_data;
@@ -100,7 +99,7 @@ module uart #(
       .clock(clock),
       .reset(reset),
       .enable(1'b1),
-      .D(_rd_en),
+      .D(_rd_en & (addr[4:2] == 3'b001)),
       .Q(rx_data_en)
   );
 
@@ -247,10 +246,10 @@ module uart #(
   register_d #(
       .N(1),
       .reset_value(0)
-  ) rx_fifo_rd_en_ed_reg (
+  ) rx_fifo_wr_en_ed_reg (
       .clock(clock),
       .reset(reset | ~rx_data_valid),
-      .enable(rx_fifo_rd_en),
+      .enable(rx_fifo_wr_en),
       .D(rx_data_valid),
       .Q(rx_fifo_ed_rst)
   );
@@ -262,7 +261,7 @@ module uart #(
       .clock(clock),
       .reset(reset),
       .wr_en(rx_fifo_wr_en),
-      .rd_en(_rd_en),
+      .rd_en(_rd_en & (addr[4:2] == 3'b001)),
       .watermark_level(rxcnt),
       .wr_data(rx_fifo_wr_data),
       .rd_data(rx_fifo_rd_data),
