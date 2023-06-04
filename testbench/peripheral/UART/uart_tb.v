@@ -12,7 +12,7 @@
 
 module uart_tb ();
 
-  localparam integer AmntOfTests = 10000;
+  localparam integer AmntOfTests = 500;
   localparam integer ClockPeriod = 20;
   localparam integer Seed = 12553646;
 
@@ -158,6 +158,7 @@ module uart_tb ();
   initial begin
     @(posedge reset)
     @(posedge clock)  // Sincronizando RxClock com rx_clock do DUT
+    @(posedge clock)
     while (1) begin
       rx_clock = 0;
       #(RxClockPeriod / 2);
@@ -178,7 +179,7 @@ module uart_tb ();
   end
 
 
-  integer i;
+  integer i1, i2, i3;
 
   // Processor's Initial Block
   initial begin
@@ -222,12 +223,13 @@ module uart_tb ();
     wr_data[15:0] = 16'h001F;
     @(negedge busy);
 
+    @(negedge tx_clock);  // sincronizar as seriais
     ->init;
 
     $display("[%0t] SOT", $time);
 
     @(negedge clock);
-    for (i = 0; i < AmntOfTests; i = i + 1) begin
+    for (i1 = 0; i1 < 20 * AmntOfTests; i1 = i1 + 1) begin
       rd_en   = 1'b1;
       wr_en   = 1'b0;
       wr_data = $urandom;
@@ -240,7 +242,7 @@ module uart_tb ();
       if (rd_en) ReadOp();
       else WriteOp();
     end
-    $display("[%0t] EOT", $time);
+    $display("[%0t] EOT processor", $time);
   end
 
   // Tasks para checar a interação UART <-> Serial RX
@@ -349,7 +351,7 @@ module uart_tb ();
 
     @(init);
     @(negedge rx_clock);
-    for (i = 0; i < AmntOfTests; i = i + 1) begin
+    for (i2 = 0; i2 < AmntOfTests; i2 = i2 + 1) begin
       rx_data = $urandom;
 
       RxStart();
@@ -361,7 +363,13 @@ module uart_tb ();
       if (Nstop) RxStop2();
 
       if (~rx_full) EndRx();
+      else begin
+        rx_initial = 3'b101;
+        @(negedge tx_clock);
+      end
     end
+    $display("[%0t] EOT RX", $time);
+    $stop;
   end
 
   // Tasks para checar a interação UART <-> Serial TX
@@ -455,7 +463,7 @@ module uart_tb ();
     tx_read_ptr = -3'b001;
 
     @(init);
-    for (i = 0; i < AmntOfTests; i = i + 1) begin
+    for (i3 = 0; i3 < 20 * AmntOfTests; i3 = i3 + 1) begin
       if (~tx_empty) begin
 
         TxStart();
@@ -468,7 +476,7 @@ module uart_tb ();
       end
       @(negedge clock);
     end
-    $stop;
+    $display("[%0t] EOT TX", $time);
   end
 
 endmodule

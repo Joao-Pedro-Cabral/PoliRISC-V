@@ -59,6 +59,7 @@ module uart #(
   wire tx_fifo_full;
   wire tx_fifo_less_than_watermark;
   wire tx_fifo_ed_rst;
+  wire tx_fifo_rd_en_negedge;
 
   // Rx Fifo
   wire rx_fifo_wr_en;
@@ -74,7 +75,6 @@ module uart #(
   wire tx_data_valid;
   wire tx_rdy;
   wire [15:0] tx_counter;
-  wire [15:0] tx_data_valid_count;
 
   // UART Rx
   wire rx_clock;
@@ -201,6 +201,8 @@ module uart #(
       .Y(rd_data)
   );
 
+  // Edge detector com registrador para detectar que o TX deseja um dado
+  // TX pronto e fila não vazia -> habilitar leitura na FIFO
   edge_detector tx_fifo_rd_en_ed (
       .clock(clock),
       .reset(reset | tx_fifo_ed_rst),
@@ -236,6 +238,8 @@ module uart #(
       .greater_than_watermark()
   );
 
+  // Edge detector com registrador para detectar que o RX tem um dado
+  // RX pronto e fila não cheia -> habilitar escrita na FIFO
   edge_detector rx_fifo_wr_en_ed (
       .clock(clock),
       .reset(reset | rx_fifo_ed_rst),
@@ -301,7 +305,7 @@ module uart #(
       .init_value(0)
   ) tx_baud_rate_generator (
       .clock(clock),
-      .load(tx_counter == div),
+      .load(tx_counter >= div),
       .load_value(16'b0),
       .reset(reset),
       .inc_enable(1'b1),
@@ -309,14 +313,14 @@ module uart #(
       .value(tx_counter)
   );
 
-  assign tx_clock = div == 0 ? clock : tx_counter == div;
+  assign tx_clock = div == 0 ? clock : tx_counter >= div;
 
   sync_parallel_counter #(
       .size(12),
       .init_value(0)
   ) rx_baud_rate_generator (
       .clock(clock),
-      .load(rx_counter == div[15:4]),
+      .load(rx_counter >= div[15:4]),
       .load_value(12'b0),
       .reset(reset),
       .inc_enable(1'b1),
@@ -324,22 +328,28 @@ module uart #(
       .value(rx_counter)
   );
 
-  assign rx_clock = div[15:4] == 0 ? clock : (rx_counter == div[15:4]);
+  assign rx_clock = div[15:4] == 0 ? clock : (rx_counter >= div[15:4]);
 
-  sync_parallel_counter #(
-      .size(16),
-      .init_value(0)
-  ) tx_data_valid_counter (
+  // Circuito para que o TX saiba que há um dado válido na entrada
+  // Detectar borda de descida do rd_en da FIFO
+  // Resetar quando o TX pegar esse dado(tx_rdy = 0)
+  negedge_detector tx_fifo_rd_en_ed_not (
       .clock(clock),
-      .load(~tx_rdy | (tx_rdy & ~tx_fifo_empty)),
-      .load_value({15'b0, tx_rdy}),
       .reset(reset),
-      .inc_enable(1'b1),
-      .dec_enable(1'b0),
-      .value(tx_data_valid_count)
+      .sinal(tx_fifo_rd_en),
+      .pulso(tx_fifo_rd_en_negedge)
   );
 
-  assign tx_data_valid = |tx_data_valid_count;
+  register_d #(
+      .N(1),
+      .reset_value(0)
+  ) tx_data_valid_reg (
+      .clock(clock),
+      .reset(reset | ~tx_rdy),
+      .enable(tx_fifo_rd_en_negedge),
+      .D(1'b1),
+      .Q(tx_data_valid)
+  );
 
   // Lógica do busy
   reg [1:0] present_state, next_state;  // Estado da transmissão
