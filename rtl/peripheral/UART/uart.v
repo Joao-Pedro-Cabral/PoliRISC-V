@@ -203,7 +203,10 @@ module uart #(
 
   // Edge detector com registrador para detectar que o TX deseja um dado
   // TX pronto e fila não vazia -> habilitar leitura na FIFO
-  edge_detector tx_fifo_rd_en_ed (
+  edge_detector #(
+      .RESET_VALUE(0),
+      .EDGE_MODE(0)   // borda de subida
+  ) tx_fifo_rd_en_ed (
       .clock(clock),
       .reset(reset | tx_fifo_ed_rst),
       .sinal(tx_rdy & ~tx_fifo_empty),
@@ -240,7 +243,10 @@ module uart #(
 
   // Edge detector com registrador para detectar que o RX tem um dado
   // RX pronto e fila não cheia -> habilitar escrita na FIFO
-  edge_detector rx_fifo_wr_en_ed (
+  edge_detector #(
+      .RESET_VALUE(0),
+      .EDGE_MODE(0)  // borda de subida
+  ) rx_fifo_wr_en_ed (
       .clock(clock),
       .reset(reset | rx_fifo_ed_rst),
       .sinal(rx_data_valid & ~rx_fifo_full),
@@ -333,7 +339,10 @@ module uart #(
   // Circuito para que o TX saiba que há um dado válido na entrada
   // Detectar borda de descida do rd_en da FIFO
   // Resetar quando o TX pegar esse dado(tx_rdy = 0)
-  negedge_detector tx_fifo_rd_en_ed_not (
+  edge_detector #(
+      .RESET_VALUE(0),
+      .EDGE_MODE(1)  // borda de descida
+  ) tx_fifo_rd_en_ed_not (
       .clock(clock),
       .reset(reset),
       .sinal(tx_fifo_rd_en),

@@ -66,7 +66,7 @@ module sdram_tester_df (
         .dram_we_n(dram_we_n), .dram_ldqm(dram_ldqm), .dram_udqm(dram_udqm), .dram_dq(dram_dq));
 
     // Edge detector (Ativar é ativo alto X KEY1 é ativo baixo)
-    edge_detector detecta_ativar (.clock(clock), .reset(reset), .sinal(~ativar), .pulso(ativado));
+    edge_detector #(.RESET_VALUE(0), .EDGE_MODE(0)) detecta_ativar (.clock(clock), .reset(reset), .sinal(~ativar), .pulso(ativado));
 
     // Registradores para acessar o Controlador
     register_d #(.N(2), .reset_value(0))  op_reg (.clock(clock), .reset(reset | op_rst), .enable(rd_en | wr_en), 

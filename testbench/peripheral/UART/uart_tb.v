@@ -463,7 +463,7 @@ module uart_tb ();
     tx_read_ptr = -3'b001;
 
     @(init);
-    for (i3 = 0; i3 < 20 * AmntOfTests; i3 = i3 + 1) begin
+    for (i3 = 0; i3 < AmntOfTests; i3 = i3 + 1) begin
       if (~tx_empty) begin
 
         TxStart();
