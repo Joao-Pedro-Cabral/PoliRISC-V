@@ -96,7 +96,7 @@ module sdram_tester_df (
 
     // Contagem
     sync_parallel_counter #(.size(3), .init_value(0)) counter (.clock(clock), .reset(cnt_rst), .load(1'b0),
-        .enable(cnt_en), .load_value(3'b0), .value(contagem));
+        .inc_enable(cnt_en), .dec_enable(1'b0), .load_value(3'b0), .value(contagem));
     
     // Lógica para determinar o byte_num
     always @(*) begin

@@ -306,7 +306,10 @@ module uart_tb ();
   endtask
 
   // Detectar rx_fifo_wr_en do DUT
-  edge_detector rx_fifo_wr_en_ed (
+  edge_detector #(
+      .RESET_VALUE(0),
+      .EDGE_MODE(0)   // borda de subida
+    ) rx_fifo_wr_en_ed (
       .clock(clock),
       .reset(reset | rx_fifo_ed_rst),
       .sinal(DUT.rx_data_valid & ~rx_full),
@@ -418,7 +421,10 @@ module uart_tb ();
   endtask
 
   // Detectar tx_fifo_rd_en do DUT
-  edge_detector tx_fifo_rd_en_ed (
+  edge_detector #(
+      .RESET_VALUE(0),
+      .EDGE_MODE(0)   // borda de subida
+    ) tx_fifo_rd_en_ed (
       .clock(clock),
       .reset(reset | tx_fifo_ed_rst),
       .sinal(DUT.tx_rdy & ~tx_empty),
