@@ -29,7 +29,13 @@ module memory_controller #(
     /* //// */
 
     /* Interface com a UART */
-`ifdef UART
+`ifdef UART_0
+    input [8*BYTE_AMNT-1:0] uart_0_rd_data,
+    input uart_0_busy,
+    output uart_0_rd_en,
+    output uart_0_wr_en,
+    output [4:0] uart_0_addr,
+    output [8*BYTE_AMNT-1:0] uart_0_wr_data,
 `endif
     /* //// */
 
@@ -43,22 +49,31 @@ module memory_controller #(
     output [8*BYTE_AMNT-1:0] rd_data,
     output mem_busy
     /* //// */
-
 );
 
   /* Sinais de controle */
   wire s_rom_enable = mem_addr[8*BYTE_AMNT-1:24] == 0 ? 1'b1 : 1'b0;  // 16 MiB para a ROM
-  // 64 MiB para a RAM
-  wire   s_ram_chip_select     = mem_addr[8*BYTE_AMNT-1:24] <= 'b100
-                                 && mem_addr[8*BYTE_AMNT-1:24] >= 'b1 ? 1'b1 : 1'b0;
+  wire s_ram_chip_select =
+    mem_addr[8*BYTE_AMNT-1:24] <= 'b100 && mem_addr[8*BYTE_AMNT-1:24] >= 'b1 ? 1'b1
+    : 1'b0;  // 64 MiB para a RAM
+  wire uart_0_cs =
+    mem_addr[8*BYTE_AMNT-1:12] >= 'h10013 && mem_addr[8*BYTE_AMNT-1:0] <= 'h10013018 ? 1'b1
+    : 1'b0;
+
   assign inst_cache_enable = s_rom_enable & mem_rd_en;
   assign ram_chip_select = s_ram_chip_select;
 
-  assign mem_busy = s_rom_enable ? inst_cache_busy : s_ram_chip_select ? ram_busy : 1'b0;
+  assign mem_busy =
+    s_rom_enable ? inst_cache_busy
+    : s_ram_chip_select ? ram_busy
+    : uart_0_cs ? uart_0_busy
+    : 1'b0;
 
   assign ram_output_enable = s_ram_chip_select ? mem_rd_en : 1'b0;
   assign ram_write_enable = s_ram_chip_select ? mem_wr_en : 1'b0;
   assign ram_byte_enable = s_ram_chip_select ? mem_byte_en : 0;
+  assign uart_0_rd_en = uart_0_cs ? mem_rd_en : 1'b0;
+  assign uart_0_wr_en = uart_0_cs ? mem_wr_en : 1'b0;
   /* //// */
 
   /* Endereçamento */
@@ -66,23 +81,31 @@ module memory_controller #(
   assign inst_cache_addr[8*BYTE_AMNT-1:24] = 'b0;
 
   wire ram_address24 = (~mem_addr[24]) & (mem_addr[26] ^ mem_addr[25]);
-  wire ram_address25 = (~mem_addr[26])&(mem_addr[25]&mem_addr[24])|
-                        mem_addr[26]&(~mem_addr[25])&(~mem_addr[24]);
+  wire ram_address25 =
+    (~mem_addr[26])&(mem_addr[25]&mem_addr[24])|mem_addr[26]&(~mem_addr[25])&(~mem_addr[24]);
   assign ram_address[25:0] = {ram_address25, ram_address24, mem_addr[23:0]};
   assign ram_address[8*BYTE_AMNT-1:26] = 'b0;
+
+  assign uart_0_addr = mem_addr[4:0];
   /* //// */
 
   /* Entradas de dados  */
   genvar i;
   generate
     for (i = 0; i < BYTE_AMNT; i = i + 1) begin : g_read_data
-      assign rd_data[(i+1)*8-1 -: 8] = s_rom_enable ? inst_cache_data[(i+1)*8-1 -: 8] : (s_ram_chip_select ? ram_read_data[(i+1)*8-1 -: 8] : 'b0);
+      assign rd_data[(i+1)*8-1 -: 8] =
+        s_rom_enable ? inst_cache_data[(i+1)*8-1 -: 8]
+        : s_ram_chip_select ? ram_read_data[(i+1)*8-1 -: 8]
+        : uart_0_cs ? uart_0_rd_data[(i+1)*8-1 -: 8]
+        : 'b0;
     end
   endgenerate
   /* //// */
 
   /* Saídas de dados */
   assign ram_write_data = s_ram_chip_select ? wr_data : 'b0;
+
+  assign uart_0_wr_en   = uart_0_cs ? wr_data : 'b0;
   /* //// */
 
 endmodule
