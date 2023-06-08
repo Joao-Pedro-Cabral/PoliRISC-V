@@ -156,7 +156,7 @@ module RV32I_uart_tb ();
   );
 
   // curto circuito da serial da UART
-  assign uart_rxd = uart_txd;
+  assign uart_rxd = 1'b1;
 
   // Geração de clock
   always #(ClockPeriod / 2) clock = ~clock;

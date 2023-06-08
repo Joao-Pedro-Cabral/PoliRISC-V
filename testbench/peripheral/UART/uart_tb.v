@@ -117,6 +117,8 @@ module uart_tb ();
       //  checa por empty antes
       //  Lê (aleatório)
       addr[4:2] = 3'b001;
+      @(posedge busy);
+      @(posedge clock);
       rx_empty_ = (rx_watermark_reg == 3'b000);
       @(negedge busy);
       @(negedge clock);
@@ -339,13 +341,13 @@ module uart_tb ();
 
   // Lê na Rx FIFO -> Simular comportamento de leitura na FIFO do DUT
   always @(posedge clock) begin
-    if (rd_en) begin
+    if (rd_en & (addr[4:2] == 3'b001)) begin
       @(posedge clock);
-      @(posedge clock);
-      if (~rx_empty & (addr[4:2] == 3'b001)) begin
+      if (~rx_empty) begin
         rx_read_ptr = rx_read_ptr + 1'b1;
         rx_watermark_reg = rx_watermark_reg - 1'b1;
       end
+      @(posedge clock);
     end
   end
 
