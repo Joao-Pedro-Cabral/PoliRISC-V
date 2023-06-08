@@ -10,88 +10,111 @@
 
 module memory_controller_tb;
 
+  localparam integer ClockPeriod = 20;
+
   // Sinais do testbench
   reg clock;
   reg reset;
-  reg [63:0] inst_cache_memory[7:0];
-  reg [63:0] ram_memory[7:0];
+  reg [31:0] inst_cache_memory[7:0];
+  reg [31:0] ram_memory[7:0];
   integer i;
 
   // Entradas
   reg mem_rd_en;
   reg mem_wr_en;
   reg [7:0] mem_byte_en;
-  reg [63:0] wr_data;
-  reg [63:0] mem_addr;
+  reg [31:0] wr_data;
+  reg [31:0] mem_addr;
 
   // Saídas
-  wire [63:0] rd_data;
+  wire [31:0] rd_data;
   wire mem_busy;
 
   // Interface da Cache
-  wire [63:0] inst_cache_data;
+  wire [31:0] inst_cache_data;
   wire inst_cache_busy;
   wire inst_cache_enable;
-  wire [63:0] inst_cache_addr;
+  wire [31:0] inst_cache_addr;
 
   // Interface da ROM com a Cache
-  wire [63:0] inst_data;
+  wire [31:0] inst_data;
   wire inst_busy;
   wire inst_enable;
-  wire [63:0] inst_addr;
+  wire [31:0] inst_addr;
 
   // Interface da RAM
-  wire [63:0] ram_read_data;
+  wire [31:0] ram_read_data;
   wire ram_busy;
-  wire [63:0] ram_address;
-  wire [63:0] ram_write_data;
+  wire [31:0] ram_address;
+  wire [31:0] ram_write_data;
   wire ram_output_enable;
   wire ram_write_enable;
   wire ram_chip_select;
   wire [7:0] ram_byte_enable;
 
+  // Interface da UART
+  wire [31:0] uart_0_rd_data;
+  wire uart_0_busy;
+  wire uart_0_rd_en;
+  wire uart_0_wr_en;
+  wire [4:0] uart_0_addr;
+  wire [31:0] uart_0_wr_data;
+  reg txd, rxd;
+
+
   // Instanciação do DUT
   memory_controller DUT (
-      .mem_rd_en(mem_rd_en),
-      .mem_wr_en(mem_wr_en),
-      .mem_byte_en(mem_byte_en),
-      .wr_data(wr_data),
-      .mem_addr(mem_addr),
-      .rd_data(rd_data),
-      .mem_busy(mem_busy),
-      .inst_cache_data(inst_cache_data),
-      .inst_cache_busy(inst_cache_busy),
+      .mem_rd_en        (mem_rd_en),
+      .mem_wr_en        (mem_wr_en),
+      .mem_byte_en      (mem_byte_en),
+      .wr_data          (wr_data),
+      .mem_addr         (mem_addr),
+      .rd_data          (rd_data),
+      .mem_busy         (mem_busy),
+      .inst_cache_data  (inst_cache_data),
+      .inst_cache_busy  (inst_cache_busy),
       .inst_cache_enable(inst_cache_enable),
-      .inst_cache_addr(inst_cache_addr),
-      .ram_read_data(ram_read_data),
-      .ram_busy(ram_busy),
-      .ram_address(ram_address),
-      .ram_write_data(ram_write_data),
+      .inst_cache_addr  (inst_cache_addr),
+      .ram_read_data    (ram_read_data),
+      .ram_busy         (ram_busy),
+      .ram_address      (ram_address),
+      .ram_write_data   (ram_write_data),
       .ram_output_enable(ram_output_enable),
-      .ram_write_enable(ram_write_enable),
-      .ram_chip_select(ram_chip_select),
-      .ram_byte_enable(ram_byte_enable)
+      .ram_write_enable (ram_write_enable),
+      .ram_chip_select  (ram_chip_select),
+      .ram_byte_enable  (ram_byte_enable),
+      .uart_0_rd_data   (uart_0_rd_data),
+      .uart_0_busy      (uart_0_busy),
+      .uart_0_rd_en     (uart_0_rd_en),
+      .uart_0_wr_en     (uart_0_wr_en),
+      .uart_0_addr      (uart_0_addr),
+      .uart_0_wr_data   (uart_0_wr_data)
   );
 
-  instruction_cache cache (
-      .clock(clock),
-      .reset(reset),
-      .inst_data(inst_data),
-      .inst_busy(inst_busy),
-      .inst_enable(inst_enable),
-      .inst_addr(inst_addr),
+  instruction_cache #(
+      .L2_CACHE_SIZE(8),  // bytes
+      .L2_BLOCK_SIZE(6),  // bytes
+      .L2_ADDR_SIZE (5),  // bits
+      .L2_DATA_SIZE (2)   // bytes
+  ) cache (
+      .clock            (clock),
+      .reset            (reset),
+      .inst_data        (inst_data),
+      .inst_busy        (inst_busy),
+      .inst_enable      (inst_enable),
+      .inst_addr        (inst_addr),
       .inst_cache_enable(inst_cache_enable),
-      .inst_cache_addr(inst_cache_addr),
-      .inst_cache_data(inst_cache_data),
-      .inst_cache_busy(inst_cache_busy)
+      .inst_cache_addr  (inst_cache_addr),
+      .inst_cache_data  (inst_cache_data),
+      .inst_cache_busy  (inst_cache_busy)
   );
 
   // Instanciação da memória ROM
   ROM #(
       .rom_init_file("./ROM.mif"),
-      .word_size(8),
+      .word_size(4),
       .addr_size(6),
-      .offset(3),
+      .offset(2),
       .busy_cycles(12)
   ) rom (
       .clock (clock),
@@ -106,23 +129,38 @@ module memory_controller_tb;
       .RAM_INIT_FILE("./RAM.mif"),
       .ADDR_SIZE(24),
       .BYTE_SIZE(8),
-      .DATA_SIZE(64),
+      .DATA_SIZE(32),
       .BUSY_CYCLES(30)
   ) ram (
-      .clk(clock),
-      .address(ram_address),
-      .write_data(ram_write_data),
+      .clk          (clock),
+      .address      (ram_address),
+      .write_data   (ram_write_data),
       .output_enable(ram_output_enable),
-      .write_enable(ram_write_enable),
-      .chip_select(ram_chip_select),
-      .byte_enable(ram_byte_enable),
-      .read_data(ram_read_data),
-      .busy(ram_busy)
+      .write_enable (ram_write_enable),
+      .chip_select  (ram_chip_select),
+      .byte_enable  (ram_byte_enable),
+      .read_data    (ram_read_data),
+      .busy         (ram_busy)
+  );
+
+  uart #(
+      .CLOCK_FREQ_HZ(115200 * 32)
+  ) uart_0 (
+      .clock  (clock),
+      .reset  (reset),
+      .rd_en  (uart_0_rd_en),
+      .wr_en  (uart_0_wr_en),
+      .addr   (uart_0_addr),     // 0x00 a 0x18
+      .rxd    (rxd),             // dado serial
+      .wr_data(uart_0_wr_data),
+      .txd    (txd),             // dado de transmissão
+      .rd_data(uart_0_rd_data),
+      .busy   (uart_0_busy)
   );
 
 
   // Geração do clock
-  always #3 clock = ~clock;
+  always #(ClockPeriod / 2) clock = ~clock;
 
   initial begin
     $readmemb("./ROM.mif", inst_cache_memory);
@@ -221,6 +259,25 @@ module memory_controller_tb;
       else $display("Acerto no teste %d de escrita da RAM", i + 1);
       mem_rd_en = 0;
     end
+
+    // Teste de configuração da UART
+    @(negedge clock);
+
+    mem_addr = 'h10013000 + 'b01100;
+    wr_data[18:16] = 3'o7;
+    wr_data[0] = 1'b1;
+    wr_en = 1'b1;
+    @(negedge mem_busy);
+
+    mem_addr = 'h10013000 + 'b01000;
+    wr_data[18:16] = 3'o7;
+    wr_data[1:0] = 2'b01;
+    @(negedge mem_busy);
+
+    mem_addr = 'h10013000 + 'b10000;
+    wr_data[1:0] = 2'b11;
+    @(negedge mem_busy);
+
 
     $stop;
   end

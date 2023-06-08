@@ -11,3 +11,4 @@ simulation/work/
 simulation/transcript
 simulation/*.wlf
 simulation/Makefile
+simulation/assembly_converter/program.mif
