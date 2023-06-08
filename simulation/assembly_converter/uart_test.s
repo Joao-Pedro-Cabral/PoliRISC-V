@@ -18,4 +18,5 @@ and  x31,x29,x30 ; apply mask
 beq  x31,x0,-2   ; if fifo empty, check again
 sub  x6,x28,x29  ; if equal to 0, value sent and received are the same
 sw   x6,0(sp)    ; stores result in RAM
+addi x28,x28,1   ; loop increment
 jal  x0,-20      ; loop
