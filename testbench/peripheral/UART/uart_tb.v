@@ -51,6 +51,7 @@ module uart_tb ();
   reg   [ 2:0] rx_read_ptr;
   reg   [ 2:0] rx_write_ptr;
   wire         rx_empty;
+  reg          rx_empty_;
   wire         rx_full;
   wire         rx_fifo_wr_en;
   wire         rx_fifo_ed_rst;
@@ -116,10 +117,11 @@ module uart_tb ();
       //  checa por empty antes
       //  Lê (aleatório)
       addr[4:2] = 3'b001;
+      rx_empty_ = (rx_watermark_reg == 3'b000);
       @(negedge busy);
       @(negedge clock);
 
-      `ASSERT(rx_empty === rd_data[31]);
+      `ASSERT(rx_empty_ === rd_data[31]);
       `ASSERT(rx_fifo[rx_read_ptr] === rd_data[7:0]);
       `ASSERT(rx_read_ptr === DUT.rx_fifo.rd_reg);
       `ASSERT(rx_watermark_reg === DUT.rx_fifo.watermark_reg);
@@ -308,8 +310,8 @@ module uart_tb ();
   // Detectar rx_fifo_wr_en do DUT
   edge_detector #(
       .RESET_VALUE(0),
-      .EDGE_MODE(0)   // borda de subida
-    ) rx_fifo_wr_en_ed (
+      .EDGE_MODE  (0)   // borda de subida
+  ) rx_fifo_wr_en_ed (
       .clock(clock),
       .reset(reset | rx_fifo_ed_rst),
       .sinal(DUT.rx_data_valid & ~rx_full),
@@ -338,6 +340,7 @@ module uart_tb ();
   // Lê na Rx FIFO -> Simular comportamento de leitura na FIFO do DUT
   always @(posedge clock) begin
     if (rd_en) begin
+      @(posedge clock);
       @(posedge clock);
       if (~rx_empty & (addr[4:2] == 3'b001)) begin
         rx_read_ptr = rx_read_ptr + 1'b1;
@@ -423,8 +426,8 @@ module uart_tb ();
   // Detectar tx_fifo_rd_en do DUT
   edge_detector #(
       .RESET_VALUE(0),
-      .EDGE_MODE(0)   // borda de subida
-    ) tx_fifo_rd_en_ed (
+      .EDGE_MODE  (0)   // borda de subida
+  ) tx_fifo_rd_en_ed (
       .clock(clock),
       .reset(reset | tx_fifo_ed_rst),
       .sinal(DUT.tx_rdy & ~tx_empty),
