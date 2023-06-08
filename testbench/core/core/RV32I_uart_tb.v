@@ -5,10 +5,15 @@
 //! @date   2023-03-04
 //
 
+// 2 TBs em 1
+// Primeiro TB (uart_test.mif)
 // Checar se o processador consegue escrever/ler da UART
 // Escreve dado no TX -> Recebe o mesmo dado pelo RX
 // Subtrai o valor escrito e o recebido
 // Escreve o resultado no endereço
+// Segundo TB (uart_tx_full_test.mif)
+// Checar o comportamento do processador ao escrever no TX
+// Observar como o processador ve o tx_full
 
 `timescale 1 ns / 1 ns
 
@@ -17,7 +22,8 @@
 module RV32I_uart_tb ();
 
   // Parâmetros da Simulação
-  localparam integer AmntOfTests = 100;
+  localparam integer AmntOfTests = 100;  // modo echo
+  //   localparam integer AmntOfTests = 1;  // tx_full = 1 -> Escrever 0 na RAM -> EOT
   localparam integer ClockPeriod = 20;
 
   // sinais do DUT
@@ -156,7 +162,8 @@ module RV32I_uart_tb ();
   );
 
   // curto circuito da serial da UART
-  assign uart_rxd = 1'b1;
+  assign uart_rxd = uart_txd;  // modo echo
+  //   assign uart_rxd = 1'b1;  // checar tx_full
 
   // Geração de clock
   always #(ClockPeriod / 2) clock = ~clock;
