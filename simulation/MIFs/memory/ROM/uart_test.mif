@@ -66,8 +66,8 @@
 11111111
 11101110
 00000001
-11100011 // beq  x31,x0,-2   ; if fifo empty, check again
-10001111
+11100011 // bne  x31,x0,-4   ; if fifo empty, check again
+10011110
 00001111
 11111110
 00110011 // sub  x6,x28,x29  ; if equal to 0, value sent and received are the same
