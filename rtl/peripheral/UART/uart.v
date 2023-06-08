@@ -66,6 +66,7 @@ module uart #(
   wire [7:0] rx_fifo_rd_data;
   wire [7:0] rx_fifo_wr_data;
   wire rx_fifo_empty;
+  wire rx_fifo_empty_;
   wire rx_fifo_full;
   wire rx_fifo_greater_than_watermark;
   wire rx_fifo_ed_rst;
@@ -125,6 +126,17 @@ module uart #(
       .enable(rx_data_en),
       .D(rx_fifo_rd_data),
       .Q(rxdata)
+  );
+  // Obter empty antes da leitura ser feita
+  register_d #(
+      .N(1),
+      .reset_value(0)
+  ) receive_empty_register (
+      .clock(clock),
+      .reset(reset),
+      .enable(_rd_en & (addr[4:2] == 3'b001)),
+      .D(rx_fifo_empty),
+      .Q(rx_fifo_empty_)
   );
   // Transmit Control Register
   register_d #(
@@ -194,7 +206,7 @@ module uart #(
         {30'b0, e_rxwm, e_txwm},
         {13'b0, rxcnt, 15'b0, rxen},
         {13'b0, txcnt, 14'b0, nstop, txen},
-        {rx_fifo_empty, 23'b0, rxdata},
+        {rx_fifo_empty_, 23'b0, rxdata},
         {tx_fifo_full, 23'b0, txdata}
       }),
       .S(addr[4:2]),
@@ -205,7 +217,7 @@ module uart #(
   // TX pronto e fila não vazia -> habilitar leitura na FIFO
   edge_detector #(
       .RESET_VALUE(0),
-      .EDGE_MODE(0)   // borda de subida
+      .EDGE_MODE  (0)   // borda de subida
   ) tx_fifo_rd_en_ed (
       .clock(clock),
       .reset(reset | tx_fifo_ed_rst),
@@ -245,7 +257,7 @@ module uart #(
   // RX pronto e fila não cheia -> habilitar escrita na FIFO
   edge_detector #(
       .RESET_VALUE(0),
-      .EDGE_MODE(0)  // borda de subida
+      .EDGE_MODE  (0)   // borda de subida
   ) rx_fifo_wr_en_ed (
       .clock(clock),
       .reset(reset | rx_fifo_ed_rst),
@@ -341,7 +353,7 @@ module uart #(
   // Resetar quando o TX pegar esse dado(tx_rdy = 0)
   edge_detector #(
       .RESET_VALUE(0),
-      .EDGE_MODE(1)  // borda de descida
+      .EDGE_MODE  (1)   // borda de descida
   ) tx_fifo_rd_en_ed_not (
       .clock(clock),
       .reset(reset),

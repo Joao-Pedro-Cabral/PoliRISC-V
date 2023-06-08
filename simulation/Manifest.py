@@ -2,11 +2,18 @@ import subprocess
 
 action   = "simulation"
 sim_tool = "modelsim"
-sim_top  = "uart" + "_tb"
-use_mif  = False
-mif_name = "set_less_than32.mif"
+sim_top  = "RV32I_uart" + "_tb"
+use_mif  = True
+mif_name = "uart_test.mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/" + mif_name
+lista_de_macros = ["UART_0"]
+
+#gerar arquivo de macros
+macros_file = open("macros.vh", 'w')
+for macro in lista_de_macros:
+    macros_file.write("`define " + macro + ' \n')
+macros_file.close()
 
 vlog_opt = " -vlog01compat +define+program_size=" + str(int(subprocess.check_output(["wc", "-l", rom_mif_path]).split()[0]))
 

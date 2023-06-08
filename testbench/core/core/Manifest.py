@@ -1,6 +1,7 @@
 files = [
     "RV64I_tb.v",
-    "RV32I_tb.v"
+    "RV32I_tb.v",
+    "RV32I_uart_tb.v"
 ]
 
 modules = {

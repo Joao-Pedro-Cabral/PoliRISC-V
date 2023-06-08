@@ -6,7 +6,9 @@
 //! @date   2023-04-24
 //
 
+`include "macros.vh"
 `timescale 1 ns / 100 ps
+
 module memory_controller #(
     parameter integer BYTE_AMNT = 8
 ) (
@@ -56,24 +58,31 @@ module memory_controller #(
   wire s_ram_chip_select =
     mem_addr[8*BYTE_AMNT-1:24] <= 'b100 && mem_addr[8*BYTE_AMNT-1:24] >= 'b1 ? 1'b1
     : 1'b0;  // 64 MiB para a RAM
+`ifdef UART_0
   wire uart_0_cs =
     mem_addr[8*BYTE_AMNT-1:12] >= 'h10013 && mem_addr[8*BYTE_AMNT-1:0] <= 'h10013018 ? 1'b1
     : 1'b0;
+`endif
 
   assign inst_cache_enable = s_rom_enable & mem_rd_en;
   assign ram_chip_select = s_ram_chip_select;
 
+  // Trocar por OR invés de mux?
   assign mem_busy =
     s_rom_enable ? inst_cache_busy
     : s_ram_chip_select ? ram_busy
-    : uart_0_cs ? uart_0_busy
+    `ifdef UART_0
+        : uart_0_cs ? uart_0_busy
+    `endif
     : 1'b0;
 
   assign ram_output_enable = s_ram_chip_select ? mem_rd_en : 1'b0;
   assign ram_write_enable = s_ram_chip_select ? mem_wr_en : 1'b0;
   assign ram_byte_enable = s_ram_chip_select ? mem_byte_en : 0;
+`ifdef UART_0
   assign uart_0_rd_en = uart_0_cs ? mem_rd_en : 1'b0;
   assign uart_0_wr_en = uart_0_cs ? mem_wr_en : 1'b0;
+`endif
   /* //// */
 
   /* Endereçamento */
@@ -86,7 +95,9 @@ module memory_controller #(
   assign ram_address[25:0] = {ram_address25, ram_address24, mem_addr[23:0]};
   assign ram_address[8*BYTE_AMNT-1:26] = 'b0;
 
+`ifdef UART_0
   assign uart_0_addr = mem_addr[4:0];
+`endif
   /* //// */
 
   /* Entradas de dados  */
@@ -96,16 +107,21 @@ module memory_controller #(
       assign rd_data[(i+1)*8-1 -: 8] =
         s_rom_enable ? inst_cache_data[(i+1)*8-1 -: 8]
         : s_ram_chip_select ? ram_read_data[(i+1)*8-1 -: 8]
-        : uart_0_cs ? uart_0_rd_data[(i+1)*8-1 -: 8]
+        `ifdef UART_0
+           : uart_0_cs ? uart_0_rd_data[(i+1)*8-1 -: 8]
+        `endif
         : 'b0;
     end
   endgenerate
   /* //// */
 
   /* Saídas de dados */
+  // Tirar os muxes e passar direto
   assign ram_write_data = s_ram_chip_select ? wr_data : 'b0;
 
-  assign uart_0_wr_en   = uart_0_cs ? wr_data : 'b0;
+`ifdef UART_0
+  assign uart_0_wr_data = uart_0_cs ? wr_data : 'b0;
+`endif
   /* //// */
 
 endmodule
