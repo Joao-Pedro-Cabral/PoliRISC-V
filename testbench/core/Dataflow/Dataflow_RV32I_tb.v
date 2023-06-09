@@ -92,9 +92,9 @@ module Dataflow_RV32I_tb();
     genvar  j;
 
     // DUT
-    Dataflow #(.RV64I(0), .DATA_SIZE(32)) DUT
+    Dataflow DUT
     (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr_src(mem_addr_src), .mem_addr(mem_addr), .alua_src(alua_src), 
-     .alub_src(alub_src), .aluy_src(1'b0), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
+     .alub_src(alub_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
      .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow));
 
     // Instruction Memory

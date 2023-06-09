@@ -65,10 +65,7 @@ module RV32I_uart_tb ();
   integer        i;  // variável de iteração
 
   // DUT
-  core #(
-      .RV64I(0),
-      .DATA_SIZE(32)
-  ) DUT (
+  core DUT (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),

@@ -5,18 +5,24 @@
 //! @date   2023-03-03
 //
 
-module control_unit
-    #(parameter integer RV64I = 1,
-      parameter integer BYTE_NUM = 8) (
+`include "macros.vh"
+
+`ifdef RV64I
+`define BYTE_NUM 8
+`else
+`define BYTE_NUM 4
+`endif
+
+module control_unit (
     // Common
     input clock,
     input reset,
 
     // Memory
-    input      mem_busy,
-    output reg mem_rd_en,
-    output reg mem_wr_en,
-    output reg [BYTE_NUM-1:0] mem_byte_en,
+    input                      mem_busy,
+    output reg                 mem_rd_en,
+    output reg                 mem_wr_en,
+    output reg [`BYTE_NUM-1:0] mem_byte_en,
 
     // Vindo do Fluxo de Dados
     input [6:0] opcode,
@@ -30,7 +36,9 @@ module control_unit
     // Sinais de Controle do Fluxo de Dados
     output reg alua_src,
     output reg alub_src,
+`ifdef RV64I
     output reg aluy_src,
+`endif
     output reg [2:0] alu_src,
     output reg sub,
     output reg arithmetic,
@@ -43,9 +51,9 @@ module control_unit
     output reg mem_addr_src
 );
 
-    // sinais úteis
+  // sinais úteis
 
-    localparam [3:0]
+  localparam [3:0]
         fetch = 4'h0,
         fetch2 = 4'h1,
         decode = 4'h2,
@@ -63,267 +71,225 @@ module control_unit
         halt = 4'hE,
         idle = 4'hF;
 
-    reg [3:0] estado_atual, proximo_estado;
+  reg [3:0] estado_atual, proximo_estado;
 
-    task zera_sinais;
+  task zera_sinais;
     begin
-        mem_wr_en       = 1'b0;
-        mem_rd_en       = 1'b0;
-        mem_byte_en     =  'b0;
-        alua_src        = 1'b0;
-        alub_src        = 1'b0;
-        aluy_src        = 1'b0;
-        alu_src         = 3'b000;
-        sub             = 1'b0;
-        arithmetic      = 1'b0;
-        alupc_src       = 1'b0;
-        pc_src          = 1'b0;
-        pc_en           = 1'b0;
-        wr_reg_src      = 2'b00;
-        wr_reg_en       = 1'b0;
-        ir_en           = 1'b0;
-        mem_addr_src    = 1'b0;
+      mem_wr_en   = 1'b0;
+      mem_rd_en   = 1'b0;
+      mem_byte_en = 'b0;
+      alua_src    = 1'b0;
+      alub_src    = 1'b0;
+`ifdef RV64I
+      aluy_src = 1'b0;
+`endif
+      alu_src      = 3'b000;
+      sub          = 1'b0;
+      arithmetic   = 1'b0;
+      alupc_src    = 1'b0;
+      pc_src       = 1'b0;
+      pc_en        = 1'b0;
+      wr_reg_src   = 2'b00;
+      wr_reg_en    = 1'b0;
+      ir_en        = 1'b0;
+      mem_addr_src = 1'b0;
     end
-    endtask
+  endtask
 
-    // lógica da mudança de estados
-    always @(posedge clock, posedge reset) begin
-        if(reset)
-            estado_atual <= idle;
-        else
-            estado_atual <= proximo_estado;
-    end
+  // lógica da mudança de estados
+  always @(posedge clock, posedge reset) begin
+    if (reset) estado_atual <= idle;
+    else estado_atual <= proximo_estado;
+  end
 
-    // decisores para desvios condicionais baseados nas flags da ULA
-    wire beq_bne = zero ^ funct3[0];
-    wire blt_bge = (negative ^ overflow) ^ funct3[0];
-    wire bltu_bgeu = carry_out ~^ funct3[0];
-    wire cond = funct3[1]==0 ? (funct3[2]==0 ? beq_bne : blt_bge) : bltu_bgeu;
-    // uso sempre 8 bits aqui -> truncamento automático na atribuição do always
-    wire [BYTE_NUM:0] byte_en = funct3[1]==0 ?
+  // decisores para desvios condicionais baseados nas flags da ULA
+  wire beq_bne = zero ^ funct3[0];
+  wire blt_bge = (negative ^ overflow) ^ funct3[0];
+  wire bltu_bgeu = carry_out ~^ funct3[0];
+  wire cond = funct3[1] == 0 ? (funct3[2] == 0 ? beq_bne : blt_bge) : bltu_bgeu;
+  // uso sempre 8 bits aqui -> truncamento automático na atribuição do always
+  wire [7:0] byte_en = funct3[1]==0 ?
         (funct3[0]==0 ? 'h1 : 'h3) : (funct3[0]==0 ? 'hF : 'hFF);
 
-    // máquina de estados principal
-    always @(*) begin
+  // máquina de estados principal
+  always @(*) begin
 
-        zera_sinais;
+    zera_sinais;
 
-        case(estado_atual) // synthesis parallel_case
-            idle:
-            begin
-                if(reset == 1'b1)
-                    proximo_estado = idle;
-                else
-                    proximo_estado = fetch;
-            end
+    case (estado_atual)  // synthesis parallel_case
+      idle: begin
+        if (reset == 1'b1) proximo_estado = idle;
+        else proximo_estado = fetch;
+      end
 
-            fetch:
-            begin
-                mem_byte_en = 'hF;
-                mem_rd_en = 1'b1;
-                if(mem_busy)
-                    proximo_estado = fetch2;
-                else
-                    proximo_estado = fetch;
-            end
-            fetch2:
-            begin
-                mem_byte_en = 'hF;
-                if(!mem_busy) begin
-                    mem_rd_en = 1'b0;
-                    ir_en = 1'b1;
-                    proximo_estado = decode;
-                end
-                else begin
-                    mem_rd_en = 1'b1;
-                    proximo_estado = fetch2;
-                end
-            end
-            decode:
-            begin
-                if(opcode[1:0] != 2'b11)
-                    proximo_estado = halt;
-                else if(opcode[4]==1'b1) begin
-                    if(opcode[5]==1'b1) begin
-                        if(opcode[2]==1'b0)
-                            proximo_estado = registrador_registrador;
-                        else if(opcode[3]==1'b0 && opcode[6]==1'b0)
-                            proximo_estado = lui;
-                        else
-                            proximo_estado = halt;
-                    end
-                    else begin
-                        if(opcode[2]==1'b0)
-                            proximo_estado = registrador_imediato;
-                        else if(opcode[3]==1'b0 && opcode[6]==1'b0)
-                            proximo_estado = auipc;
-                        else
-                            proximo_estado = halt;
-                    end
-                end
-                else begin
-                    if(opcode[6]==1'b1) begin
-                        if(opcode[3]==1'b1)
-                            proximo_estado = jal;
-                        else if(opcode[2]==1'b0)
-                            proximo_estado = desvio_condicional;
-                        else if(opcode[5]==1'b1)
-                            proximo_estado = jalr;
-                        else
-                            proximo_estado = halt;
-                    end
-                    else begin
-                        if(opcode[5]==1'b0)
-                            proximo_estado = load;
-                        else if(opcode[2]==1'b0 && opcode[3]==1'b0)
-                            proximo_estado = store;
-                        else
-                            proximo_estado = halt;
-                    end
-                end
-            end
+      fetch: begin
+        mem_byte_en = 'hF;
+        mem_rd_en   = 1'b1;
+        if (mem_busy) proximo_estado = fetch2;
+        else proximo_estado = fetch;
+      end
+      fetch2: begin
+        mem_byte_en = 'hF;
+        if (!mem_busy) begin
+          mem_rd_en = 1'b0;
+          ir_en = 1'b1;
+          proximo_estado = decode;
+        end else begin
+          mem_rd_en = 1'b1;
+          proximo_estado = fetch2;
+        end
+      end
+      decode: begin
+        if (opcode[1:0] != 2'b11) proximo_estado = halt;
+        else if (opcode[4] == 1'b1) begin
+          if (opcode[5] == 1'b1) begin
+            if (opcode[2] == 1'b0) proximo_estado = registrador_registrador;
+            else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = lui;
+            else proximo_estado = halt;
+          end else begin
+            if (opcode[2] == 1'b0) proximo_estado = registrador_imediato;
+            else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = auipc;
+            else proximo_estado = halt;
+          end
+        end else begin
+          if (opcode[6] == 1'b1) begin
+            if (opcode[3] == 1'b1) proximo_estado = jal;
+            else if (opcode[2] == 1'b0) proximo_estado = desvio_condicional;
+            else if (opcode[5] == 1'b1) proximo_estado = jalr;
+            else proximo_estado = halt;
+          end else begin
+            if (opcode[5] == 1'b0) proximo_estado = load;
+            else if (opcode[2] == 1'b0 && opcode[3] == 1'b0) proximo_estado = store;
+            else proximo_estado = halt;
+          end
+        end
+      end
 
-            registrador_registrador:
-            begin
-                if (RV64I == 1)
-                    aluy_src = opcode[3];
-                alu_src = funct3;
-                sub = funct7[5];
-                arithmetic = funct7[5];
-                pc_en = 1'b1;
-                wr_reg_en = 1'b1;
+      registrador_registrador: begin
+`ifdef RV64I
+        aluy_src = opcode[3];
+`endif
+        alu_src = funct3;
+        sub = funct7[5];
+        arithmetic = funct7[5];
+        pc_en = 1'b1;
+        wr_reg_en = 1'b1;
 
-                proximo_estado = fetch;
-            end
+        proximo_estado = fetch;
+      end
 
-            lui:
-            begin
-                alub_src = 1'b1;
-                if(RV64I == 1)
-                    aluy_src = 1'b1;
-                pc_en = 1'b1;
-                wr_reg_en = 1'b1;
+      lui: begin
+        alub_src = 1'b1;
+`ifdef RV64I
+        aluy_src = 1'b1;
+`endif
+        pc_en = 1'b1;
+        wr_reg_en = 1'b1;
 
-                proximo_estado = fetch;
-            end
+        proximo_estado = fetch;
+      end
 
-            registrador_imediato:
-            begin
-                alub_src = 1'b1;
-                if(RV64I == 1)
-                    aluy_src = opcode[3];
-                alu_src = funct3;
-                arithmetic = funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
-                pc_en = 1'b1;
-                wr_reg_en = 1'b1;
+      registrador_imediato: begin
+        alub_src = 1'b1;
+`ifdef RV64I
+        aluy_src = opcode[3];
+`endif
+        alu_src = funct3;
+        arithmetic = funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
+        pc_en = 1'b1;
+        wr_reg_en = 1'b1;
 
-                proximo_estado = fetch;
-            end
+        proximo_estado = fetch;
+      end
 
-            auipc:
-            begin
-                alua_src = 1'b1;
-                alub_src = 1'b1;
-                pc_en = 1'b1;
-                wr_reg_en = 1'b1;
+      auipc: begin
+        alua_src = 1'b1;
+        alub_src = 1'b1;
+        pc_en = 1'b1;
+        wr_reg_en = 1'b1;
 
-                proximo_estado = fetch;
-            end
+        proximo_estado = fetch;
+      end
 
-            jal:
-            begin
-                pc_src = 1'b1;
-                pc_en = 1'b1;
-                wr_reg_src = 2'b11;
-                wr_reg_en = 1'b1;
+      jal: begin
+        pc_src = 1'b1;
+        pc_en = 1'b1;
+        wr_reg_src = 2'b11;
+        wr_reg_en = 1'b1;
 
-                proximo_estado = fetch;
-            end
+        proximo_estado = fetch;
+      end
 
-            desvio_condicional:
-            begin
-                sub = 1'b1;
-                pc_src = cond;
-                pc_en = 1'b1;
+      desvio_condicional: begin
+        sub = 1'b1;
+        pc_src = cond;
+        pc_en = 1'b1;
 
-                proximo_estado = fetch;
-            end
+        proximo_estado = fetch;
+      end
 
-            jalr:
-            begin
-                alupc_src = 1'b1;
-                pc_src = 1'b1;
-                pc_en = 1'b1;
-                wr_reg_src = 2'b11;
-                wr_reg_en = 1'b1;
+      jalr: begin
+        alupc_src = 1'b1;
+        pc_src = 1'b1;
+        pc_en = 1'b1;
+        wr_reg_src = 2'b11;
+        wr_reg_en = 1'b1;
 
-                proximo_estado = fetch;
-            end
+        proximo_estado = fetch;
+      end
 
-            load:
-            begin
-                mem_addr_src = 1'b1;
-                mem_byte_en = byte_en;
-                alub_src = 1'b1;
-                wr_reg_src = 2'b10;
-                mem_rd_en = 1'b1;
-                if(mem_busy)
-                    proximo_estado = load2;
-                else
-                    proximo_estado = load;
-            end
-            load2:
-            begin
-                mem_addr_src = 1'b1;
-                mem_byte_en = byte_en;
-                alub_src = 1'b1;
-                wr_reg_src = 2'b10;
-                if(!mem_busy) begin
-                    mem_rd_en = 1'b0;
-                    pc_en = 1'b1;
-                    wr_reg_en = 1'b1;
-                    proximo_estado = fetch;
-                end
-                else begin
-                    mem_rd_en = 1'b1;
-                    proximo_estado = load2;
-                end
-            end
+      load: begin
+        mem_addr_src = 1'b1;
+        mem_byte_en = byte_en;
+        alub_src = 1'b1;
+        wr_reg_src = 2'b10;
+        mem_rd_en = 1'b1;
+        if (mem_busy) proximo_estado = load2;
+        else proximo_estado = load;
+      end
+      load2: begin
+        mem_addr_src = 1'b1;
+        mem_byte_en = byte_en;
+        alub_src = 1'b1;
+        wr_reg_src = 2'b10;
+        if (!mem_busy) begin
+          mem_rd_en = 1'b0;
+          pc_en = 1'b1;
+          wr_reg_en = 1'b1;
+          proximo_estado = fetch;
+        end else begin
+          mem_rd_en = 1'b1;
+          proximo_estado = load2;
+        end
+      end
 
-            store:
-            begin
-                mem_addr_src = 1'b1;
-                mem_byte_en = byte_en;
-                alub_src = 1'b1;
-                mem_wr_en = 1'b1;
-                if(mem_busy)
-                    proximo_estado = store2;
-                else
-                    proximo_estado = store;
-            end
-            store2:
-            begin
-                mem_addr_src = 1'b1;
-                mem_byte_en = byte_en;
-                alub_src = 1'b1;
-                if (!mem_busy) begin
-                    mem_wr_en = 1'b0;
-                    pc_en = 1'b1;
-                    proximo_estado = fetch;
-                end
-                else begin
-                    mem_wr_en = 1'b1;
-                    proximo_estado = store2;
-                end
-            end
+      store: begin
+        mem_addr_src = 1'b1;
+        mem_byte_en = byte_en;
+        alub_src = 1'b1;
+        mem_wr_en = 1'b1;
+        if (mem_busy) proximo_estado = store2;
+        else proximo_estado = store;
+      end
+      store2: begin
+        mem_addr_src = 1'b1;
+        mem_byte_en = byte_en;
+        alub_src = 1'b1;
+        if (!mem_busy) begin
+          mem_wr_en = 1'b0;
+          pc_en = 1'b1;
+          proximo_estado = fetch;
+        end else begin
+          mem_wr_en = 1'b1;
+          proximo_estado = store2;
+        end
+      end
 
-            halt:
-                proximo_estado = halt;
+      halt: proximo_estado = halt;
 
-            default:
-                proximo_estado = halt;
-        endcase
+      default: proximo_estado = halt;
+    endcase
 
-    end
+  end
 
 endmodule

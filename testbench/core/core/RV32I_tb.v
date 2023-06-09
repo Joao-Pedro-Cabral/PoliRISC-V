@@ -75,7 +75,7 @@ module RV32I_tb();
     integer estado = 0;                         // sinal de depuração -> 0: Idle, 1: Fetch, 2: Decode, 3: Execute  
 
     // DUT
-    core #(.RV64I(0), .DATA_SIZE(32)) DUT (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .mem_addr(mem_addr), .mem_busy(mem_busy),
+    core DUT (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .mem_addr(mem_addr), .mem_busy(mem_busy),
     .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_wr_en(mem_wr_en));
 
     // Instruction Memory

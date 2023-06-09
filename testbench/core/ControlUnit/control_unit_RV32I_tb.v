@@ -37,7 +37,6 @@ module control_unit_RV32I_tb ();
   // To Dataflow
   wire             alua_src;
   wire             alub_src;
-  wire             aluy_src;
   wire    [   2:0] alu_src;
   wire             sub;
   wire             arithmetic;
@@ -71,17 +70,14 @@ module control_unit_RV32I_tb ();
   reg     [  35:0] LUT_uc                                  [48:0];  // UC simulada com tabela
   wire    [1763:0] LUT_linear;  // Tabela acima linearizada
   reg     [  18:0] df_src;  // Sinais produzidos pelo LUT
-  wire    [  20:0] db_df_src;  // Sinais produzidos pela UC
+  wire    [  19:0] db_df_src;  // Sinais produzidos pela UC
   // variáveis
   integer          limit = 1000;  // evitar loop infinito
   integer          i;
   genvar j;
 
   // DUT
-  control_unit #(
-      .RV64I(0),
-      .BYTE_NUM(4)
-  ) DUT (
+  control_unit DUT (
       .clock(clock),
       .reset(reset),
       .mem_rd_en(mem_rd_en),
@@ -97,7 +93,6 @@ module control_unit_RV32I_tb ();
       .overflow(overflow),
       .alua_src(alua_src),
       .alub_src(alub_src),
-      .aluy_src(aluy_src),
       .alu_src(alu_src),
       .sub(sub),
       .arithmetic(arithmetic),
@@ -111,10 +106,7 @@ module control_unit_RV32I_tb ();
   );
 
   // Dataflow
-  Dataflow #(
-      .RV64I(0),
-      .DATA_SIZE(32)
-  ) DF (
+  Dataflow DF (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),
@@ -123,7 +115,6 @@ module control_unit_RV32I_tb ();
       .mem_addr(mem_addr),
       .alua_src(alua_src),
       .alub_src(alub_src),
-      .aluy_src(aluy_src),
       .alu_src(alu_src),
       .sub(sub),
       .arithmetic(arithmetic),
@@ -139,7 +130,6 @@ module control_unit_RV32I_tb ();
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
-      .db_reg_data(),
       .mem_addr_src(mem_addr_src)
   );
 
@@ -252,7 +242,6 @@ module control_unit_RV32I_tb ();
     ir_en,
     alua_src,
     alub_src,
-    aluy_src,
     alu_src,
     sub,
     arithmetic,
@@ -275,7 +264,7 @@ module control_unit_RV32I_tb ();
     #2;
     reset = 1'b1;  // Reseto
     #0.1;
-    // Confiro se a UC está em Idle 
+    // Confiro se a UC está em Idle
     if (db_df_src !== 0) begin
       $display("Error Idle: db_df_src = %x", db_df_src);
       $stop;
@@ -293,7 +282,7 @@ module control_unit_RV32I_tb ();
     wait (clock == 1'b0);
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);
-      // Fetch -> Apenas instruction mem en levantado 
+      // Fetch -> Apenas instruction mem en levantado
       #0.1;
       // Confiro apenas os ens, pois em implementações futuras os demais podem mudar(aqui eles são don't care)
       if(ir_en !== 1'b0 || pc_en !== 1'b0 || wr_reg_en !== 1'b0 || mem_rd_en !== 1'b1 || mem_wr_en !== 1'b0 || mem_byte_en !== 15) begin
@@ -328,7 +317,7 @@ module control_unit_RV32I_tb ();
       wait (clock == 1'b1);
       #0.1;
       // Execute -> Não testo pc_src para instruções do tipo B e write_reg_en para Load (caso opcode = 0 -> deixo passar)
-      if(opcode !== 0 && ({1'b0, df_src[18:17], 1'b0, df_src[16:11], df_src[9:8], df_src[6:0]} !== {db_df_src[20:11], db_df_src[9:8], db_df_src[6:0]} || (df_src[10] !== db_df_src[10] && opcode !== 7'b1100011)
+      if(opcode !== 0 && ({1'b0, df_src[18:11], df_src[9:8], df_src[6:0]} !== {db_df_src[19:11], db_df_src[9:8], db_df_src[6:0]} || (df_src[10] !== db_df_src[10] && opcode !== 7'b1100011)
                     || (df_src[7] !== db_df_src[7] && opcode !== 7'b0000011))) begin
         $display("Error Execute: df_src = %x, db_df_src = %x", df_src, db_df_src);
         $stop;

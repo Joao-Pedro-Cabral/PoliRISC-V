@@ -5,21 +5,28 @@
 //! @date   2023-03-04
 //
 
-module Dataflow #(
-    parameter integer RV64I = 1,  // 1: usar o RV64I
-    parameter integer DATA_SIZE = 64
-) (
+`include "macros.vh"
+
+`ifdef RV64I
+`define DATA_SIZE 64
+`else
+`define DATA_SIZE 32
+`endif
+
+module Dataflow (
     // Common
     input wire clock,
     input wire reset,
     // Memory
-    input wire [DATA_SIZE-1:0] rd_data,  // DATA_SIZE é definido no toplevel
-    output wire [DATA_SIZE-1:0] wr_data,
-    output wire [DATA_SIZE-1:0] mem_addr,
+    input wire [`DATA_SIZE-1:0] rd_data,
+    output wire [`DATA_SIZE-1:0] wr_data,
+    output wire [`DATA_SIZE-1:0] mem_addr,
     // From Control Unit
     input wire alua_src,
     input wire alub_src,
+`ifdef RV64I
     input wire aluy_src,
+`endif
     input wire [2:0] alu_src,
     input wire sub,
     input wire arithmetic,
@@ -41,36 +48,36 @@ module Dataflow #(
 );
   // Fios intermediários
   // Register File
-  wire [          4:0] reg_addr_source_1;
-  wire [DATA_SIZE-1:0] reg_data_source_1;
-  wire [DATA_SIZE-1:0] reg_data_source_2;
-  wire [DATA_SIZE-1:0] reg_data_destiny;
-  wire [DATA_SIZE-1:0] muxpc4_data_out;  // PC + 4 or read_data
+  wire [           4:0] reg_addr_source_1;
+  wire [`DATA_SIZE-1:0] reg_data_source_1;
+  wire [`DATA_SIZE-1:0] reg_data_source_2;
+  wire [`DATA_SIZE-1:0] reg_data_destiny;
+  wire [`DATA_SIZE-1:0] muxpc4_data_out;  // PC + 4 or read_data
   // Extensor de Imediato
-  wire [DATA_SIZE-1:0] immediate;
+  wire [`DATA_SIZE-1:0] immediate;
   // ULA
-  wire [DATA_SIZE-1:0] aluA;
-  wire [DATA_SIZE-1:0] aluB;
-  wire [DATA_SIZE-1:0] aluY;
-  wire [DATA_SIZE-1:0] muxaluY_out;  // aluY or sign_extended(aluY[31:0])
+  wire [`DATA_SIZE-1:0] aluA;
+  wire [`DATA_SIZE-1:0] aluB;
+  wire [`DATA_SIZE-1:0] aluY;
+  wire [`DATA_SIZE-1:0] muxaluY_out;  // aluY or sign_extended(aluY[31:0])
   // Somador PC + 4
-  wire [DATA_SIZE-1:0] pc_plus_4;
-  wire [DATA_SIZE-1:0] cte_4 = 4;
+  wire [`DATA_SIZE-1:0] pc_plus_4;
+  wire [`DATA_SIZE-1:0] cte_4 = 4;
   // Somador PC + Imediato
-  wire [DATA_SIZE-1:0] muxpc_reg_out;  // PC or Rs1
-  wire [DATA_SIZE-1:0] muxpc_immediate_out;  // Immediate
-  wire [DATA_SIZE-1:0] pc_plus_immediate;
+  wire [`DATA_SIZE-1:0] muxpc_reg_out;  // PC or Rs1
+  wire [`DATA_SIZE-1:0] muxpc_immediate_out;  // Immediate
+  wire [`DATA_SIZE-1:0] pc_plus_immediate;
   // Mux PC
-  wire [DATA_SIZE-1:0] muxpc_out;
+  wire [`DATA_SIZE-1:0] muxpc_out;
   // PC
-  wire [DATA_SIZE-1:0] pc;
+  wire [`DATA_SIZE-1:0] pc;
   // Instruction Register(IR)
-  wire [         31:0] ir;
+  wire [          31:0] ir;
 
   // Instanciação de Componentes
   // Register File
   mux2to1 #(
-      .size(DATA_SIZE)
+      .size(`DATA_SIZE)
   ) muxpc4_data (
       .A(rd_data),
       .B(pc_plus_4),
@@ -78,7 +85,7 @@ module Dataflow #(
       .Y(muxpc4_data_out)
   );
   mux2to1 #(
-      .size(DATA_SIZE)
+      .size(`DATA_SIZE)
   ) muxreg_destiny (
       .A(muxaluY_out),
       .B(muxpc4_data_out),
@@ -86,7 +93,7 @@ module Dataflow #(
       .Y(reg_data_destiny)
   );
   register_file #(
-      .size(DATA_SIZE),
+      .size(`DATA_SIZE),
       .N(5)
   ) int_reg_state (
       .clock(clock),
@@ -101,7 +108,7 @@ module Dataflow #(
   );
   // ULA
   mux2to1 #(
-      .size(DATA_SIZE)
+      .size(`DATA_SIZE)
   ) muxaluA (
       .A(reg_data_source_1),
       .B(pc),
@@ -109,28 +116,27 @@ module Dataflow #(
       .Y(aluA)
   );
   mux2to1 #(
-      .size(DATA_SIZE)
+      .size(`DATA_SIZE)
   ) muxaluB (
       .A(reg_data_source_2),
       .B(immediate),
       .S(alub_src),
       .Y(aluB)
   );
-  generate
-    if (RV64I == 1) begin
-      mux2to1 #(
-          .size(32)
-      ) muxaluY (
-          .A(aluY[DATA_SIZE-1:32]),
-          .B({32{aluY[31]}}),
-          .S(aluy_src),
-          .Y(muxaluY_out[DATA_SIZE-1:32])
-      );
-    end
-  endgenerate
+
+`ifdef RV64I
+  mux2to1 #(
+      .size(32)
+  ) muxaluY (
+      .A(aluY[`DATA_SIZE-1:32]),
+      .B({32{aluY[31]}}),
+      .S(aluy_src),
+      .Y(muxaluY_out[`DATA_SIZE-1:32])
+  );
+`endif
 
   ULA #(
-      .N(DATA_SIZE)
+      .N(`DATA_SIZE)
   ) alu (
       .A(aluA),
       .B(aluB),
@@ -145,7 +151,7 @@ module Dataflow #(
   );
   // Somador PC + 4
   sklansky_adder #(
-      .INPUT_SIZE(DATA_SIZE)
+      .INPUT_SIZE(`DATA_SIZE)
   ) pc_4 (
       .A(pc),
       .B(cte_4),
@@ -155,7 +161,7 @@ module Dataflow #(
   );
   // Somador PC + Imediato
   sklansky_adder #(
-      .INPUT_SIZE(DATA_SIZE)
+      .INPUT_SIZE(`DATA_SIZE)
   ) pc_immediate (
       .A(muxpc_reg_out),
       .B(muxpc_immediate_out),
@@ -164,24 +170,24 @@ module Dataflow #(
       .S(pc_plus_immediate)
   );
   mux2to1 #(
-      .size(DATA_SIZE)
+      .size(`DATA_SIZE)
   ) muxpc_reg (
       .A(pc),
-      .B({reg_data_source_1[DATA_SIZE-1:1], 1'b0}),
+      .B({reg_data_source_1[`DATA_SIZE-1:1], 1'b0}),
       .S(alupc_src),
       .Y(muxpc_reg_out)
   );
   mux2to1 #(
-      .size(DATA_SIZE)
+      .size(`DATA_SIZE)
   ) muxpc_immediate (
-      .A({immediate[DATA_SIZE-2:0], 1'b0}),
-      .B({immediate[DATA_SIZE-1:1], 1'b0}),
+      .A({immediate[`DATA_SIZE-2:0], 1'b0}),
+      .B({immediate[`DATA_SIZE-1:1], 1'b0}),
       .S(alupc_src),
       .Y(muxpc_immediate_out)
   );
   // PC
   mux2to1 #(
-      .size(DATA_SIZE)
+      .size(`DATA_SIZE)
   ) muxpc (
       .A(pc_plus_4),
       .B(pc_plus_immediate),
@@ -190,7 +196,7 @@ module Dataflow #(
   );
 
   register_d #(
-      .N(DATA_SIZE),
+      .N(`DATA_SIZE),
       .reset_value(0)
   ) pc_register (
       .clock(clock),
@@ -201,7 +207,7 @@ module Dataflow #(
   );
   // Immediate Extender
   ImmediateExtender #(
-      .N(DATA_SIZE)
+      .N(`DATA_SIZE)
   ) estende_imediato (
       .instruction(ir),
       .immediate  (immediate)
@@ -219,7 +225,7 @@ module Dataflow #(
   );
   // Memory
   mux2to1 #(
-      .size(DATA_SIZE)
+      .size(`DATA_SIZE)
   ) muxmem_addr (
       .A(pc),
       .B(aluY),

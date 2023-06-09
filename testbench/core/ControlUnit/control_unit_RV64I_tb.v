@@ -78,10 +78,7 @@ module control_unit_RV64I_tb ();
   genvar j;
 
   // DUT
-  control_unit #(
-      .RV64I(1),
-      .BYTE_NUM(8)
-  ) DUT (
+  control_unit DUT (
       .clock(clock),
       .reset(reset),
       .mem_rd_en(mem_rd_en),
@@ -111,10 +108,7 @@ module control_unit_RV64I_tb ();
   );
 
   // Dataflow
-  Dataflow #(
-      .RV64I(1),
-      .DATA_SIZE(64)
-  ) DF (
+  Dataflow DF (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),
@@ -139,7 +133,6 @@ module control_unit_RV64I_tb ();
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
-      .db_reg_data(),
       .mem_addr_src(mem_addr_src)
   );
 

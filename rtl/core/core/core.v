@@ -5,27 +5,34 @@
 //! @date   2023-03-04
 //
 
-module core #(
-    parameter RV64I = 1,
-    parameter DATA_SIZE = 64
-) (
+`include "macros.vh"
+
+`ifdef RV64I
+`define DATA_SIZE 64
+`else
+`define DATA_SIZE 32
+`endif
+
+module core (
     input wire clock,
     input wire reset,
 
     // Bus Interface
-    input wire [DATA_SIZE-1:0] rd_data,
-    output wire [DATA_SIZE-1:0] wr_data,
-    output wire [DATA_SIZE-1:0] mem_addr,
+    input wire [`DATA_SIZE-1:0] rd_data,
+    output wire [`DATA_SIZE-1:0] wr_data,
+    output wire [`DATA_SIZE-1:0] mem_addr,
     input wire mem_busy,
     output wire mem_rd_en,
     output wire mem_wr_en,
-    output wire [DATA_SIZE/8-1:0] mem_byte_en
+    output wire [`DATA_SIZE/8-1:0] mem_byte_en
 );
 
   // Sinais comuns do DF e da UC
   wire alua_src;
   wire alub_src;
+`ifdef RV64I
   wire aluy_src;
+`endif
   wire [2:0] alu_src;
   wire sub;
   wire arithmetic;
@@ -45,10 +52,7 @@ module core #(
   wire overflow;
 
   // Dataflow
-  Dataflow #(
-      .RV64I(RV64I),
-      .DATA_SIZE(DATA_SIZE)
-  ) DF (
+  Dataflow DF (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),
@@ -57,7 +61,9 @@ module core #(
       .alua_src(alua_src),
       .alub_src(alub_src),
       .alu_src(alu_src),
+`ifdef RV64I
       .aluy_src(aluy_src),
+`endif
       .sub(sub),
       .arithmetic(arithmetic),
       .ir_en(ir_en),
@@ -77,10 +83,7 @@ module core #(
   );
 
   // Control Unit
-  control_unit #(
-      .RV64I(RV64I),
-      .BYTE_NUM(DATA_SIZE / 8)
-  ) UC (
+  control_unit UC (
       .clock(clock),
       .reset(reset),
       .mem_rd_en(mem_rd_en),
@@ -97,7 +100,9 @@ module core #(
       .overflow(overflow),
       .alua_src(alua_src),
       .alub_src(alub_src),
+`ifdef RV64I
       .aluy_src(aluy_src),
+`endif
       .alu_src(alu_src),
       .sub(sub),
       .arithmetic(arithmetic),
