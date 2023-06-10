@@ -173,16 +173,8 @@ module uart #(
       .Q({e_rxwm, e_txwm})
   );
   // Interrupt Pending Register
-  register_d #(
-      .N(2),
-      .reset_value(0)
-  ) interrupt_pending_register (
-      .clock(clock),
-      .reset(reset),
-      .enable(1'b1),
-      .D({rx_fifo_greater_than_watermark & e_rxwm, tx_fifo_less_than_watermark & e_txwm}),
-      .Q({p_rxwm, p_txwm})
-  );
+  assign p_rxwm = rx_fifo_greater_than_watermark & e_rxwm;
+  assign p_txwm = tx_fifo_less_than_watermark & e_txwm;
   // Baud Rate Divisor Register
   register_d #(
       .N(16),

@@ -41,8 +41,6 @@ module uart_tb ();
   // Interrupt Check
   wire         txwm;
   wire         rxwm;
-  reg          txwm_;
-  reg          rxwm_;
   reg   [ 2:0] tx_watermark_level;
   reg   [ 2:0] rx_watermark_level;
   reg   [ 2:0] rx_watermark_reg;
@@ -106,9 +104,9 @@ module uart_tb ();
       @(negedge busy);
       @(negedge clock);
 
-      `ASSERT(rd_data[0] === txwm_);
+      `ASSERT(rd_data[0] === txwm);
 
-      `ASSERT(rd_data[1] === rxwm_);
+      `ASSERT(rd_data[1] === rxwm);
     end
   endtask
 
@@ -153,16 +151,10 @@ module uart_tb ();
   assign txwm = (tx_watermark_reg < tx_watermark_level);
   assign rxwm = (rx_watermark_reg > rx_watermark_level);
 
-  // Sincronizar txwm_ e rxwm_ com p_txwm e p_rxwm
-  always @(posedge clock) begin
-    txwm_ = txwm;
-    rxwm_ = rxwm;
-  end
-
-  assign rx_full  = (rx_watermark_reg == 3'b111);
+  assign rx_full = (rx_watermark_reg == 3'b111);
   assign rx_empty = (rx_watermark_reg == 3'b000);
 
-  assign tx_full  = (tx_watermark_reg == 3'b111);
+  assign tx_full = (tx_watermark_reg == 3'b111);
   assign tx_empty = (tx_watermark_reg == 3'b000);
 
   always #(ClockPeriod / 2) clock = ~clock;
