@@ -2,12 +2,12 @@ import subprocess
 
 action   = "simulation"
 sim_tool = "modelsim"
-sim_top  = "uart" + "_tb"
+sim_top  = "sdram_tester2" + "_tb"
 use_mif  = False
 mif_name = "uart_test.mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/" + mif_name
-lista_de_macros = ["UART_0"]
+lista_de_macros = []
 
 #gerar arquivo de macros
 macros_file = open("macros.vh", 'w')
