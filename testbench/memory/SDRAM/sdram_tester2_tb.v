@@ -83,8 +83,8 @@ module sdram_tester2_tb ();
       wait (dram_clk == 1'b1);
       wait (dram_clk == 1'b0);
       wait (dram_clk == 1'b1);
-      wait (dram_clk == 1'b0);
-      wait (dram_clk == 1'b1);  // CAS latency = 3
+      //   wait (dram_clk == 1'b0);
+      //   wait (dram_clk == 1'b1);  // CAS latency = 3
       rd_en <= 1;
     end
   end
