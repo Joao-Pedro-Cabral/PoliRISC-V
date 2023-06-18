@@ -27,7 +27,7 @@ module sdram_tester2 #(
     inout  wire [15:0] dram_dq
 );
 
-  localparam integer OneSecSize = $clog2(50000000);
+  localparam integer OneSecSize = $clog2(CLOCK_FREQ_HZ);
   // Sinais do Controlador
   wire reset;
   reg rd_enable;
