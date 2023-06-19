@@ -47,6 +47,7 @@ module sdram_controller2 #(
 
     input [ADDR_WIDTH-1:0] addr,  // endereço
     input [DATA_WIDTH-1:0] data,  // dado de entrada
+    input [3:0] bwe,  // byte write enable
 
     input we,  // write enable
     input req, // requisição de operação
@@ -365,5 +366,8 @@ module sdram_controller2 #(
       default: sdram_a = 0;
     endcase
   end
+
+  assign sdram_dqml = first_word ? bwe[0] : bwe[2];
+  assign sdram_dqmh = first_word ? bwe[1] : bwe[3];
 
 endmodule
