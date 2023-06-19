@@ -1,12 +1,12 @@
 //
-//! @file   fpga_sdram_controller.v
+//! @file   sdram_controller2.v
 //! @brief  Tradução de uma implementação de um controlador de SDRAMs
 //          de FPGAs (original em VHDL: https://github.com/nullobject/sdram-fpga/blob/master/sdram.vhd)
 //! @author Igor Pontes Tresolavy (tresolavy@usp.br)
 //! @date   2023-02-22
 //
 
-module fpga_sdram_controller #(
+module sdram_controller2 #(
     // frequência de clock, em MHz.
     parameter integer CLK_FREQ,
 
@@ -299,6 +299,7 @@ module fpga_sdram_controller #(
     end
   end
 
+  assign sdram_dq = (state == Write) ? ((first_word) ? data[15:0] : data[31:16]) : 32'hzzzz_zzzz;
   always @(posedge clk) begin : latch_sdram_data
     valid <= 0;
 
