@@ -298,12 +298,12 @@ module sdram_controller2 #(
       addr_reg <= {addr[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-2:0], 1'b0};
       data_reg <= data;
       we_reg   <= we;
-      bwe_reg  <= bwe;
+      bwe_reg  <= ~bwe;
     end
   end
 
   assign sdram_dq =
-    (state == Write) ? ((first_word) ? data_reg[15:0] : data_reg[31:16]) : 32'hzzzz_zzzz;
+    (state == Write) ? ((wait_counter == 0) ? data_reg[15:0] : data_reg[31:16]) : 32'hzzzz_zzzz;
   always @(posedge clk) begin : latch_sdram_data
     valid <= 0;
 
@@ -370,7 +370,7 @@ module sdram_controller2 #(
     endcase
   end
 
-  assign sdram_dqml = first_word ? bwe_reg[0] : bwe_reg[2];
-  assign sdram_dqmh = first_word ? bwe_reg[1] : bwe_reg[3];
+  assign sdram_dqml = (wait_counter == 0) ? bwe_reg[0] : bwe_reg[2];
+  assign sdram_dqmh = (wait_counter == 0) ? bwe_reg[1] : bwe_reg[3];
 
 endmodule
