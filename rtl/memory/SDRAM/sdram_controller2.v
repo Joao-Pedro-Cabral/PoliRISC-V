@@ -3,7 +3,7 @@
 //! @brief  Tradução de uma implementação de um controlador de SDRAMs
 //          de FPGAs (original em VHDL: https://github.com/nullobject/sdram-fpga/blob/master/sdram.vhd)
 //! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-02-22
+//! @date   2023-06-20
 //
 
 module sdram_controller2 #(
@@ -52,14 +52,14 @@ module sdram_controller2 #(
     input we,  // write enable
     input req, // requisição de operação
 
-    output ack,   // reconhecimento de operação (operação iniciada)
-    output valid, // avisa que dado na saída é válido
+    output ack,  // reconhecimento de operação (operação iniciada)
+    output reg valid,  // avisa que dado na saída é válido
 
     output [DATA_WIDTH-1:0] q,  // dado de saída
 
     // interface com a SDRAM
-    output [SDRAM_ADDR_WIDTH-1:0] sdram_a,
-    output [SDRAM_BANK_WIDTH-1:0] sdram_ba,
+    output reg [SDRAM_ADDR_WIDTH-1:0] sdram_a,
+    output reg [SDRAM_BANK_WIDTH-1:0] sdram_ba,
     inout [SDRAM_DATA_WIDTH-1:0] sdram_dq,
     output sdram_cke,
     output sdram_cs_n,
@@ -102,23 +102,23 @@ module sdram_controller2 #(
   // número de ciclos de clock de espera
   // antes de inicializar o dispositivo
   // (arredondado pra cima)
-  localparam integer InitWait = $ceil(T_DESL / ClkPeriod);
+  localparam integer InitWait = (T_DESL + ClkPeriod - 1) / ClkPeriod;
 
   // número de ciclos de clock de espera
   // durante o comando LOAD MODE
-  localparam integer LoadModeWait = $ceil(T_MRD / ClkPeriod);
+  localparam integer LoadModeWait = (T_MRD + ClkPeriod - 1) / ClkPeriod;
 
   // número de ciclos de clock de espera
   // durante o comando ACTIVE
-  localparam integer ActiveWait = $ceil(T_RCD / ClkPeriod);
+  localparam integer ActiveWait = (T_RCD + ClkPeriod - 1) / ClkPeriod;
 
   // número de ciclos de clock de espera
   // durante o comando REFRESH
-  localparam integer RefreshWait = $ceil(T_RC / ClkPeriod);
+  localparam integer RefreshWait = (T_RC + ClkPeriod - 1) / ClkPeriod;
 
   // número de ciclos de clock de espera
   // durante o comando PRECHARGE
-  localparam integer PrechargeWait = $ceil(T_RP / ClkPeriod);
+  localparam integer PrechargeWait = (T_RP + ClkPeriod - 1) / ClkPeriod;
 
   // número de ciclos de clock de espera
   // durante o comando READ
@@ -126,11 +126,11 @@ module sdram_controller2 #(
 
   // número de ciclos de clock de espera
   // durante o comando WRITE
-  localparam integer WriteWait = BURST_LENGTH + $ceil((T_WR + T_RP) / ClkPeriod);
+  localparam integer WriteWait = BURST_LENGTH + (T_WR + T_RP + ClkPeriod - 1) / ClkPeriod;
 
   // número de ciclos de clock de espera
   // antes de ser necessário refrescar a memória
-  localparam integer RefreshInterval = $floor(T_REFI / ClkPeriod) - 10;
+  localparam integer RefreshInterval = (T_REFI / ClkPeriod) - 10;
 
   // estados do controlador
   localparam reg [2:0]
@@ -164,11 +164,11 @@ module sdram_controller2 #(
   reg [SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-1:0] addr_reg;
   reg [DATA_WIDTH-1:0] data_reg;
   reg we_reg;
-  reg bwe_reg;
+  reg [3:0] bwe_reg;
   reg [DATA_WIDTH-1:0] q_reg;
 
   // aliases
-  wire [SDRAM_COL_WIDTH-1:0] col = addr_reg[SDRAM_COL_WIDTH-1:0];
+  wire [SDRAM_COL_WIDTH-1:0] col = addr_reg[SDRAM_COL_WIDTH-1:0];  // warning: valor hardcoded
   wire [SDRAM_ROW_WIDTH-1:0] row = addr_reg[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH-1:SDRAM_COL_WIDTH];
   wire [SDRAM_BANK_WIDTH-1:0] bank =
       addr_reg[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-1:SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH];
@@ -268,7 +268,7 @@ module sdram_controller2 #(
   end
 
   // transiciona para o próximo estado
-  always @(posedge clk or reset) begin : latch_next_state
+  always @(posedge clk or posedge reset) begin : latch_next_state
     if (reset) begin
       state <= Init;
       cmd   <= CmdNop;
@@ -280,12 +280,21 @@ module sdram_controller2 #(
 
   // o wait_counter é utilizado para segurar o
   // estado atual por muitos ciclos de clock
-  always @(posedge clk or reset) begin : update_wait_counter
-    if (reset) begin
-      wait_counter <= 0;
-    end else begin
+  always @(posedge clk or posedge reset) begin : update_wait_counter
+    if (reset) wait_counter <= 0;
+    else begin
       if (state != next_state) wait_counter <= 0;  // mudança de estado
       else wait_counter <= wait_counter + 1'b1;
+    end
+  end
+
+  // o refresh counter é usado para engatilhar uma operação de
+  // refresh
+  always @(posedge clk or posedge reset) begin
+    if (reset) refresh_counter <= 0;
+    else begin
+      if (state == Refresh && wait_counter == 0) refresh_counter <= 0;
+      else refresh_counter <= refresh_counter + 1'b1;
     end
   end
 
@@ -298,12 +307,13 @@ module sdram_controller2 #(
       addr_reg <= {addr[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-2:0], 1'b0};
       data_reg <= data;
       we_reg   <= we;
-      bwe_reg  <= ~bwe;
+      bwe_reg  <= ~bwe;  // warning: valor hardcoded
     end
   end
 
+  // warning: valor hardcoded
   assign sdram_dq =
-    (state == Write) ? ((wait_counter == 0) ? data_reg[15:0] : data_reg[31:16]) : 32'hzzzz_zzzz;
+    (state == Write) ? ((wait_counter == 0) ? data_reg[15:0] : data_reg[31:16]) : 16'hzzzz;
   always @(posedge clk) begin : latch_sdram_data
     valid <= 0;
 
@@ -361,11 +371,11 @@ module sdram_controller2 #(
 
   always @(*) begin : sdram_a_logic
     case (state)
-      Init: sdram_a = 13'b0010000000000;
+      Init: sdram_a = 13'b0010000000000;  // warning: valor hardcoded
       Mode: sdram_a = ModeReg;
       Active: sdram_a = row;
-      Read: sdram_a = {3'o1, col};
-      Write: sdram_a = {3'o1, col};
+      Read: sdram_a = {3'o1, col};  // warning: valor hardcoded
+      Write: sdram_a = {3'o1, col};  // warning: valor hardcoded
       default: sdram_a = 0;
     endcase
   end
