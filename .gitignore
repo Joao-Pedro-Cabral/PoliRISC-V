@@ -4,6 +4,13 @@
 **/**/**/output_files
 **/**/**/*.qpf
 **/**/**/*.qsf
+**/**/**/greybox_tmp
+**/**/**/*.bak
+**/**/**/*.rpt
+**/**/**/*.qar
+**/**/**/*.qarlog
+**/**/**/*.qws
+**/**/**/simulation
 
 # arquivos de simulação (QuestaSim ou ModelSim)
 simulation/modelsim.ini
