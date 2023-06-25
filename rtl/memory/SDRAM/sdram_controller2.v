@@ -11,7 +11,7 @@ module sdram_controller2 #(
     parameter integer CLK_FREQ,
 
     // interface de 32 bits do controlador
-    parameter integer ADDR_WIDTH = 24,  // 16Mx32 (memória de 32Mx16)
+    parameter integer ADDR_WIDTH = 26,  // 64Mx8 (memória de 32Mx16)
     parameter integer DATA_WIDTH = 32,
 
     // interface com a SDRAM
@@ -30,7 +30,7 @@ module sdram_controller2 #(
 
     // número de palavras de 16 bits que podem ser
     // manipuladas em rajada durante a leitura ou escrita
-    parameter integer BURST_LENGTH = 2,
+    parameter integer BURST_LENGTH = 4,
 
     // valores de temporização, em nanosegundos
     parameter real T_DESL = 100000.0, // delay de inicialização
@@ -152,6 +152,8 @@ module sdram_controller2 #(
   wire active_done;
   wire refresh_done;
   wire first_word;
+  wire second_word;
+  wire third_word;
   wire read_done;
   wire write_done;
   wire should_refresh;
@@ -162,10 +164,11 @@ module sdram_controller2 #(
 
   // registradores
   reg [SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-1:0] addr_reg;
+  reg addr_lsb_reg;
   reg [DATA_WIDTH-1:0] data_reg;
   reg we_reg;
   reg [3:0] bwe_reg;
-  reg [DATA_WIDTH-1:0] q_reg;
+  reg [16*BURST_LENGTH-1:0] q_reg;
 
   // aliases
   wire [SDRAM_COL_WIDTH-1:0] col = addr_reg[SDRAM_COL_WIDTH-1:0];  // warning: valor hardcoded
@@ -290,7 +293,7 @@ module sdram_controller2 #(
 
   // o refresh counter é usado para engatilhar uma operação de
   // refresh
-  always @(posedge clk or posedge reset) begin
+  always @(posedge clk or posedge reset) begin : update_refresh_counter
     if (reset) refresh_counter <= 0;
     else begin
       if (state == Refresh && wait_counter == 0) refresh_counter <= 0;
@@ -304,23 +307,39 @@ module sdram_controller2 #(
       // pois há uma conversão de um endereço de 32 bits
       // do controlador para um endereço de 16 bits da
       // SDRAM
-      addr_reg <= {addr[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-2:0], 1'b0};
-      data_reg <= data;
-      we_reg   <= we;
-      bwe_reg  <= ~bwe;  // warning: valor hardcoded
+      addr_reg     <= addr[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH:1];
+      addr_lsb_reg <= addr[0];
+      data_reg     <= data;
+      we_reg       <= we;
+      bwe_reg      <= ~bwe;  // warning: valor hardcoded
     end
   end
 
   // warning: valor hardcoded
-  assign sdram_dq =
-    (state == Write) ? ((wait_counter == 0) ? data_reg[15:0] : data_reg[31:16]) : 16'hzzzz;
+  always @(*) begin
+    if (state == Write) begin
+      if (wait_counter == 0) begin
+        if (addr_lsb_reg) sdram_dq = {data_reg[7:0], 8'hzz};
+        else sdram_dq = data_reg[15:0];
+      end else if (wait_counter == 1'b1) begin
+        if (addr_lsb_reg) sdram_dq = data_reg[23:8];
+        else sdram_dq = data_reg[31:16];
+      end else if (wait_counter == 2'b10) begin
+        if (addr_lsb_reg) sdram_dq = {8'hzz, data_reg[31:24]};
+        else sdram_dq = 16'hzzzz;
+      end else sdram_dq = 16'hzzzz;
+    end else sdram_dq = 16'hzzzz;
+  end
+
   always @(posedge clk) begin : latch_sdram_data
     valid <= 0;
 
     if (state == Read) begin
       if (first_word) q_reg[15:0] <= sdram_dq;
+      else if (second_word) q_reg[31:16] <= sdram_dq;
+      else if (third_word) q_reg[47:32] <= sdram_dq;
       else if (read_done) begin
-        q_reg[31:16] <= sdram_dq;
+        q_reg[63:48] <= sdram_dq;
         valid <= 1'b1;
       end
     end
@@ -331,6 +350,8 @@ module sdram_controller2 #(
   assign active_done = (wait_counter == ActiveWait - 1'b1) ? 1'b1 : 1'b0;
   assign refresh_done = (wait_counter == RefreshWait - 1'b1) ? 1'b1 : 1'b0;
   assign first_word = (wait_counter == CasLatency) ? 1'b1 : 1'b0;
+  assign second_word = (wait_counter == CasLatency + 1'b1) ? 1'b1 : 1'b0;
+  assign third_word = (wait_counter == CasLatency + 2'b10) ? 1'b1 : 1'b0;
   assign read_done = (wait_counter == ReadWait - 1'b1) ? 1'b1 : 1'b0;
   assign write_done = (wait_counter == WriteWait - 1'b1) ? 1'b1 : 1'b0;
 
@@ -352,7 +373,7 @@ module sdram_controller2 #(
   assign ack = (state == Active && wait_counter == 14'b0) ? 1'b1 : 1'b0;
 
   // saída de dados
-  assign q = q_reg;
+  assign q = addr_lsb_reg ? q_reg[DATA_WIDTH+8-1:8] : q_reg[DATA_WIDTH-1:0];
 
   // desativa o clock no começo do estado Init
   assign sdram_cke = (state == Init && wait_counter == 14'b0) ? 1'b0 : 1'b1;
@@ -380,7 +401,32 @@ module sdram_controller2 #(
     endcase
   end
 
-  assign sdram_dqml = (wait_counter == 0) ? bwe_reg[0] : bwe_reg[2];
-  assign sdram_dqmh = (wait_counter == 0) ? bwe_reg[1] : bwe_reg[3];
+  always @(*) begin
+    if (wait_counter == 0) begin
+      if (addr_lsb_reg) begin
+        sdram_dqml = 1'b1;  // desativado
+        sdram_dqmh = bwe_reg[0];
+      end else begin
+        sdram_dqml = bwe_reg[0];
+        sdram_dqmh = bwe_reg[1];
+      end
+    end else if (wait_counter == 1'b1) begin
+      if (addr_lsb_reg) begin
+        sdram_dqml = bwe_reg[1];
+        sdram_dqmh = bwe_reg[2];
+      end else begin
+        sdram_dqml = bwe_reg[2];
+        sdram_dqmh = bwe_reg[3];
+      end
+    end else begin
+      if (addr_lsb_reg) begin
+        sdram_dqml = bwe_reg[3];
+        sdram_dqmh = 1'b1;  // desativado
+      end else begin
+        sdram_dqml = bwe_reg[2];
+        sdram_dqmh = bwe_reg[3];
+      end
+    end
+  end
 
 endmodule
