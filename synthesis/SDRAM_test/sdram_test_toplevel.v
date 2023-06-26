@@ -1,7 +1,7 @@
 module sdram_test_toplevel (
-    input clk,
-	 output sdram_clk,
-    input not_reset,
+    input  clk,
+    output sdram_clk,
+    input  not_reset,
 
     // interface com a SDRAM
     output [12:0] sdram_a,
@@ -15,13 +15,16 @@ module sdram_test_toplevel (
     output sdram_dqml,
     output sdram_dqmh,
 
-    output [9:0] dbg_state
-
+    input dbg_key0,
+    input dbg_key1,
+    input dbg_key2,
+    output reg [9:0] dbg_state
 );
 
 
   wire reset = ~not_reset;
   wire test_clk;
+  wire [9:0] _dbg_state;
 
   pll pll_inst (
       .inclk0(clk),
@@ -32,7 +35,7 @@ module sdram_test_toplevel (
 
   // sinais do DUT
   //  entradas do DUT
-  wire [23:0] addr;
+  wire [25:0] addr;
   wire [31:0] data;
   wire [3:0] bwe;
   wire we;
@@ -80,7 +83,21 @@ module sdram_test_toplevel (
       .ack(ack),
       .valid(valid),
       .q(q),
-      .dbg_state(dbg_state)
+      .dbg_state(_dbg_state)
   );
+
+  always @(*) begin
+    case ({
+      dbg_key2, dbg_key1, dbg_key0
+    })
+      3'b001:  dbg_state = q[9:0];
+      3'b010:  dbg_state = q[19:10];
+      3'b011:  dbg_state = q[29:20];
+      3'b100:  dbg_state = {8'h00, q[31:30]};
+      default: dbg_state = _dbg_state;
+    endcase
+  end
+
+  /* assign dbg_state = ({dbg_key1,dbg_key0} == 2'b00) ? _dbg_state : ; */
 
 endmodule

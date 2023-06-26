@@ -11,7 +11,7 @@ module sdram_test (
 
     // sinais do DUT
     //  entradas do DUT
-    output reg [23:0] addr,
+    output reg [25:0] addr,
     output reg [31:0] data,
     output reg [3:0] bwe,
     output reg we,
@@ -51,22 +51,40 @@ module sdram_test (
   Fail2 = 10'h011,  // dado diferente de 0xFEEDBEEF
   Success2 = 10'h012,  // dado igual a 0xFEEDBEEF
   Write3 = 10'h013,  // escreve 0xXXXXFFFF no endereço 0 (bwe = 0x3)
-  Write4 = 10'h014,  // escreve 0xFFFFXXXX no endereço 1 (bwe = 0xC)
+  Write4 = 10'h014,  // escreve 0xFFFFXXXX no endereço 2 (bwe = 0xC)
   Read3 = 10'h015,  // lê endereço 0
   WaitMem3 = 10'h016,  // espera leitura
   Cmp3 = 10'h017,  // compara dado lido com 0xZZZZFFFF
   Fail3 = 10'h018,  // dado diferente de 0xZZZZFFFF
   Success3 = 10'h019,  // dado igual a 0xZZZZFFFF
-  Read4 = 10'h01A,  // lê endereço 1
+  Read4 = 10'h01A,  // lê endereço 2
   WaitMem4 = 10'h01B,  // espera memória
   Cmp4 = 10'h01C,  // compara dado lido com 0xFFFFZZZZ
   Fail4 = 10'h01D,  // dado lido é diferente de 0xFFFFZZZZ
-  Success4 = 10'h01E;  // dado igual a 0xFFFFZZZZ
+  Success4 = 10'h01E,  // dado igual a 0xFFFFZZZZ
+  Write5 = 10'h01F,  // escreve 0x01234567 no endereço 0x001000
+  Write6 = 10'h020,  // escreve 0x89ABCDEF no endereço 0x001004
+  Read5 = 10'h021,  // lê endereço 0x001000
+  WaitMem5 = 10'h022,  // espera leitura
+  Cmp5 = 10'h023,  // compara dado lido com 0x01234567
+  Fail5 = 10'h024,  // dado diferente de 0x01234567
+  Success5 = 10'h025,  // dado igual a 0x01234567
+  Read6 = 10'h026,  // lê endereço 0x001004
+  WaitMem6 = 10'h027,  // espera memória
+  Cmp6 = 10'h028,  // compara dado lido com 0x89ABCDEF
+  Fail6 = 10'h029,  // dado lido é diferente de 0x89ABCDEF
+  Success6 = 10'h02A,  // dado igual a 0x89ABCDEF
+  Read7 = 10'h02B,  // lê endereço 0x001001
+  WaitMem7 = 10'h02C,  // espera memória
+  Cmp7 = 10'h02D,  // compara dado lido com 0xEF012345
+  Fail7 = 10'h02E,  // dado lido diferente de 0xEF012345
+  Success7 = 10'h02F;  // dado igual a 0xEF012345
+
   reg [9:0] state, next_state;
 
   task reset_signals;
     begin
-      addr = 24'h000000;
+      addr = 25'h000000;
       data = 32'h00000000;
       bwe  = 4'h0;
       we   = 1'b0;
@@ -146,7 +164,7 @@ module sdram_test (
       Fail1: next_state = Fail1;
 
       Write2: begin
-        addr = 24'h40CAFE;
+        addr = 25'h40CAFE;
         data = 32'hFEEDBEEF;
         bwe  = 4'hF;
         we   = 1'b1;
@@ -156,7 +174,7 @@ module sdram_test (
       end
 
       Read2: begin
-        addr = 24'h40CAFE;
+        addr = 25'h40CAFE;
         bwe  = 4'hF;
         req  = 1'b1;
         if (ack) next_state = WaitMem2;
@@ -187,7 +205,7 @@ module sdram_test (
       end
 
       Write4: begin
-        addr = 24'h000001;
+        addr = 25'h000004;
         data = 32'hFFFFFFFF;
         bwe  = 4'hC;
         we   = 1'b1;
@@ -218,7 +236,7 @@ module sdram_test (
       Fail3: next_state = Fail3;
 
       Read4: begin
-        addr = 24'h000001;
+        addr = 25'h000004;
         bwe  = 4'hC;
         req  = 1'b1;
         if (ack) next_state = WaitMem4;
@@ -235,9 +253,95 @@ module sdram_test (
         else next_state = Fail4;
       end
 
-      Success4: next_state = Success4;
+      Success4: next_state = Write5;
 
       Fail4: next_state = Fail4;
+
+      Write5: begin
+        addr = 25'h001000;
+        data = 32'h01234567;
+        bwe  = 4'hF;
+        we   = 1'b1;
+        req  = 1'b1;
+        if (ack) next_state = Write6;
+        else next_state = Write5;
+      end
+
+      Write6: begin
+        addr = 25'h001004;
+        data = 32'h89ABCDEF;
+        bwe  = 4'hF;
+        we   = 1'b1;
+        req  = 1'b1;
+        if (ack) next_state = Read5;
+        else next_state = Write6;
+      end
+
+      Read5: begin
+        addr = 25'h001000;
+        bwe  = 4'hF;
+        req  = 1'b1;
+        if (ack) next_state = WaitMem5;
+        else next_state = Read5;
+      end
+
+      WaitMem5: begin
+        if (valid) next_state = Cmp5;
+        else next_state = WaitMem5;
+      end
+
+      Cmp5: begin
+        if (q == 32'h01234567) next_state = Success5;
+        else next_state = Fail5;
+      end
+
+      Success5: next_state = Read6;
+
+      Fail5: next_state = Fail5;
+
+      Read6: begin
+        addr = 25'h001004;
+        bwe  = 4'hF;
+        req  = 1'b1;
+        if (ack) next_state = WaitMem6;
+        else next_state = Read6;
+      end
+
+      WaitMem6: begin
+        if (valid) next_state = Cmp6;
+        else next_state = WaitMem6;
+      end
+
+      Cmp6: begin
+        if (q == 32'h89ABCDEF) next_state = Success6;
+        else next_state = Fail6;
+      end
+
+      Success6: next_state = Read7;
+
+      Fail6: next_state = Fail6;
+
+      Read7: begin
+        addr = 25'h001001;
+        bwe  = 4'hF;
+        req  = 1'b1;
+        if (ack) next_state = WaitMem7;
+        else next_state = Read7;
+      end
+
+      WaitMem7: begin
+        if (valid) next_state = Cmp7;
+        else next_state = WaitMem7;
+      end
+
+      Cmp7: begin
+        if (q == 32'hEF012345) next_state = Success7;
+        else next_state = Fail7;
+      end
+
+      Success7: next_state = Success7;
+
+      Fail7: next_state = Fail7;
 
       default: next_state = InitTest;
     endcase

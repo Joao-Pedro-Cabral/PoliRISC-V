@@ -60,14 +60,14 @@ module sdram_controller2 #(
     // interface com a SDRAM
     output reg [SDRAM_ADDR_WIDTH-1:0] sdram_a,
     output reg [SDRAM_BANK_WIDTH-1:0] sdram_ba,
-    inout [SDRAM_DATA_WIDTH-1:0] sdram_dq,
+    inout reg [SDRAM_DATA_WIDTH-1:0] sdram_dq,
     output sdram_cke,
     output sdram_cs_n,
     output sdram_ras_n,
     output sdram_cas_n,
     output sdram_we_n,
-    output sdram_dqml,
-    output sdram_dqmh
+    output reg sdram_dqml,
+    output reg sdram_dqmh
 );
 
   // comandos
@@ -335,10 +335,16 @@ module sdram_controller2 #(
     valid <= 0;
 
     if (state == Read) begin
-      if (first_word) q_reg[15:0] <= sdram_dq;
-      else if (second_word) q_reg[31:16] <= sdram_dq;
-      else if (third_word) q_reg[47:32] <= sdram_dq;
-      else if (read_done) begin
+      if (first_word) begin
+        if (addr_lsb_reg) q_reg[7:0] <= sdram_dq[15:8];
+        else q_reg <= sdram_dq;
+      end else if (second_word) begin
+        if (addr_lsb_reg) q_reg[23:8] <= sdram_dq;
+        else q_reg[31:16] <= sdram_dq;
+      end else if (third_word) begin
+        if (addr_lsb_reg) q_reg[31:24] <= sdram_dq[7:0];
+        else q_reg[47:32] <= sdram_dq;
+      end else if (read_done) begin
         q_reg[63:48] <= sdram_dq;
         valid <= 1'b1;
       end
@@ -373,7 +379,8 @@ module sdram_controller2 #(
   assign ack = (state == Active && wait_counter == 14'b0) ? 1'b1 : 1'b0;
 
   // saída de dados
-  assign q = addr_lsb_reg ? q_reg[DATA_WIDTH+8-1:8] : q_reg[DATA_WIDTH-1:0];
+  /* assign q = addr_lsb_reg ? q_reg[DATA_WIDTH+8-1:8] : q_reg[DATA_WIDTH-1:0]; */
+  assign q = q_reg[DATA_WIDTH-1:0];
 
   // desativa o clock no começo do estado Init
   assign sdram_cke = (state == Init && wait_counter == 14'b0) ? 1'b0 : 1'b1;
@@ -423,10 +430,9 @@ module sdram_controller2 #(
         sdram_dqml = bwe_reg[3];
         sdram_dqmh = 1'b1;  // desativado
       end else begin
-        sdram_dqml = bwe_reg[2];
-        sdram_dqmh = bwe_reg[3];
+        sdram_dqml = 1'b1;  // desativado
+        sdram_dqmh = 1'b1;  // desativado
       end
     end
   end
-
 endmodule
