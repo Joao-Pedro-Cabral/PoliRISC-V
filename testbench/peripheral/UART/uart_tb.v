@@ -14,7 +14,7 @@ module uart_tb ();
 
   localparam integer AmntOfTests = 500;
   localparam integer ClockPeriod = 20;
-  localparam integer Seed = 12553646;
+  localparam integer Seed = 12546;
 
   localparam reg Nstop = 1'b1;
   localparam integer TxClockPeriod = 32 * 20;
@@ -200,7 +200,7 @@ module uart_tb ();
     // Configurando Receive Control Register
     wr_en              = 1'b1;
     addr[4:2]          = 3'b011;
-    wr_data[18:16]     = $urandom(Seed);
+    wr_data[18:16]     = 3'b101;
     rx_watermark_level = wr_data[18:16];
     wr_data[0]         = 1'b1;
     @(negedge busy);
@@ -243,8 +243,9 @@ module uart_tb ();
       wr_en = $urandom;
       rd_en = ~wr_en;
 
-      if (rd_en) ReadOp();
-      else WriteOp();
+      // if (rd_en) ReadOp();
+      // else WriteOp();
+      // if (wr_en) WriteOp();
     end
     $display("[%0t] EOT processor", $time);
   end

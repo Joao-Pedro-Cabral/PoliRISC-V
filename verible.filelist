@@ -25,6 +25,7 @@
 ./rtl/memory/SDRAM/sdram_read_write.v
 ./rtl/memory/SDRAM/sdram_ref.v
 ./rtl/memory/SDRAM/sync_parallel_counter.v
+./rtl/peripheral/UART/edge_detector.v
 ./rtl/peripheral/UART/FIFO.v
 ./rtl/peripheral/UART/uart_rx.v
 ./rtl/peripheral/UART/uart_tx.v
@@ -55,7 +56,6 @@
 ./testbench/peripheral/UART/FIFO_tb.v
 ./testbench/peripheral/UART/uart_rx_tb.v
 ./testbench/peripheral/UART/uart_tx_tb.v
-./utils/memory/SDRAM/edge_detector.v
 ./utils/memory/SDRAM/hexa7seg.v
 ./utils/memory/SDRAM/sdram_tester_df.v
 ./utils/memory/SDRAM/sdram_tester_uc.v

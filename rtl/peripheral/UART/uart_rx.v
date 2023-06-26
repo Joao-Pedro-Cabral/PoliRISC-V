@@ -199,10 +199,11 @@ module uart_rx (
         else next_state = Idle;
       end
       Start: begin
-        data_cnt_rst = 1'b1;
         // Detectou Start Bit com sucesso
-        if ((~sampled_bit) && sample_end) next_state = Data;
-        else if (sample_end) next_state = Idle;  // Falsa Detecção
+        if ((~sampled_bit) && sample_end) begin
+          data_cnt_rst = 1'b1;
+          next_state   = Data;
+        end else if (sample_end) next_state = Idle;  // Falsa Detecção
         else next_state = Start;
       end
       Data: begin

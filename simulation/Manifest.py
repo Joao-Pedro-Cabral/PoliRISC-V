@@ -2,7 +2,7 @@ import subprocess
 
 action   = "simulation"
 sim_tool = "modelsim"
-sim_top  = "sdram_tester" + "_tb"
+sim_top  = "uart" + "_tb"
 use_mif  = False
 mif_name = "uart_test.mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name

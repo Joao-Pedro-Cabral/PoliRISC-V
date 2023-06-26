@@ -1,12 +1,11 @@
 files = [
-    "FIFO_tb.v",
-    "uart_tx_tb.v",
-    "uart_rx_tb.v",
-    "uart_tb.v"
+    "uart_echo_top.v",
+    "uart_top.v"
 ]
 
 modules = {
     "local" : [
         "../../../rtl",
+        "../../../utils"
     ]
 }
