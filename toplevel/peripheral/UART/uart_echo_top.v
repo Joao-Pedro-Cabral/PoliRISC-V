@@ -15,8 +15,6 @@ module uart_echo_top (
     // Serial
     input wire rxd,  // dado recebido da serial
     // Paralela
-    output wire [2:0] rx_state,
-    output wire [2:0] tx_state,
     output wire [7:0] hexa,
     output wire txd,
     output wire tx_rdy,
@@ -40,7 +38,6 @@ module uart_echo_top (
       .parity_type(parity_type),
       .nstop(nstop),
       .rxd(rxd),
-      .state(rx_state),
       .data_valid(data_valid_),
       .data_out(data_out),
       .frame_error(frame_error),
@@ -54,7 +51,6 @@ module uart_echo_top (
       .parity_type(parity_type),
       .nstop(nstop),
       .txd(txd),
-      .state(tx_state),
       .data_in(data_out),
       .data_valid(data_valid_),
       .tx_rdy(tx_rdy)

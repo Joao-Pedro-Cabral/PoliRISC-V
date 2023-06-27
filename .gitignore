@@ -19,3 +19,10 @@ simulation/transcript
 simulation/*.wlf
 simulation/Makefile
 simulation/assembly_converter/program.mif
+
+# arquivos de sintese do Vivado (manter apenas arquivos do usuario)
+synthesis/Vivado/*
+!synthesis/Vivado/constrains
+!synthesis/Vivado/Manifest.py
+!synthesis/Vivado/my_constrains_tcl.tcl
+!synthesis/Vivado/program_file.tcl
