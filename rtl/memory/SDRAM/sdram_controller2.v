@@ -428,7 +428,7 @@ module sdram_controller2 #(
         if (addr_reg[1:0] != 2'b11) sdram_dq = data_reg[23:8];
         else sdram_dq = 16'hzzzz;
       end else sdram_dq = 16'hzzzz;
-    end else begin
+    end else if (state == OutOfBoundsWriteEnd) begin
       if (wait_counter == 0) begin
         if (addr_reg[1:0] != 2'b11) sdram_dq = {8'hzz, data_reg[31:24]};
         else if (addr_lsb_reg) sdram_dq = data_reg[23:8];
@@ -438,7 +438,7 @@ module sdram_controller2 #(
         else if (addr_lsb_reg) sdram_dq = {8'hzz, data_reg[31:24]};
         else sdram_dq = 16'hzzzz;
       end else sdram_dq = 16'hzzzz;
-    end
+    end else sdram_dq = 16'hzzzz;
   end
 
   always @(posedge clk) begin : latch_sdram_data
