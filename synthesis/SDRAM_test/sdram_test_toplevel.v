@@ -72,7 +72,7 @@ module sdram_test_toplevel (
       .sdram_dqmh(sdram_dqmh)
   );
 
-  sdram_test tester (
+  sdram_test2 tester (
       .reset(reset),
       .clk(test_clk),
       .addr(addr),
