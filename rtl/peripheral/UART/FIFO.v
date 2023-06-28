@@ -15,7 +15,6 @@ module FIFO #(
     input wire wr_en,
     input wire rd_en,
     input wire [$clog2(DEPTH)-1:0] watermark_level,
-    output wire [$clog2(DEPTH)-1:0] watermark,
     input wire [DATA_SIZE-1:0] wr_data,
     output wire [DATA_SIZE-1:0] rd_data,
     output wire less_than_watermark,
@@ -96,6 +95,5 @@ module FIFO #(
   assign less_than_watermark = (watermark_reg < watermark_level);
   assign empty = _empty;
   assign full = _full;
-  assign watermark = watermark_reg;
 
 endmodule
