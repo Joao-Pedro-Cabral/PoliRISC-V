@@ -13,10 +13,16 @@ module uart #(
     input  wire        reset,
     input  wire        rd_en,
     input  wire        wr_en,
-    input  wire [ 4:0] addr,     // 0x00 a 0x18
-    input  wire        rxd,      // dado serial
+    input  wire [ 4:0] addr,       // 0x00 a 0x18
+    input  wire        rxd,        // dado serial
     input  wire [31:0] wr_data,
-    output wire        txd,      // dado de transmissão
+    output wire        rxwm_e,
+    output wire        rxwm_p,
+    output wire        txwm_e,
+    output wire        txwm_p,
+    output wire [ 2:0] watermark,
+    output wire [ 7:0] data_out,
+    output wire        txd,        // dado de transmissão
     output wire [31:0] rd_data,
     output reg         busy
 );
@@ -173,7 +179,7 @@ module uart #(
       .Q({e_rxwm, e_txwm})
   );
   // Interrupt Pending Register
-  assign p_rxwm = rx_fifo_greater_than_watermark & e_rxwm;
+  assign p_rxwm = rx_fifo_full & e_rxwm;
   assign p_txwm = tx_fifo_less_than_watermark & e_txwm;
   // Baud Rate Divisor Register
   register_d #(
@@ -242,6 +248,7 @@ module uart #(
       .less_than_watermark(tx_fifo_less_than_watermark),
       .empty(tx_fifo_empty),
       .full(tx_fifo_full),
+      .watermark(),
       .greater_than_watermark()
   );
 
@@ -282,6 +289,7 @@ module uart #(
       .greater_than_watermark(rx_fifo_greater_than_watermark),
       .empty(rx_fifo_empty),
       .full(rx_fifo_full),
+      .watermark(watermark),
       .less_than_watermark()
   );
 
@@ -364,6 +372,13 @@ module uart #(
       .Q(tx_data_valid)
   );
 
+  // Saidas de interupção
+  assign rxwm_e   = e_rxwm;
+  assign rxwm_p   = p_rxwm;
+  assign txwm_e   = e_txwm;
+  assign txwm_p   = p_txwm;
+  assign data_out = rx_fifo_wr_data;
+
   // Lógica do busy
   reg [1:0] present_state, next_state;  // Estado da transmissão
 
@@ -375,7 +390,6 @@ module uart #(
     if (reset) present_state <= Idle;
     else present_state <= next_state;
   end
-
 
   always @(*) begin
     busy   = 0;

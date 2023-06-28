@@ -64,7 +64,7 @@ module uart_echo_top (
       .reset(reset),
       .load(clock_9600_16),
       .load_value(10'b0),
-      .inc_enable(1'b1),  // Sempre Ativo
+      .inc_enable(1'b1),
       .dec_enable(1'b0),
       .value(clock_cnt_9600_16)
   );
@@ -77,7 +77,7 @@ module uart_echo_top (
       .reset(reset),
       .load(clock_9600),
       .load_value(14'b0),
-      .inc_enable(1'b1),  // Sempre Ativo
+      .inc_enable(1'b1),
       .dec_enable(1'b0),
       .value(clock_cnt_9600)
   );
@@ -89,7 +89,6 @@ module uart_echo_top (
 
   assign clock_9600_16 = (clock_cnt_9600_16 == 53);  // 100MHz/(9600*16) - 1
   assign clock_9600 = (clock_cnt_9600 == 867);  // 100MHz/(9600) - 1
-  //   assign hexa = data_out;
   assign hexa = hexa_not;
   assign hexa_not[7] = 1'b1;
   assign data_valid = data_valid_;
