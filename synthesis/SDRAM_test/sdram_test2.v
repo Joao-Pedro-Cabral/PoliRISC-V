@@ -1,11 +1,11 @@
 //
-//! @file   sdram_test.v
+//! @file   sdram_test2.v
 //! @brief  Teste de uma implementação de um controlador de SDRAM
 //! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-06-20
+//! @date   2023-06-27
 //
 
-module sdram_test (
+module sdram_test2 (
     input reset,
     input clk,
 
@@ -26,53 +26,53 @@ module sdram_test (
     output [9:0] dbg_state
 );
 
-  localparam reg [9:0] InitTest = 10'h000, Write0 = 10'h001,  // escreve 0 no endereço 0
-  Read0 = 10'h002,  // lê do endereço 0
-  WaitMem0 = 10'h003,  // espera leitura
-  Cmp0 = 10'h004,  // compara dado lido com 0
-  Fail0 = 10'h005,  // dado diferente de 0
-  Success0 = 10'h006,  // dado igual a 0
-  Write1 = 10'h007,  // escreve 0xF0F0F0F0 no endereço 0
-  Read1 = 10'h008,  // lê do endereço 0
-  WaitMem1 = 10'h009,  // espera leitura
-  Cmp1 = 10'h00A,  // compara dado lido com 0xF0F0F0F0
-  Fail1 = 10'h00B,  // dado diferente de 0xF0F0F0F0
-  Success1 = 10'h00C,  // dado igual a 0xF0F0F0F0
-  Write2 = 10'h00D,  // escreve 0xFEEDBEEF no endereço 0x40CAFE
-  Read2 = 10'h00E,  // lê do endereço 0x40CAFE
-  WaitMem2 = 10'h00F,  // espera leitura
-  Cmp2 = 10'h010,  // compara dado lido com 0xFEEDBEEF
-  Fail2 = 10'h011,  // dado diferente de 0xFEEDBEEF
-  Success2 = 10'h012,  // dado igual a 0xFEEDBEEF
-  Write3 = 10'h013,  // escreve 0xXXXXFFFF no endereço 0 (bwe = 0x3)
-  Write4 = 10'h014,  // escreve 0xFFFFXXXX no endereço 2 (bwe = 0xC)
-  Read3 = 10'h015,  // lê endereço 0
-  WaitMem3 = 10'h016,  // espera leitura
-  Cmp3 = 10'h017,  // compara dado lido com 0xZZZZFFFF
-  Fail3 = 10'h018,  // dado diferente de 0xZZZZFFFF
-  Success3 = 10'h019,  // dado igual a 0xZZZZFFFF
-  Read4 = 10'h01A,  // lê endereço 2
-  WaitMem4 = 10'h01B,  // espera memória
-  Cmp4 = 10'h01C,  // compara dado lido com 0xFFFFZZZZ
-  Fail4 = 10'h01D,  // dado lido é diferente de 0xFFFFZZZZ
-  Success4 = 10'h01E,  // dado igual a 0xFFFFZZZZ
-  Write5 = 10'h01F,  // escreve 0x01234567 no endereço 0x001000
-  Write6 = 10'h020,  // escreve 0x89ABCDEF no endereço 0x001004
-  Read5 = 10'h021,  // lê endereço 0x001000
-  WaitMem5 = 10'h022,  // espera leitura
-  Cmp5 = 10'h023,  // compara dado lido com 0x01234567
-  Fail5 = 10'h024,  // dado diferente de 0x01234567
-  Success5 = 10'h025,  // dado igual a 0x01234567
-  Read6 = 10'h026,  // lê endereço 0x001004
-  WaitMem6 = 10'h027,  // espera memória
-  Cmp6 = 10'h028,  // compara dado lido com 0x89ABCDEF
-  Fail6 = 10'h029,  // dado lido é diferente de 0x89ABCDEF
-  Success6 = 10'h02A,  // dado igual a 0x89ABCDEF
-  Read7 = 10'h02B,  // lê endereço 0x001001
-  WaitMem7 = 10'h02C,  // espera memória
-  Cmp7 = 10'h02D,  // compara dado lido com 0xEF012345
-  Fail7 = 10'h02E,  // dado lido diferente de 0xEF012345
-  Success7 = 10'h02F;  // dado igual a 0xEF012345
+  localparam reg [9:0] InitTest = 10'h000, Write0 = 10'h001,
+  Read0 = 10'h002,
+  WaitMem0 = 10'h003,
+  Cmp0 = 10'h004,
+  Fail0 = 10'h005,
+  Success0 = 10'h006,
+  Write1 = 10'h007,
+  Read1 = 10'h008,
+  WaitMem1 = 10'h009,
+  Cmp1 = 10'h00A,
+  Fail1 = 10'h00B,
+  Success1 = 10'h00C,
+  Write2 = 10'h00D,
+  Read2 = 10'h00E,
+  WaitMem2 = 10'h00F,
+  Cmp2 = 10'h010,
+  Fail2 = 10'h011,
+  Success2 = 10'h012,
+  Write3 = 10'h013,
+  Write4 = 10'h014,
+  Read3 = 10'h015,
+  WaitMem3 = 10'h016,
+  Cmp3 = 10'h017,
+  Fail3 = 10'h018,
+  Success3 = 10'h019,
+  Read4 = 10'h01A,
+  WaitMem4 = 10'h01B,
+  Cmp4 = 10'h01C,
+  Fail4 = 10'h01D,
+  Success4 = 10'h01E,
+  Write5 = 10'h01F,
+  Write6 = 10'h020,
+  Read5 = 10'h021,
+  WaitMem5 = 10'h022,
+  Cmp5 = 10'h023,
+  Fail5 = 10'h024,
+  Success5 = 10'h025,
+  Read6 = 10'h026,
+  WaitMem6 = 10'h027,
+  Cmp6 = 10'h028,
+  Fail6 = 10'h029,
+  Success6 = 10'h02A,
+  Read7 = 10'h02B,
+  WaitMem7 = 10'h02C,
+  Cmp7 = 10'h02D,
+  Fail7 = 10'h02E,
+  Success7 = 10'h02F;
 
   reg [9:0] state, next_state;
 
@@ -99,15 +99,16 @@ module sdram_test (
       InitTest: next_state = Write0;
 
       Write0: begin
-        bwe = 4'hF;
-        we  = 1'b1;
-        req = 1'b1;
+        data = 32'h1;
+        bwe  = 4'h1;
+        we   = 1'b1;
+        req  = 1'b1;
         if (ack) next_state = Read0;
         else next_state = Write0;
       end
 
       Read0: begin
-        bwe = 4'hF;
+        bwe = 4'h1;
         req = 1'b1;
         if (ack) next_state = WaitMem0;
         else next_state = Read0;
@@ -119,7 +120,7 @@ module sdram_test (
       end
 
       Cmp0: begin
-        if (q == 32'h00000000) next_state = Success0;
+        if (q[7:0] == 8'h01) next_state = Success0;
         else next_state = Fail0;
       end
 
@@ -128,8 +129,9 @@ module sdram_test (
       Fail0: next_state = Fail0;
 
       Write1: begin
+        addr = 25'h000007;
         data = 32'hF0F0F0F0;
-        bwe  = 4'hF;
+        bwe  = 4'h8;
         we   = 1'b1;
         req  = 1'b1;
         if (ack) next_state = Read1;
@@ -137,7 +139,7 @@ module sdram_test (
       end
 
       Read1: begin
-        bwe = 4'hF;
+        bwe = 4'h1;
         req = 1'b1;
         if (ack) next_state = WaitMem1;
         else next_state = Read1;
@@ -149,7 +151,7 @@ module sdram_test (
       end
 
       Cmp1: begin
-        if (q == 32'hF0F0F0F0) next_state = Success1;
+        if (q[7:0] == 8'h01) next_state = Success1;
         else next_state = Fail1;
       end
 
@@ -158,9 +160,9 @@ module sdram_test (
       Fail1: next_state = Fail1;
 
       Write2: begin
-        addr = 25'h40CAFE;
-        data = 32'hFEEDBEEF;
-        bwe  = 4'hF;
+        addr = 25'h140BEEF;
+        data = 32'hBEBACAFE;
+        bwe  = 4'h3;
         we   = 1'b1;
         req  = 1'b1;
         if (ack) next_state = Read2;
@@ -168,7 +170,7 @@ module sdram_test (
       end
 
       Read2: begin
-        addr = 25'h40CAFE;
+        addr = 25'h140BEEF;
         bwe  = 4'hF;
         req  = 1'b1;
         if (ack) next_state = WaitMem2;
@@ -181,7 +183,7 @@ module sdram_test (
       end
 
       Cmp2: begin
-        if (q == 32'hFEEDBEEF) next_state = Success2;
+        if (q[31:16] != 16'hBEBA && q[15:0] == 16'hCAFE) next_state = Success2;
         else next_state = Fail2;
       end
 
@@ -190,8 +192,9 @@ module sdram_test (
       Fail2: next_state = Fail2;
 
       Write3: begin
-        data = 32'hFFFFFFFF;
-        bwe  = 4'h3;
+        addr = 25'h40CAFE;
+        data = 32'hFEEDBADE;
+        bwe  = 4'hF;
         we   = 1'b1;
         req  = 1'b1;
         if (ack) next_state = Write4;
@@ -199,9 +202,9 @@ module sdram_test (
       end
 
       Write4: begin
-        addr = 25'h000004;
-        data = 32'hFFFFFFFF;
-        bwe  = 4'hC;
+        addr = 25'h40CAFE;
+        data = 32'hFFFFBEEF;
+        bwe  = 4'h3;
         we   = 1'b1;
         req  = 1'b1;
         if (ack) next_state = Read3;
@@ -209,8 +212,9 @@ module sdram_test (
       end
 
       Read3: begin
-        bwe = 4'h3;
-        req = 1'b1;
+        addr = 25'h40CAFE;
+        bwe  = 4'hF;
+        req  = 1'b1;
         if (ack) next_state = WaitMem3;
         else next_state = Read3;
       end
@@ -221,7 +225,7 @@ module sdram_test (
       end
 
       Cmp3: begin
-        if (q[15:0] == 16'hFFFF) next_state = Success3;
+        if (q == 32'hFEEDBEEF) next_state = Success3;
         else next_state = Fail3;
       end
 
@@ -230,8 +234,8 @@ module sdram_test (
       Fail3: next_state = Fail3;
 
       Read4: begin
-        addr = 25'h000004;
-        bwe  = 4'hC;
+        addr = 25'h40CAF8;
+        bwe  = 4'hF;
         req  = 1'b1;
         if (ack) next_state = WaitMem4;
         else next_state = Read4;
@@ -243,7 +247,7 @@ module sdram_test (
       end
 
       Cmp4: begin
-        if (q[31:16] == 16'hFFFF) next_state = Success4;
+        if (q[15:0] != 32'hFEED) next_state = Success4;
         else next_state = Fail4;
       end
 
@@ -252,7 +256,7 @@ module sdram_test (
       Fail4: next_state = Fail4;
 
       Write5: begin
-        addr = 25'h001000;
+        addr = 25'h001005;
         data = 32'h01234567;
         bwe  = 4'hF;
         we   = 1'b1;
@@ -262,7 +266,7 @@ module sdram_test (
       end
 
       Write6: begin
-        addr = 25'h001004;
+        addr = 25'h001009;
         data = 32'h89ABCDEF;
         bwe  = 4'hF;
         we   = 1'b1;
@@ -272,7 +276,7 @@ module sdram_test (
       end
 
       Read5: begin
-        addr = 25'h001000;
+        addr = 25'h001008;
         bwe  = 4'hF;
         req  = 1'b1;
         if (ack) next_state = WaitMem5;
@@ -285,7 +289,7 @@ module sdram_test (
       end
 
       Cmp5: begin
-        if (q == 32'h01234567) next_state = Success5;
+        if (q == 32'hABCDEF01) next_state = Success5;
         else next_state = Fail5;
       end
 
@@ -294,7 +298,7 @@ module sdram_test (
       Fail5: next_state = Fail5;
 
       Read6: begin
-        addr = 25'h001004;
+        addr = 25'h001007;
         bwe  = 4'hF;
         req  = 1'b1;
         if (ack) next_state = WaitMem6;
@@ -307,7 +311,7 @@ module sdram_test (
       end
 
       Cmp6: begin
-        if (q == 32'h89ABCDEF) next_state = Success6;
+        if (q == 32'hCDEF0123) next_state = Success6;
         else next_state = Fail6;
       end
 
@@ -316,9 +320,8 @@ module sdram_test (
       Fail6: next_state = Fail6;
 
       Read7: begin
-        addr = 25'h001001;
-        bwe  = 4'hF;
-        req  = 1'b1;
+        bwe = 4'h1;
+        req = 1'b1;
         if (ack) next_state = WaitMem7;
         else next_state = Read7;
       end
@@ -329,7 +332,7 @@ module sdram_test (
       end
 
       Cmp7: begin
-        if (q == 32'hEF012345) next_state = Success7;
+        if (q[7:0] == 8'h01) next_state = Success7;
         else next_state = Fail7;
       end
 

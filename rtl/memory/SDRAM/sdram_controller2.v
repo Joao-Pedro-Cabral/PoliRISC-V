@@ -11,7 +11,7 @@ module sdram_controller2 #(
     parameter integer CLK_FREQ,
 
     // interface de 32 bits do controlador
-    parameter integer ADDR_WIDTH = 24,  // 16Mx32 (memória de 32Mx16)
+    parameter integer ADDR_WIDTH = 26,  // 64Mx8 (memória de 32Mx16)
     parameter integer DATA_WIDTH = 32,
 
     // interface com a SDRAM
@@ -30,7 +30,7 @@ module sdram_controller2 #(
 
     // número de palavras de 16 bits que podem ser
     // manipuladas em rajada durante a leitura ou escrita
-    parameter integer BURST_LENGTH = 2,
+    parameter integer BURST_LENGTH = 4,
 
     // valores de temporização, em nanosegundos
     parameter real T_DESL = 100000.0, // delay de inicialização
@@ -60,14 +60,14 @@ module sdram_controller2 #(
     // interface com a SDRAM
     output reg [SDRAM_ADDR_WIDTH-1:0] sdram_a,
     output reg [SDRAM_BANK_WIDTH-1:0] sdram_ba,
-    inout [SDRAM_DATA_WIDTH-1:0] sdram_dq,
+    inout reg [SDRAM_DATA_WIDTH-1:0] sdram_dq,
     output sdram_cke,
     output sdram_cs_n,
     output sdram_ras_n,
     output sdram_cas_n,
     output sdram_we_n,
-    output sdram_dqml,
-    output sdram_dqmh
+    output reg sdram_dqml,
+    output reg sdram_dqmh
 );
 
   // comandos
@@ -133,16 +133,22 @@ module sdram_controller2 #(
   localparam integer RefreshInterval = (T_REFI / ClkPeriod) - 10;
 
   // estados do controlador
-  localparam reg [2:0]
-    Init = 3'o0,
-    Mode = 3'o1,
-    Idle = 3'o2,
-    Active = 3'o3,
-    Read = 3'o4,
-    Write = 3'o5,
-    Refresh = 3'o6;
+  localparam reg [3:0]
+    Init = 4'h0,
+    Mode = 4'h1,
+    Idle = 4'h2,
+    Active = 4'h3,
+    Read = 4'h4,
+    OutOfBoundsReadBegin = 4'h7,
+    OutOfBoundsRefresh = 4'h8,
+    OutOfBoundsReadEnd = 4'h9,
+    OutOfBoundsActive = 4'hA,
+    Write = 4'h5,
+    OutOfBoundsWriteBegin = 4'hB,
+    OutOfBoundsWriteEnd = 4'hC,
+    Refresh = 4'h6;
   // sinais de estado
-  reg [2:0] state, next_state;
+  reg [3:0] state, next_state;
 
   reg [3:0] cmd, next_cmd;
 
@@ -152,6 +158,8 @@ module sdram_controller2 #(
   wire active_done;
   wire refresh_done;
   wire first_word;
+  wire second_word;
+  wire third_word;
   wire read_done;
   wire write_done;
   wire should_refresh;
@@ -162,23 +170,30 @@ module sdram_controller2 #(
 
   // registradores
   reg [SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-1:0] addr_reg;
+  reg [SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-1:0] next_block_addr_reg;
+  reg addr_lsb_reg;
   reg [DATA_WIDTH-1:0] data_reg;
   reg we_reg;
   reg [3:0] bwe_reg;
-  reg [DATA_WIDTH-1:0] q_reg;
+  reg [16*BURST_LENGTH-1:0] q_reg;
 
   // aliases
   wire [SDRAM_COL_WIDTH-1:0] col = addr_reg[SDRAM_COL_WIDTH-1:0];  // warning: valor hardcoded
   wire [SDRAM_ROW_WIDTH-1:0] row = addr_reg[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH-1:SDRAM_COL_WIDTH];
   wire [SDRAM_BANK_WIDTH-1:0] bank =
       addr_reg[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-1:SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH];
+  wire [SDRAM_COL_WIDTH-1:0] next_block_col = next_block_addr_reg[SDRAM_COL_WIDTH-1:0];  // warning: valor hardcoded
+  wire [SDRAM_ROW_WIDTH-1:0] next_block_row = next_block_addr_reg[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH-1:SDRAM_COL_WIDTH];
+  wire [SDRAM_BANK_WIDTH-1:0] next_block_bank =
+      next_block_addr_reg[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-1:SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH];
+
 
   // lógica de controle
 
   // máquina de estados
   // TODO: criar um  sinal que é um OR de todos os dones
-  always @(state, wait_counter, req, we_reg, load_mode_done, active_done, refresh_done, read_done,
-      write_done, should_refresh) begin : fsm
+  always @(state, wait_counter, req, addr_reg, addr_lsb_reg, we_reg, load_mode_done, active_done,
+    refresh_done, read_done, write_done, should_refresh) begin : fsm
 
     next_state <= state;
 
@@ -218,10 +233,32 @@ module sdram_controller2 #(
       Active: begin
         if (active_done) begin
           if (we_reg) begin
-            next_state <= Write;
+            if ((addr_reg[1:0] == 2'b10 && addr_lsb_reg == 1'b1) || addr_reg[1:0] == 2'b11) begin
+              next_state <= OutOfBoundsWriteBegin;
+              next_cmd   <= CmdWrite;
+            end else begin
+              next_state <= Write;
+              next_cmd   <= CmdWrite;
+            end
+          end else begin
+            if ((addr_reg[1:0] == 2'b10 && addr_lsb_reg == 1'b1) || addr_reg[1:0] == 2'b11) begin
+              next_state <= OutOfBoundsReadBegin;
+              next_cmd   <= CmdRead;
+            end else begin
+              next_state <= Read;
+              next_cmd   <= CmdRead;
+            end
+          end
+        end
+      end
+
+      OutOfBoundsActive: begin
+        if (active_done) begin
+          if (we_reg) begin
+            next_state <= OutOfBoundsWriteEnd;
             next_cmd   <= CmdWrite;
           end else begin
-            next_state <= Read;
+            next_state <= OutOfBoundsReadEnd;
             next_cmd   <= CmdRead;
           end
         end
@@ -229,6 +266,30 @@ module sdram_controller2 #(
 
       // executa o comando READ
       Read: begin
+        if (read_done) begin
+          if (should_refresh) begin
+            next_state <= Refresh;
+            next_cmd   <= CmdAutoRefresh;
+          end else if (req) begin
+            next_state <= Active;
+            next_cmd   <= CmdActive;
+          end else next_state <= Idle;
+        end
+      end
+
+      OutOfBoundsReadBegin: begin
+        if (read_done) begin
+          if (should_refresh) begin
+            next_state <= OutOfBoundsRefresh;
+            next_cmd   <= CmdAutoRefresh;
+          end else begin
+            next_state <= OutOfBoundsActive;
+            next_cmd   <= CmdActive;
+          end
+        end
+      end
+
+      OutOfBoundsReadEnd: begin
         if (read_done) begin
           if (should_refresh) begin
             next_state <= Refresh;
@@ -253,6 +314,30 @@ module sdram_controller2 #(
         end
       end
 
+      OutOfBoundsWriteBegin: begin
+        if (write_done) begin
+          if (should_refresh) begin
+            next_state <= OutOfBoundsRefresh;
+            next_cmd   <= CmdAutoRefresh;
+          end else begin
+            next_state <= OutOfBoundsActive;
+            next_cmd   <= CmdActive;
+          end
+        end
+      end
+
+      OutOfBoundsWriteEnd: begin
+        if (write_done) begin
+          if (should_refresh) begin
+            next_state <= Refresh;
+            next_cmd   <= CmdAutoRefresh;
+          end else if (req) begin
+            next_state <= Active;
+            next_cmd   <= CmdActive;
+          end else next_state <= Idle;
+        end
+      end
+
       // executa o comando AUTOREFRESH
       Refresh: begin
         if (refresh_done) begin
@@ -260,6 +345,13 @@ module sdram_controller2 #(
             next_state <= Active;
             next_cmd   <= CmdActive;
           end else next_state <= Idle;
+        end
+      end
+
+      OutOfBoundsRefresh: begin
+        if (refresh_done) begin
+          next_state <= OutOfBoundsActive;
+          next_cmd   <= CmdActive;
         end
       end
 
@@ -290,7 +382,7 @@ module sdram_controller2 #(
 
   // o refresh counter é usado para engatilhar uma operação de
   // refresh
-  always @(posedge clk or posedge reset) begin
+  always @(posedge clk or posedge reset) begin : update_refresh_counter
     if (reset) refresh_counter <= 0;
     else begin
       if (state == Refresh && wait_counter == 0) refresh_counter <= 0;
@@ -304,25 +396,84 @@ module sdram_controller2 #(
       // pois há uma conversão de um endereço de 32 bits
       // do controlador para um endereço de 16 bits da
       // SDRAM
-      addr_reg <= {addr[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-2:0], 1'b0};
+      addr_reg <= addr[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH:1];
+      next_block_addr_reg[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH-1:2]
+        <= addr[SDRAM_COL_WIDTH+SDRAM_ROW_WIDTH+SDRAM_BANK_WIDTH:3] + 1'b1;
+      next_block_addr_reg[1:0] <= 2'b00;
+      addr_lsb_reg <= addr[0];
       data_reg <= data;
-      we_reg   <= we;
-      bwe_reg  <= ~bwe;  // warning: valor hardcoded
+      we_reg <= we;
+      bwe_reg <= ~bwe;  // warning: valor hardcoded
     end
   end
 
   // warning: valor hardcoded
-  assign sdram_dq =
-    (state == Write) ? ((wait_counter == 0) ? data_reg[15:0] : data_reg[31:16]) : 16'hzzzz;
+  always @(*) begin
+    if (state == Write) begin
+      if (wait_counter == 0) begin
+        if (addr_lsb_reg) sdram_dq = {data_reg[7:0], 8'hzz};
+        else sdram_dq = data_reg[15:0];
+      end else if (wait_counter == 1'b1) begin
+        if (addr_lsb_reg) sdram_dq = data_reg[23:8];
+        else sdram_dq = data_reg[31:16];
+      end else if (wait_counter == 2'b10) begin
+        if (addr_lsb_reg) sdram_dq = {8'hzz, data_reg[31:24]};
+        else sdram_dq = 16'hzzzz;
+      end else sdram_dq = 16'hzzzz;
+    end else if (state == OutOfBoundsWriteBegin) begin
+      if (wait_counter == 0) begin
+        if (addr_lsb_reg) sdram_dq = {data_reg[7:0], 8'hzz};
+        else sdram_dq = data_reg[15:0];
+      end else if (wait_counter == 1'b1) begin
+        if (addr_reg[1:0] != 2'b11) sdram_dq = data_reg[23:8];
+        else sdram_dq = 16'hzzzz;
+      end else sdram_dq = 16'hzzzz;
+    end else if (state == OutOfBoundsWriteEnd) begin
+      if (wait_counter == 0) begin
+        if (addr_reg[1:0] != 2'b11) sdram_dq = {8'hzz, data_reg[31:24]};
+        else if (addr_lsb_reg) sdram_dq = data_reg[23:8];
+        else sdram_dq = data_reg[31:16];
+      end else if (wait_counter == 1'b1) begin
+        if (addr_reg[1:0] != 2'b11) sdram_dq = 16'hzzzz;
+        else if (addr_lsb_reg) sdram_dq = {8'hzz, data_reg[31:24]};
+        else sdram_dq = 16'hzzzz;
+      end else sdram_dq = 16'hzzzz;
+    end else sdram_dq = 16'hzzzz;
+  end
+
   always @(posedge clk) begin : latch_sdram_data
     valid <= 0;
 
     if (state == Read) begin
-      if (first_word) q_reg[15:0] <= sdram_dq;
-      else if (read_done) begin
-        q_reg[31:16] <= sdram_dq;
+      if (first_word) begin
+        if (addr_lsb_reg) q_reg[7:0] <= sdram_dq[15:8];
+        else q_reg[15:0] <= sdram_dq;
+      end else if (second_word) begin
+        if (addr_lsb_reg) q_reg[23:8] <= sdram_dq;
+        else q_reg[31:16] <= sdram_dq;
+      end else if (third_word) begin
+        if (addr_lsb_reg) q_reg[31:24] <= sdram_dq[7:0];
+        else q_reg[47:32] <= sdram_dq;
+      end else if (read_done) begin
+        q_reg[63:48] <= sdram_dq;
         valid <= 1'b1;
       end
+    end else if (state == OutOfBoundsReadBegin) begin
+      if (first_word) begin
+        if (addr_lsb_reg) q_reg[7:0] <= sdram_dq[15:8];
+        else q_reg[15:0] <= sdram_dq;
+      end else if (second_word) begin
+        if (addr_reg[1:0] == 2'b10 && addr_lsb_reg) q_reg[23:8] <= sdram_dq;
+      end
+    end else if (state == OutOfBoundsReadEnd) begin
+      if (first_word) begin
+        if (addr_lsb_reg) begin
+          if (addr_reg[1:0] == 2'b10) q_reg[31:24] <= sdram_dq[7:0];
+          else q_reg[23:8] <= sdram_dq;
+        end else q_reg[31:16] <= sdram_dq;
+      end else if (second_word) begin
+        if (addr_reg[1:0] == 2'b11 && addr_lsb_reg == 1'b1) q_reg[31:24] <= sdram_dq[7:0];
+      end else if (read_done) valid <= 1'b1;
     end
   end
 
@@ -331,6 +482,8 @@ module sdram_controller2 #(
   assign active_done = (wait_counter == ActiveWait - 1'b1) ? 1'b1 : 1'b0;
   assign refresh_done = (wait_counter == RefreshWait - 1'b1) ? 1'b1 : 1'b0;
   assign first_word = (wait_counter == CasLatency) ? 1'b1 : 1'b0;
+  assign second_word = (wait_counter == CasLatency + 1'b1) ? 1'b1 : 1'b0;
+  assign third_word = (wait_counter == CasLatency + 2'b10) ? 1'b1 : 1'b0;
   assign read_done = (wait_counter == ReadWait - 1'b1) ? 1'b1 : 1'b0;
   assign write_done = (wait_counter == WriteWait - 1'b1) ? 1'b1 : 1'b0;
 
@@ -343,7 +496,9 @@ module sdram_controller2 #(
   assign start =
         (state == Idle) ? 1'b1
       : (state == Read && read_done) ? 1'b1
+      : (state == OutOfBoundsReadEnd && read_done) ? 1'b1
       : (state == Write && write_done) ? 1'b1
+      : (state == OutOfBoundsWriteEnd && write_done) ? 1'b1
       : (state == Refresh && refresh_done) ? 1'b1
       : 1'b0;
 
@@ -352,7 +507,8 @@ module sdram_controller2 #(
   assign ack = (state == Active && wait_counter == 14'b0) ? 1'b1 : 1'b0;
 
   // saída de dados
-  assign q = q_reg;
+  /* assign q = addr_lsb_reg ? q_reg[DATA_WIDTH+8-1:8] : q_reg[DATA_WIDTH-1:0]; */
+  assign q = q_reg[DATA_WIDTH-1:0];
 
   // desativa o clock no começo do estado Init
   assign sdram_cke = (state == Init && wait_counter == 14'b0) ? 1'b0 : 1'b1;
@@ -363,8 +519,13 @@ module sdram_controller2 #(
   always @(*) begin : sdram_ba_logic
     case (state)
       Active: sdram_ba = bank;
+      OutOfBoundsActive: sdram_ba = next_block_bank;
       Read: sdram_ba = bank;
+      OutOfBoundsReadBegin: sdram_ba = bank;
+      OutOfBoundsReadEnd: sdram_ba = next_block_bank;
       Write: sdram_ba = bank;
+      OutOfBoundsWriteBegin: sdram_ba = bank;
+      OutOfBoundsWriteEnd: sdram_ba = next_block_bank;
       default: sdram_ba = 0;
     endcase
   end
@@ -374,13 +535,98 @@ module sdram_controller2 #(
       Init: sdram_a = 13'b0010000000000;  // warning: valor hardcoded
       Mode: sdram_a = ModeReg;
       Active: sdram_a = row;
+      OutOfBoundsActive: sdram_a = next_block_row;
       Read: sdram_a = {3'o1, col};  // warning: valor hardcoded
+      OutOfBoundsReadBegin: sdram_a = {3'o1, col};  // warning: valor hardcoded
+      OutOfBoundsReadEnd: sdram_a = {3'o1, next_block_col};
       Write: sdram_a = {3'o1, col};  // warning: valor hardcoded
+      OutOfBoundsWriteBegin: sdram_a = {3'o1, col};  // warning: valor hardcoded
+      OutOfBoundsWriteEnd: sdram_a = {3'o1, next_block_col};  // warning: valor hardcoded
       default: sdram_a = 0;
     endcase
   end
 
-  assign sdram_dqml = (wait_counter == 0) ? bwe_reg[0] : bwe_reg[2];
-  assign sdram_dqmh = (wait_counter == 0) ? bwe_reg[1] : bwe_reg[3];
-
+  always @(*) begin
+    if ((addr_reg[1:0] != 2'b10 || addr_lsb_reg != 1'b1) && addr_reg[1:0] != 2'b11) begin
+      if (wait_counter == 0) begin
+        if (addr_lsb_reg) begin
+          sdram_dqml = 1'b1;  // desativado
+          sdram_dqmh = bwe_reg[0];
+        end else begin
+          sdram_dqml = bwe_reg[0];
+          sdram_dqmh = bwe_reg[1];
+        end
+      end else if (wait_counter == 1'b1) begin
+        if (addr_lsb_reg) begin
+          sdram_dqml = bwe_reg[1];
+          sdram_dqmh = bwe_reg[2];
+        end else begin
+          sdram_dqml = bwe_reg[2];
+          sdram_dqmh = bwe_reg[3];
+        end
+      end else if (wait_counter == 2'b10) begin
+        if (addr_lsb_reg) begin
+          sdram_dqml = bwe_reg[3];
+          sdram_dqmh = 1'b1;  // desativado
+        end else begin
+          sdram_dqml = 1'b1;  // desativado
+          sdram_dqmh = 1'b1;  // desativado
+        end
+      end else begin
+        sdram_dqml = 1'b1;  // desativado
+        sdram_dqmh = 1'b1;  // desativado
+      end
+    end else begin
+      if (wait_counter == 0) begin
+        if (state == OutOfBoundsReadBegin || state == OutOfBoundsWriteBegin) begin
+          if (addr_lsb_reg) begin
+            sdram_dqml = 1'b1;  // desativado
+            sdram_dqmh = bwe_reg[0];
+          end else begin
+            sdram_dqml = bwe_reg[0];
+            sdram_dqmh = bwe_reg[1];
+          end
+        end else begin
+          if (addr_lsb_reg) begin
+            if (addr_reg[1:0] == 2'b10) begin
+              sdram_dqml = bwe_reg[3];
+              sdram_dqmh = 1'b1;  // desativado
+            end else begin
+              sdram_dqml = bwe_reg[1];
+              sdram_dqmh = bwe_reg[2];
+            end
+          end else begin
+            sdram_dqml = bwe_reg[2];
+            sdram_dqmh = bwe_reg[3];
+          end
+        end
+      end else if (wait_counter == 1'b1) begin
+        if (state == OutOfBoundsReadBegin || state == OutOfBoundsWriteBegin) begin
+          if (addr_reg[1:0] == 2'b10 && addr_lsb_reg == 1'b1) begin
+            sdram_dqml = bwe_reg[1];
+            sdram_dqmh = bwe_reg[2];
+          end else begin
+            sdram_dqml = 1'b1;  // desativado
+            sdram_dqmh = 1'b1;  // desativado
+          end
+        end else begin
+          if (addr_lsb_reg) begin
+            if (addr_reg[1:0] == 2'b11) begin
+              sdram_dqml = bwe_reg[3];
+              sdram_dqmh = 1'b1;  // desativado
+            end else begin
+              sdram_dqml = 1'b1;  // desativado
+              sdram_dqmh = 1'b1;  // desativado
+            end
+          end else begin
+            sdram_dqml = 1'b1;  // desativado
+            sdram_dqmh = 1'b1;  // desativado
+          end
+        end
+      end else begin
+        sdram_dqml = 1'b1;  // desativado
+        sdram_dqmh = 1'b1;  // desativado
+      end
+    end
+  end
 endmodule
