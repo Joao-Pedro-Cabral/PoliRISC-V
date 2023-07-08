@@ -11,9 +11,9 @@ syn_project = syn_top
 syn_tool = "vivado"
 program_fpga = True # False: open Vivado
 
-# generate constrains tcl file
-constrains_file = open("constrains.tcl", 'w')
-constrains_file.write("open_project " + syn_top + ".xpr\nadd_files -fileset constrs_1 -norecurse ./constrains/" + syn_top + ".xdc\nexit")
+# generate constraints tcl file
+constrains_file = open("constraints.tcl", 'w')
+constrains_file.write("open_project " + syn_top + ".xpr\nadd_files -fileset constrs_1 -norecurse ./constraints/" + syn_top + ".xdc\nexit")
 
 # generate program tcl file
 hw_device = syn_device + "_0"
@@ -35,7 +35,7 @@ if program_fpga:
 else:
     program_file.write("open_project " + syn_top + ".xpr\n")
 
-syn_post_project_cmd = "vivado -mode tcl -source constrains.tcl"
+syn_post_project_cmd = "vivado -mode tcl -source constraints.tcl"
 if program_fpga:
     syn_post_bitstream_cmd = "vivado -mode tcl -source program.tcl"
 else:

@@ -1,6 +1,5 @@
 modules = {
     "local" : [
-        "memory",
-        "peripheral"
+        "7_segments",
     ],
 }

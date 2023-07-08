@@ -58,7 +58,7 @@ module uart #(
   wire tx_fifo_empty;
   wire tx_fifo_full;
   wire tx_fifo_less_than_watermark;
-  wire tx_fifo_ed_rst;
+  wire tx_fifo_ed_en_n; // enable ativo baixo do tx edge_detector
   wire tx_fifo_rd_en_negedge;
 
   // Rx Fifo
@@ -69,7 +69,7 @@ module uart #(
   wire rx_fifo_empty_;
   wire rx_fifo_full;
   wire rx_fifo_greater_than_watermark;
-  wire rx_fifo_ed_rst;
+  wire rx_fifo_ed_en_n; // enable ativo baixo do rx edge_detector
 
   // UART Tx
   wire tx_clock;
@@ -103,7 +103,6 @@ module uart #(
       .D(_rd_en & (addr[4:2] == 3'b001)),
       .Q(rx_data_en)
   );
-
 
   // Transmit Data Register
   register_d #(
@@ -207,13 +206,14 @@ module uart #(
 
   // Edge detector com registrador para detectar que o TX deseja um dado
   // TX pronto e fila não vazia -> habilitar leitura na FIFO
+  // Edge detector habilitado apenas quando tx_fifo_rd_en = '1' com tx_rdy = '1'
   edge_detector #(
       .RESET_VALUE(0),
       .EDGE_MODE  (0)   // borda de subida
   ) tx_fifo_rd_en_ed (
       .clock(clock),
-      .reset(reset | tx_fifo_ed_rst),
-      .sinal(tx_rdy & ~tx_fifo_empty),
+      .reset(reset),
+      .sinal((tx_rdy & ~tx_fifo_empty) & (~tx_fifo_ed_en_n)),
       .pulso(tx_fifo_rd_en)
   );
 
@@ -222,10 +222,10 @@ module uart #(
       .reset_value(0)
   ) tx_fifo_rd_en_ed_reg (
       .clock(clock),
-      .reset(reset | ~tx_rdy),
-      .enable(tx_fifo_rd_en),
+      .reset(reset),
+      .enable(tx_fifo_rd_en | ~tx_rdy),
       .D(tx_rdy),
-      .Q(tx_fifo_ed_rst)
+      .Q(tx_fifo_ed_en_n)
   );
 
   FIFO #(
@@ -247,13 +247,14 @@ module uart #(
 
   // Edge detector com registrador para detectar que o RX tem um dado
   // RX pronto e fila não cheia -> habilitar escrita na FIFO
+  // Edge detector habilitado apenas quando rx_fifo_wr_en = '1' com rx_data_valid = '1'
   edge_detector #(
       .RESET_VALUE(0),
       .EDGE_MODE  (0)   // borda de subida
   ) rx_fifo_wr_en_ed (
       .clock(clock),
-      .reset(reset | rx_fifo_ed_rst),
-      .sinal(rx_data_valid & ~rx_fifo_full),
+      .reset(reset),
+      .sinal((rx_data_valid & ~rx_fifo_full) & (~rx_fifo_ed_en_n)),
       .pulso(rx_fifo_wr_en)
   );
 
@@ -262,10 +263,10 @@ module uart #(
       .reset_value(0)
   ) rx_fifo_wr_en_ed_reg (
       .clock(clock),
-      .reset(reset | ~rx_data_valid),
-      .enable(rx_fifo_wr_en),
+      .reset(reset),
+      .enable(rx_fifo_wr_en | ~rx_data_valid),
       .D(rx_data_valid),
-      .Q(rx_fifo_ed_rst)
+      .Q(rx_fifo_ed_en_n)
   );
 
   FIFO #(
@@ -342,7 +343,7 @@ module uart #(
 
   // Circuito para que o TX saiba que há um dado válido na entrada
   // Detectar borda de descida do rd_en da FIFO
-  // Resetar quando o TX pegar esse dado(tx_rdy = 0)
+  // Habilitar tx_data_valid apenas se tx_rdy = '1'
   edge_detector #(
       .RESET_VALUE(0),
       .EDGE_MODE  (1)   // borda de descida
@@ -358,9 +359,9 @@ module uart #(
       .reset_value(0)
   ) tx_data_valid_reg (
       .clock(clock),
-      .reset(reset | ~tx_rdy),
-      .enable(tx_fifo_rd_en_negedge),
-      .D(1'b1),
+      .reset(reset),
+      .enable(tx_fifo_rd_en_negedge | ~tx_rdy),
+      .D(tx_rdy),
       .Q(tx_data_valid)
   );
 
