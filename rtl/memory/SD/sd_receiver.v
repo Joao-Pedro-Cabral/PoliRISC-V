@@ -1,18 +1,18 @@
-module sd_cmd_receiver (
+module sd_receiver (
     // Comum
     input wire clock,
     input wire reset,
     // Controlador
-    input wire response_type,  // 0: R1, 1: R3/R7
-    output wire [39:0] received_data,
+    input wire [1:0] response_type,  // 00: R1, 01: R3/R7, 1X: Data Block
+    output wire [4096:0] received_data,
     output wire data_valid,
     // SD
     input wire miso
 );
 
-  wire [5:0] transmission_size;  // R1: 7, R3 e R7: 39
-  wire [5:0] bits_received;
-  wire [39:0] data_received;
+  wire [12:0] transmission_size;  // R1: 7, R3 e R7: 39
+  wire [12:0] bits_received;
+  wire [4096:0] data_received;
 
   // Sinais de controle
   reg receiving;
@@ -27,8 +27,8 @@ module sd_cmd_receiver (
   // Delay de 1 bit
   // data_valid ativado 1 ciclo após o data_received amostrar o último bit
   sync_parallel_counter #(
-      .size(6),
-      .init_value(40)
+      .size(13),
+      .init_value(4097)
   ) bit_counter (
       .clock(clock),
       .load(receiving),
@@ -39,18 +39,18 @@ module sd_cmd_receiver (
       .value(bits_received)
   );
 
-  assign transmission_size = response_type ? 39 : 7;
-  assign data_vld = (bits_received == 6'b0);  // Dado válido ao fim da transmissão
+  assign transmission_size = response_type[1] ? 4096 : (response_type[0] ? 39 : 7);
+  assign data_vld = (bits_received == 13'b0);  // Dado válido ao fim da transmissão
   assign data_valid = data_vld;
 
   register_d #(
-      .N(40),
-      .reset_value({40{1'b0}})
+      .N(4097),
+      .reset_value({4097{1'b0}})
   ) receiver_reg (
       .clock(clock),
       .reset(reset),
       .enable(receiving),
-      .D({data_received[39:1], miso}),
+      .D({data_received[4096:1], miso}),
       .Q(data_received)
   );
 
