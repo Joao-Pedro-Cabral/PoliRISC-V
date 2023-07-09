@@ -16,8 +16,10 @@ module sd_cmd_sender (
   reg argument_reg;
 
   always @(posedge clock) begin
-    cmd_index_reg <= cmd_index;
-    argument_reg  <= argument;
+    if (cmd_valid) begin
+      cmd_index_reg <= cmd_index;
+      argument_reg  <= argument;
+    end
   end
 
   wire _sending_cmd;
@@ -59,7 +61,7 @@ module sd_cmd_sender (
       .clock(clock),
       .reset(reset),
       .enable(1'b1),
-      .D(cmd_valid_pulse ? {1'b0, 1'b1, cmd_index_reg, argument_reg, crc7, 1'b1} : {Q[47:1], 1'b1}),
+      .D(cmd_valid_pulse ? {1'b0, 1'b1, cmd_index_reg, argument_reg, crc7, 1'b1} : {cmd_reg[47:1], 1'b1}),
       .Q(cmd_reg)
   );
 

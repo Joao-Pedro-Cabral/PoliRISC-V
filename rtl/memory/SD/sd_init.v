@@ -2,37 +2,45 @@ module sd_init #(
     parameter reg CPOL = 1'b0
 ) (
     // sinais de sistema
-    input clock,
-    input reset,
+    input wire clock,
+    input wire reset,
 
     // interface com o cartão SD
-    input miso,
-    output reg cs,
-    output reg sck,
-    output reg mosi,
+    input  wire miso,
+    output reg  cs,
+    output reg  sck,
+    output reg  mosi,
 
     // sinais de status
-    input  init_en,
-    output init_busy
+    input  wire init_en,
+    output reg  init_busy
 );
 
-  reg  cmd_index;
-  reg  argument;
-  reg  cmd_valid;
-  wire cmd_sender_mosi;
+  reg cmd_index;
+  reg argument;
+  reg cmd_valid;
+  reg response_type;
+  wire [39:0] received_data;
+  wire data_valid;
 
   sd_cmd_sender cmd_sender (
       .clock(clock),
       .reset(reset),
-
       .cmd_index(cmd_index),
-      .argument (argument),
+      .argument(argument),
       .cmd_valid(cmd_valid),
-
       // interface com o cartão SD
-      .mosi(cmd_sender_mosi),
-
+      .mosi(mosi),
       .sending_cmd(sending_cmd)
+  );
+
+  sd_cmd_receiver cmd_receiver (
+      .clock(clock),
+      .reset(reset),
+      .response_type(response_type),
+      .received_data(received_data),
+      .data_valid(data_valid),
+      .miso(miso)
   );
 
 
@@ -41,7 +49,7 @@ module sd_init #(
 
   localparam reg [7:0]
     Idle = 8'h00,
-    Cmd0 = 8'h03,
+    SendCmd0 = 8'h03,
     Cmd8 = 8'h04,
     Cmd8R1 = 8'h05,
     Cmd8B2 = 8'h06,
@@ -56,7 +64,7 @@ module sd_init #(
     Cmd58B2 = 8'h0F,
     Cmd58B3 = 8'h10,
     Cmd58B4 = 8'h11,
-    WaitCmd = 8'h12;
+    WaitSendCmd = 8'h12;
 
   reg [7:0] new_state, state, new_state_return;
 
@@ -64,7 +72,6 @@ module sd_init #(
     if (reset) begin
       cs    <= 1'b1;
       sck   <= CPOL;
-      mosi  <= 1'b1;
       state <= Idle;
     end else begin
       cs    <= new_cs;
@@ -77,10 +84,12 @@ module sd_init #(
     begin
       new_cs = 1'b1;
       new_sck = CPOL;
-      new_state_return = Idle;
       cmd_index = 6'b000000;
       argument = 32'b0;
       cmd_valid = 1'b0;
+      response_type = 1'b0;
+      new_state = Idle;
+      new_state_return = Idle;
     end
   endtask
 
@@ -88,29 +97,53 @@ module sd_init #(
     reset_signals;
 
     case (state)
-      Idle: begin
-        if (init_en) new_state = Cmd0;
+      Idle: begin  // Faz nada
+        if (init_en) new_state = SendCmd0;
         else new_state = Idle;
       end
 
-      WaitCmd: begin
-        if (!sending_cmd) new_state = new_state_return;
-        else begin
+      WaitSendCmd: begin  // Espera Comando ser enviado pelo cmd_sender
+        new_cs = 1'b0;
+        if (!sending_cmd) new_state = WaitReceiveCmd;
+        else new_state = WaitSendCmd;
+      end
+
+      WaitReceiveCmd: begin
+        if (data_valid) begin
+          new_cs = 1'b1;
+          new_state = new_state_return;
+        end else begin
           new_cs = 1'b0;
-          new_state = WaitCmd;
+          new_state = WaitReceiveCmd;
         end
       end
 
-      Cmd0: begin
+      SendCmd0: begin  // Enviar CMD0
         new_cs = 1'b0;
-        cmd_index = 6'b000000;
+        cmd_index = 6'h00;
         argument = 32'b0;
         cmd_valid = 1'b1;
-        new_state = WaitCmd;
-        new_state_return = Cmd8;
+        new_state = WaitSendCmd;
+        new_state_return = CheckCmd0;
       end
 
-      Cmd8: begin
+      CheckCmd0: begin
+        if (received_data[7:0] == 8'h01) new_state = SendCmd8;
+        else new_state = SendCmd0;
+      end
+
+      SendCmd8: begin  // Enviar CMD8
+        new_cs = 1'b0;
+        cmd_index = 6'h08;
+        argument = 32'h000001AA;
+        cmd_valid = 1'b1;
+        response_type = 1'b1;
+        new_state = WaitSendCmd;
+        new_state_return = CheckCmd8;
+      end
+
+      CheckCmd8: begin
+        // Tenta dnv kkkkkkkk
       end
 
       Cmd8R1: begin
@@ -158,6 +191,5 @@ module sd_init #(
   end
 
   assign init_busy = state != Idle;
-  assign mosi = state == WaitCmd ? cmd_sender_mosi : 1'b1;
 
 endmodule
