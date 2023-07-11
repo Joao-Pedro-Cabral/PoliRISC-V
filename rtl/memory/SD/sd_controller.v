@@ -1,6 +1,4 @@
-module sd_controller #(
-    parameter reg CPOL = 1'b0
-) (
+module sd_controller (
     // sinais de sistema
     input clock_400K,
     input clock_50M,
@@ -14,7 +12,7 @@ module sd_controller #(
     // interface com o cartão SD
     input miso,
     output reg cs,
-    output reg sck,
+    output wire sck,
     output reg mosi,
 
     // sinal de status
@@ -52,7 +50,6 @@ module sd_controller #(
 
 
   reg new_cs;
-  reg new_sck;
 
   localparam reg [7:0]
     InitBegin = 4'h0,
@@ -74,16 +71,16 @@ module sd_controller #(
 
   reg [7:0] new_state, state, new_state_return;
 
+  // Antes do Idle: Inicialização (400KHz), Após: Leitura(50MHz)
   assign clock = (state >= Idle) ? clock_50M : clock_400K;
+  assign sck   = ~clock;
 
   always @(posedge clock, posedge reset) begin
     if (reset) begin
       cs    <= 1'b1;
-      sck   <= CPOL;
       state <= InitBegin;
     end else begin
       cs    <= new_cs;
-      sck   <= new_sck;
       state <= new_state;
     end
   end
@@ -91,7 +88,6 @@ module sd_controller #(
   task reset_signals;
     begin
       new_cs = 1'b1;
-      new_sck = CPOL;
       cmd_index = 6'b000000;
       argument = 32'b0;
       cmd_valid = 1'b0;
