@@ -1,4 +1,5 @@
 files = [
     "sd_controller.v",
-    "sd_init.v"
+    "sd_cmd_sender.v",
+    "sd_receiver"
 ]
