@@ -16,7 +16,7 @@ module sd_controller (
     output reg mosi,
 
     // sinal de status
-    output reg init_busy
+    output reg busy
 );
 
   wire clock;
@@ -218,7 +218,7 @@ module sd_controller (
     endcase
   end
 
-  assign init_busy = (state != Idle) & rd_en;
+  assign busy = (state != Idle) & rd_en;
   assign read_data = received_data;
 
 endmodule
