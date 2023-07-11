@@ -6,7 +6,7 @@ module sd_cmd_sender (
     input [31:0] argument,
     input cmd_valid,
 
-    // interface com o cartÃ£o SD
+    // interface com o cartão SD
     output mosi,
 
     output reg sending_cmd
