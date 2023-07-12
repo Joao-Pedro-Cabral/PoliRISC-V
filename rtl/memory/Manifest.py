@@ -3,6 +3,7 @@ modules = {
         "Cache",
         "ROM",
         "RAM",
+        "SD",
         "Controller",
         "SDRAM"
     ],

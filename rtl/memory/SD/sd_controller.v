@@ -7,22 +7,22 @@ module sd_controller (
     // interface com a pseudocache
     input rd_en,
     input [31:0] addr,
-    output reg [4095:0] read_data,
+    output wire [4095:0] read_data,
 
     // interface com o cartão SD
     input miso,
     output reg cs,
     output wire sck,
-    output reg mosi,
+    output wire mosi,
 
     // sinal de status
-    output reg busy
+    output wire busy
 );
 
   wire clock;
 
-  reg cmd_index;
-  reg argument;
+  reg [5:0] cmd_index;
+  reg [31:0] argument;
   reg cmd_valid;
   reg [1:0] response_type;
   wire [4095:0] received_data;
@@ -39,7 +39,7 @@ module sd_controller (
       .sending_cmd(sending_cmd)
   );
 
-  sd_cmd_receiver cmd_receiver (
+  sd_receiver receiver (
       .clock(clock),
       .reset(reset),
       .response_type(response_type),
@@ -69,7 +69,7 @@ module sd_controller (
     CheckRead = 4'hE,
     CheckToken = 4'hF;
 
-  reg [7:0] new_state, state, new_state_return;
+  reg [7:0] new_state = InitBegin, state = InitBegin, new_state_return = InitBegin;
 
   // Antes do Idle: Inicialização (400KHz), Após: Leitura(50MHz)
   assign clock = (state >= Idle) ? clock_50M : clock_400K;

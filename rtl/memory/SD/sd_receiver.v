@@ -13,10 +13,10 @@ module sd_receiver (
   wire [12:0] transmission_size;  // R1: 7, R3 e R7: 39
   wire [12:0] bits_received;
   wire [4095:0] data_received;
+  reg [15:0] crc16;
 
   // Sinais de controle
   reg receiving;
-  wire end_transmission;
 
   // FSM
   localparam reg Idle = 1'b0, Receive = 1'b1;
@@ -31,7 +31,7 @@ module sd_receiver (
       .init_value(4113)
   ) bit_counter (
       .clock(clock),
-      .load(receiving),
+      .load(receiving & (state == Idle)),  // Carrega a cada nova transmissão
       .load_value(transmission_size),
       .reset(reset),
       .inc_enable(1'b0),
@@ -40,8 +40,7 @@ module sd_receiver (
   );
 
   assign transmission_size = response_type[1] ? 4113 : (response_type[0] ? 39 : 7);
-  assign end_transmission = (bits_received == 13'b0);  // Dado válido ao fim da transmissão
-  assign data_valid = end_transmission & !response_type[1] | (crc16 == 0);
+  assign data_valid = (!receiving) & (!response_type[1] | (crc16 == 0));
 
   // Shift Register
   register_d #(
@@ -52,15 +51,13 @@ module sd_receiver (
       .reset(reset),
       // Paro o reg antes dele pegar o CRC16
       .enable(receiving & !(response_type[1] & bits_received <= 16)),
-      .D({data_received[4095:1], miso}),
+      .D({data_received[4094:0], miso}),
       .Q(data_received)
   );
 
   assign received_data = data_received;
 
   // CRC16 com LFSR
-  reg [15:0] crc16;
-
   always @(posedge clock) begin
     if (reset) begin
       crc16 <= 16'b0;
@@ -91,8 +88,9 @@ module sd_receiver (
         end
       end
       Receive: begin
-        if (end_transmission) new_state = Idle;
-        else begin
+        if (bits_received == 13'b0) begin
+          new_state = Idle;
+        end else begin
           receiving = 1'b1;
           new_state = Receive;
         end
