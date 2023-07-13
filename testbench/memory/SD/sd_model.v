@@ -253,8 +253,11 @@ module sd_model (
       end
 
       SendDataBlock: begin
-        if (bit_counter > 16) begin
-          miso_reg        = data_block[bit_counter-18];
+        if (bit_counter == 13'd4113) begin
+          miso_reg        = 1'b0;
+          new_bit_counter = bit_counter - 6'o01;
+        end else if (bit_counter > 16) begin
+          miso_reg        = data_block[bit_counter-17];
           new_bit_counter = bit_counter - 6'o01;
         end else if (bit_counter) begin
           miso_reg        = crc16[bit_counter-1];

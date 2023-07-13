@@ -28,6 +28,7 @@ module sd_controller (
   reg new_response_type;
   wire [4095:0] received_data;
   wire data_valid;
+  wire crc_error;
   reg new_cs;
   reg new_sck_50M;
   reg sck_50M;
@@ -50,8 +51,11 @@ module sd_controller (
       .new_response_type(new_response_type),
       .received_data(received_data),
       .data_valid(data_valid),
+      .crc_error(crc_error),
       .miso(miso)
   );
+
+  reg sck_en;
 
   localparam reg [3:0]
     InitBegin = 4'h0,
@@ -76,7 +80,7 @@ module sd_controller (
 
   // Antes do Idle: Inicialização (400KHz), Após: Leitura(50MHz)
   assign clock = sck_50M ? clock_50M : clock_400K;
-  assign sck   = ~clock;
+  assign sck   = sck_en & ~clock;
 
   always @(posedge clock, posedge reset) begin
     if (reset) begin
@@ -94,8 +98,10 @@ module sd_controller (
     end
   end
 
+
   task reset_signals;
     begin
+      sck_en = 1'b1;
       new_cs = 1'b1;
       cmd_index = 6'b000000;
       argument = 32'b0;
@@ -125,7 +131,7 @@ module sd_controller (
 
       WaitReceiveCmd: begin  // Espera resposta do cartão SD (componente cmd_receiver)
         new_cs = 1'b0;
-        if (data_valid) new_state = state_return;
+        if (data_valid | crc_error) new_state = state_return;
         else new_state = WaitReceiveCmd;
       end
 
@@ -214,6 +220,7 @@ module sd_controller (
       end
 
       CheckCmd17: begin  // Checa R1 do CMD17
+        sck_en = 1'b0;
         new_cs = 1'b0;
         new_response_type = 1'b1;
         state_return_en = 1'b1;
