@@ -68,8 +68,8 @@ module sd_model (
     ReturnCmd0 = 4'h4,
     ReturnCmd8 = 4'h5,
     ReturnCmd55 = 4'h6,
-    ReturnAcmd41 = 4'h7,
-    ReturnAcmd41Idle = 4'h8,
+    ReturnAcmd41Idle = 4'h7,
+    ReturnAcmd41 = 4'h8,
     ReturnCmd17 = 4'h9,
     SendDataBlock = 4'hA,
     SendErrorToken = 4'hB,
@@ -83,7 +83,8 @@ module sd_model (
   reg set_cmd, acmd41_idle_flag = 1'b0;
   reg random_error_flag = 1'b0;
   reg [4095:0] data_block;
-  reg [6:0] crc16;
+  reg [15:0] crc16;
+  reg change_crc;
 
   reg miso_reg;
   wire [5:0] index = cmd[45:40];
@@ -120,12 +121,21 @@ module sd_model (
   // Determinar data block
   integer j;
   always @(posedge sck) begin
-    if (state == SendDataBlock && random_error_flag == 1'b0) begin
+    if (state == ReturnCmd17 && bit_counter == 0 && random_error_flag == 1'b0) begin
       for (j = 0; j < 64; j = j + 1) begin
         data_block[64*j+:64] <= $urandom;
       end
-      crc16 <= CRC16(data_block);
-    end else data_block <= data_block;
+      change_crc <= 1'b1;
+    end else begin
+      data_block <= data_block;
+      change_crc <= 1'b0;
+    end
+  end
+
+  // Atualizar crc no ciclo seguinte a atualização do data block
+  always @(posedge sck) begin
+    if (change_crc) crc16 <= CRC16(data_block);
+    else crc16 <= crc16;
   end
 
   always @(*) begin
@@ -244,7 +254,7 @@ module sd_model (
 
       SendDataBlock: begin
         if (bit_counter > 16) begin
-          miso_reg        = data_block[bit_counter-1];
+          miso_reg        = data_block[bit_counter-18];
           new_bit_counter = bit_counter - 6'o01;
         end else if (bit_counter) begin
           miso_reg        = crc16[bit_counter-1];

@@ -25,8 +25,12 @@ module sd_controller (
   reg [31:0] argument;
   reg cmd_valid;
   reg [1:0] response_type;
+  reg new_response_type;
   wire [4095:0] received_data;
   wire data_valid;
+  reg new_cs;
+  reg new_sck_50M;
+  reg sck_50M;
 
   sd_cmd_sender cmd_sender (
       .clock(clock),
@@ -43,15 +47,13 @@ module sd_controller (
       .clock(clock),
       .reset(reset),
       .response_type(response_type),
+      .new_response_type(new_response_type),
       .received_data(received_data),
       .data_valid(data_valid),
       .miso(miso)
   );
 
-
-  reg new_cs;
-
-  localparam reg [7:0]
+  localparam reg [3:0]
     InitBegin = 4'h0,
     WaitSendCmd = 4'h1,
     WaitReceiveCmd = 4'h2,
@@ -69,19 +71,26 @@ module sd_controller (
     CheckRead = 4'hE,
     CheckToken = 4'hF;
 
-  reg [7:0] new_state = InitBegin, state = InitBegin, new_state_return = InitBegin;
+  reg [3:0] new_state, state = InitBegin, state_return = InitBegin, new_state_return;
+  reg state_return_en;
 
   // Antes do Idle: Inicialização (400KHz), Após: Leitura(50MHz)
-  assign clock = (state >= Idle) ? clock_50M : clock_400K;
+  assign clock = sck_50M ? clock_50M : clock_400K;
   assign sck   = ~clock;
 
   always @(posedge clock, posedge reset) begin
     if (reset) begin
       cs    <= 1'b1;
+      sck_50M <= 1'b0;
       state <= InitBegin;
+      state_return <= InitBegin;
     end else begin
       cs    <= new_cs;
       state <= new_state;
+      if (state_return_en) state_return <= new_state_return;
+      else state_return <= state_return;
+      if (new_sck_50M) sck_50M <= 1'b1;
+      else sck_50M <= sck_50M;
     end
   end
 
@@ -92,8 +101,11 @@ module sd_controller (
       argument = 32'b0;
       cmd_valid = 1'b0;
       response_type = 2'b00;
+      new_response_type = 1'b0;
+      new_sck_50M = 1'b0;
       new_state = InitBegin;
       new_state_return = InitBegin;
+      state_return_en = 1'b0;
     end
   endtask
 
@@ -113,7 +125,7 @@ module sd_controller (
 
       WaitReceiveCmd: begin  // Espera resposta do cartão SD (componente cmd_receiver)
         new_cs = 1'b0;
-        if (data_valid) new_state = new_state_return;
+        if (data_valid) new_state = state_return;
         else new_state = WaitReceiveCmd;
       end
 
@@ -122,8 +134,10 @@ module sd_controller (
         cmd_index = 6'h00;
         argument = 32'b0;
         cmd_valid = 1'b1;
+        new_response_type = 1'b1;
         new_state = WaitSendCmd;
         new_state_return = CheckCmd0;
+        state_return_en = 1'b1;
       end
 
       CheckCmd0: begin  // Checa se cartão SD está InitBegin e sem erros
@@ -137,8 +151,10 @@ module sd_controller (
         argument = 32'h000001AA;
         cmd_valid = 1'b1;
         response_type = 2'b01;
+        new_response_type = 1'b1;
         new_state = WaitSendCmd;
         new_state_return = CheckCmd8;
+        state_return_en = 1'b1;
       end
 
       CheckCmd8: begin  // Checa check pattern e se a tensão é suportada
@@ -151,8 +167,10 @@ module sd_controller (
         new_cs = 1'b0;
         cmd_index = 6'd55;
         cmd_valid = 1'b1;
+        new_response_type = 1'b1;
         new_state = WaitSendCmd;
         new_state_return = CheckCmd55;
+        state_return_en = 1'b1;
       end
 
       CheckCmd55: begin  // Checa se ainda está em Idle
@@ -165,8 +183,10 @@ module sd_controller (
         cmd_index = 6'd41;
         argument = 32'h40000000;
         cmd_valid = 1'b1;
+        new_response_type = 1'b1;
         new_state = WaitSendCmd;
         new_state_return = CheckAcmd41;
+        state_return_en = 1'b1;
       end
 
       CheckAcmd41: begin  // Checa ACMD41 -> Até sair do Idle
@@ -175,6 +195,7 @@ module sd_controller (
       end
 
       Idle: begin  // Idle: Espera leitura
+        new_sck_50M = 1'b1;
         if (rd_en) begin
           new_cs = 1'b0;
           new_state = SendCmd17;
@@ -186,12 +207,16 @@ module sd_controller (
         cmd_index = 6'd17;
         argument = addr;
         cmd_valid = 1'b1;
+        new_response_type = 1'b1;
         new_state = WaitSendCmd;
         new_state_return = CheckCmd17;
+        state_return_en = 1'b1;
       end
 
       CheckCmd17: begin  // Checa R1 do CMD17
         new_cs = 1'b0;
+        new_response_type = 1'b1;
+        state_return_en = 1'b1;
         // R1 sem erros -> Data Block
         if (received_data[7:0] == 8'h00) begin
           response_type = 2'b10;
@@ -218,7 +243,7 @@ module sd_controller (
     endcase
   end
 
-  assign busy = (state != Idle) & rd_en;
+  assign busy = (state != Idle) | rd_en;
   assign read_data = received_data;
 
 endmodule

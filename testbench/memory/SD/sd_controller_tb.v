@@ -54,7 +54,7 @@ module sd_controller_tb ();
   task CheckInitialization;
     begin
       // Inicialização do cartão SD
-      while (busy == 1'b1) begin
+      while (DUT.state !== DUT.Idle) begin
         // Checo na subida, pois o clock do sd_card é invertido
         @(posedge clock_400K);
         // Checar se não há erro de CRC7
@@ -90,16 +90,16 @@ module sd_controller_tb ();
     reset = 1'b1;
     @(negedge clock_400K);
     reset = 1'b0;
-    rd_en = 1'b1;  // Forçar busy a levantar
+    rd_en = $urandom(Seed);
     @(negedge clock_400K);
 
     $display(" SOT: [%0t]", $time);
 
     CheckInitialization;  // Confere Inicialização do cartão
 
-    @(negedge clock_50M);
+    $display(" Initialization Complete: [%0t]", $time);
 
-    rd_en = $urandom(Seed);  // Inicializando gerador aleatório
+    @(negedge clock_50M);
 
     // Realizar leituras
     for (i = 0; i < AmntOfTests; i = i + 1) begin

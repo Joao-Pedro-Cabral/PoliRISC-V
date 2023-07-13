@@ -4,6 +4,7 @@ module sd_receiver (
     input wire reset,
     // Controlador
     input wire [1:0] response_type,  // 00: R1, 01: R3/R7, 1X: Data Block
+    input wire new_response_type, // 1: receiver amostra novo response type
     output wire [4095:0] received_data,
     output wire data_valid,
     // SD
@@ -17,6 +18,7 @@ module sd_receiver (
 
   // Sinais de controle
   reg receiving;
+  wire [1:0] response_type_;
 
   // FSM
   localparam reg Idle = 1'b0, Receive = 1'b1;
@@ -39,8 +41,20 @@ module sd_receiver (
       .value(bits_received)
   );
 
-  assign transmission_size = response_type[1] ? 4113 : (response_type[0] ? 39 : 7);
-  assign data_valid = (!receiving) & (!response_type[1] | (crc16 == 0));
+  register_d #(
+      .N(2),
+      .reset_value(2'b0)
+  ) response_type_reg (
+      .clock(clock),
+      .reset(reset),
+      // Paro o reg antes dele pegar o CRC16
+      .enable(new_response_type),
+      .D(response_type),
+      .Q(response_type_)
+  );
+
+  assign transmission_size = response_type_[1] ? 4113 : (response_type_[0] ? 39 : 7);
+  assign data_valid = (!receiving) & (!response_type_[1] | (crc16 == 0));
 
   // Shift Register
   register_d #(
@@ -50,7 +64,7 @@ module sd_receiver (
       .clock(clock),
       .reset(reset),
       // Paro o reg antes dele pegar o CRC16
-      .enable(receiving & !(response_type[1] & bits_received <= 16)),
+      .enable(receiving & !(response_type_[1] & bits_received <= 16)),
       .D({data_received[4094:0], miso}),
       .Q(data_received)
   );
