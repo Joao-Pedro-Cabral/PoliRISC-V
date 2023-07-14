@@ -16,7 +16,7 @@ module sd_controller (
     output wire mosi,
 
     // sinal de status
-    output wire busy
+    output reg busy
 );
 
   wire clock;
@@ -29,9 +29,11 @@ module sd_controller (
   wire [4095:0] received_data;
   wire data_valid;
   wire crc_error;
+  reg end_op;
   reg new_cs;
   reg new_sck_50M;
   reg sck_50M;
+  reg sck_en;
 
   sd_cmd_sender cmd_sender (
       .clock(clock),
@@ -55,7 +57,7 @@ module sd_controller (
       .miso(miso)
   );
 
-  reg sck_en;
+  assign read_data = received_data;
 
   localparam reg [3:0]
     InitBegin = 4'h0,
@@ -112,6 +114,7 @@ module sd_controller (
       new_state = InitBegin;
       new_state_return = InitBegin;
       state_return_en = 1'b0;
+      end_op = 1'b0;
     end
   endtask
 
@@ -196,12 +199,13 @@ module sd_controller (
       end
 
       CheckAcmd41: begin  // Checa ACMD41 -> Até sair do Idle
-        if (received_data[7:0] == 8'h00) new_state = Idle;
-        else new_state = SendCmd55;
+        if (received_data[7:0] == 8'h00) begin
+          new_sck_50M = 1'b1;
+          new_state   = Idle;
+        end else new_state = SendCmd55;
       end
 
       Idle: begin  // Idle: Espera leitura
-        new_sck_50M = 1'b1;
         if (rd_en) begin
           new_cs = 1'b0;
           new_state = SendCmd17;
@@ -236,8 +240,10 @@ module sd_controller (
       end
 
       CheckRead: begin  // Checa dado lido
-        if (data_valid) new_state = Idle;
-        else new_state = SendCmd17;  // Tentar novamente
+        if (data_valid) begin
+          end_op = 1'b1;
+          new_state = Idle;
+        end else new_state = SendCmd17;  // Tentar novamente
       end
 
       CheckToken: begin
@@ -250,7 +256,10 @@ module sd_controller (
     endcase
   end
 
-  assign busy = (state != Idle) | rd_en;
-  assign read_data = received_data;
+  always @(posedge clock) begin
+    if (reset | end_op) busy <= 1'b0;
+    else if (rd_en) busy <= 1'b1;
+    else busy <= busy;
+  end
 
 endmodule

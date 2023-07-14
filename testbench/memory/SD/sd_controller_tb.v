@@ -5,10 +5,10 @@
 
 module sd_controller_tb ();
 
-  localparam integer AmntOfTests = 1;
+  localparam integer AmntOfTests = 10;
   localparam integer Clock400KPeriod = 10;
   localparam integer Clock50MPeriod = 4;
-  localparam integer Seed = 72;
+  localparam integer Seed = 15;
 
   reg clock_400K;
   reg clock_50M;
@@ -68,6 +68,7 @@ module sd_controller_tb ();
   task CheckRead;
     begin
       // Enquanto estiver lendo
+      @(negedge clock_50M);
       while (busy == 1'b1) begin
         // Checo na subida, pois o clock do sd_card é invertido
         @(posedge clock_50M);
@@ -76,6 +77,7 @@ module sd_controller_tb ();
         // Confiro busy na borda de descida
         @(negedge clock_50M);
       end
+      rd_en = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
       `ASSERT(cmd_error === 1'b0);
       `ASSERT(read_data === sd_card.data_block);
@@ -106,7 +108,9 @@ module sd_controller_tb ();
       rd_en = $urandom;
       addr  = $urandom;
 
-      if (rd_en) CheckRead;  // Confere leitura
+      if (rd_en) begin
+        CheckRead;  // Confere leitura
+      end
 
       @(negedge clock_50M);
     end
