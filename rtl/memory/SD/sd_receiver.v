@@ -1,3 +1,11 @@
+//
+//! @file   sd_receiver.v
+//! @brief  Implementação de um recebedor SPI para um controlador de SD
+//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
+//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
+//! @date   2023-07-09
+//
+
 module sd_receiver (
     // Comum
     input wire clock,

@@ -1,3 +1,11 @@
+//
+//! @file   sd_controller.v
+//! @brief  Implementação de um controlador de SD
+//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
+//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
+//! @date   2023-07-10
+//
+
 module sd_controller (
     // sinais de sistema
     input clock_400K,

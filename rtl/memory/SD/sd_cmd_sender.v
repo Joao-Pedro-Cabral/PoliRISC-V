@@ -1,3 +1,11 @@
+//
+//! @file   sd_cmd_sender.v
+//! @brief  Implementação de um expedidor SPI para um controlador de SD
+//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
+//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
+//! @date   2023-07-08
+//
+
 module sd_cmd_sender (
     input clock,
     input reset,
