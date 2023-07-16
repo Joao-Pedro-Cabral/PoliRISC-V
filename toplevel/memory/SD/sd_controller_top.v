@@ -1,4 +1,4 @@
-module sd_controller_tb (
+module sd_controller_top (
     /* sistema */
     input reset,
 
@@ -9,13 +9,15 @@ module sd_controller_tb (
     output mosi,
 
     /* depuração */
-    output [15:0] tester_state
+    input  [15:0] sw,
+    output [15:0] leds
 );
 
   wire [4095:0] read_data;
   wire busy;
   wire rd_en;
   wire [31:0] addr;
+  wire [15:0] tester_state;
 
   sd_controller_test_driver tester (
       .clock(),
@@ -40,5 +42,7 @@ module sd_controller_tb (
       .mosi(mosi),
       .busy(busy)
   );
+
+  assign leds = sw[0] ? (sw[1] ? read_data[31:16] : read_data[15:0]) : tester_state;
 
 endmodule
