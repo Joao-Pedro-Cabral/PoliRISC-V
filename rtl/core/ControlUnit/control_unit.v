@@ -47,13 +47,13 @@ module control_unit (
     output reg pc_en,
     output reg [1:0] wr_reg_src,
     output reg wr_reg_en,
-    output reg ir_en,
-    output reg mem_addr_src,
 `ifdef ZICSR
     output wire csr_imm,
     output wire [1:0] csr_op,
     output reg csr_wr_en
 `endif
+    output reg ir_en,
+    output reg mem_addr_src
 );
 
   // sinais úteis

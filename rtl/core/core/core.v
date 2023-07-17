@@ -50,6 +50,11 @@ module core (
   wire negative;
   wire carry_out;
   wire overflow;
+`ifdef ZICSR
+  wire csr_wr_en;
+  wire [1:0] csr_op;
+  wire csr_imm;
+`endif
 
   // Dataflow
   Dataflow DF (
@@ -68,6 +73,11 @@ module core (
       .arithmetic(arithmetic),
       .ir_en(ir_en),
       .mem_addr_src(mem_addr_src),
+`ifdef ZICSR
+      .csr_wr_en(csr_wr_en),
+      .csr_op(csr_op),
+      .csr_imm(csr_imm),
+`endif
       .alupc_src(alupc_src),
       .pc_src(pc_src),
       .pc_en(pc_en),
@@ -111,6 +121,11 @@ module core (
       .pc_en(pc_en),
       .wr_reg_src(wr_reg_src),
       .wr_reg_en(wr_reg_en),
+`ifdef ZICSR
+      .csr_wr_en(csr_wr_en),
+      .csr_op(csr_op),
+      .csr_imm(csr_imm),
+`endif
       .mem_addr_src(mem_addr_src)
   );
 

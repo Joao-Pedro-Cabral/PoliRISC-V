@@ -37,6 +37,11 @@ module Dataflow (
     input wire wr_reg_en,
     input wire ir_en,
     input wire mem_addr_src,
+`ifdef ZICSR
+    input wire csr_wr_en,
+    input wire [1:0] csr_op,
+    input wire csr_imm,
+`endif
     // To Control Unit
     output wire [6:0] opcode,
     output wire [2:0] funct3,
@@ -73,9 +78,25 @@ module Dataflow (
   wire [`DATA_SIZE-1:0] pc;
   // Instruction Register(IR)
   wire [          31:0] ir;
+  // ZICSR
+`ifdef ZICSR
+  wire [`DATA_SIZE-1:0] csr_rd_data;
+  wire [`DATA_SIZE-1:0] csr_wr_data;
+  wire [`DATA_SIZE-1:0] csr_aux_wr;
+`endif
 
   // Instanciação de Componentes
   // Register File
+`ifdef ZICSR  // Com ZICSR há 4 possíveis origens do reg_data_destiny
+  gen_mux #(
+      .size(`DATA_SIZE),
+      .N(2)
+  ) mux11 (
+      .A({pc_plus_4, rd_data, csr_rd_data, muxaluY_out}),
+      .S(wr_reg_src),
+      .Y(reg_data_destiny)
+  );
+`else  // Sem ZICSR: 3 origens -> Economizar 1 reg
   mux2to1 #(
       .size(`DATA_SIZE)
   ) muxpc4_data (
@@ -92,6 +113,7 @@ module Dataflow (
       .S(wr_reg_src[1]),
       .Y(reg_data_destiny)
   );
+`endif
   register_file #(
       .size(`DATA_SIZE),
       .N(5)
@@ -232,6 +254,21 @@ module Dataflow (
       .S(mem_addr_src),
       .Y(mem_addr)
   );
+  // CSR
+`ifdef ZICSR
+  csr csr_bank (
+      .clock(clock),
+      .reset(reset),
+      // Escreve caso seja CSRRW(I) ou CSRRC/S(I) com rs1 != x0
+      .wr_en(csr_wr_en & (~csr_op[1] | (|ir[19:15]))),
+      .addr(ir[31:20]),
+      .wr_data(csr_wr_data),
+      .rd_data(csr_rd_data)
+  );
+  assign csr_aux_wr = csr_imm ? $unsigned(ir[19:15]) : reg_data_source_1;
+  assign csr_wr_data = csr_op[1] ? (csr_op[0] ? (csr_rd_data & (~csr_aux_wr))
+                        : (csr_rd_data | csr_aux_wr)) : csr_aux_wr;
+`endif
 
 
   // Atribuições intermediárias
