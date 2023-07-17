@@ -48,30 +48,38 @@ module control_unit (
     output reg [1:0] wr_reg_src,
     output reg wr_reg_en,
     output reg ir_en,
-    output reg mem_addr_src
+    output reg mem_addr_src,
+`ifdef ZICSR
+    output wire csr_imm,
+    output wire [1:0] csr_op,
+    output reg csr_wr_en
+`endif
 );
 
   // sinais úteis
 
-  localparam [3:0]
-        fetch = 4'h0,
-        fetch2 = 4'h1,
-        decode = 4'h2,
-        registrador_registrador = 4'h3,
-        lui = 4'h4,
-        registrador_imediato = 4'h5,
-        auipc = 4'h6,
-        jal = 4'h7,
-        desvio_condicional = 4'h8,
-        jalr = 4'h9,
-        load = 4'hA,
-        load2 = 4'hB,
-        store = 4'hC,
-        store2 = 4'hD,
-        halt = 4'hE,
-        idle = 4'hF;
+  localparam reg [4:0]
+        Fetch = 5'h00,
+        Fetch2 = 5'h01,
+        Decode = 5'h02,
+        RegistradorRegistrador = 5'h03,
+        Lui = 5'h04,
+        RegistradorImediato = 5'h05,
+        Auipc = 5'h06,
+        Jal = 5'h07,
+        DesvioCondicional = 5'h08,
+        Jalr = 5'h09,
+        Load = 5'h0A,
+        Load2 = 5'h0B,
+        Store = 5'h0C,
+        Store2 = 5'h0D,
+        Halt = 5'h0E,
+        Idle = 5'h0F;
+`ifdef ZICSR
+  localparam reg [4:0] Zicsr = 5'h10;
+`endif
 
-  reg [3:0] estado_atual, proximo_estado;
+  reg [4:0] estado_atual, proximo_estado;
 
   task zera_sinais;
     begin
@@ -93,12 +101,15 @@ module control_unit (
       wr_reg_en    = 1'b0;
       ir_en        = 1'b0;
       mem_addr_src = 1'b0;
+`ifdef ZICSR
+      csr_wr_en = 1'b0;
+`endif
     end
   endtask
 
   // lógica da mudança de estados
   always @(posedge clock, posedge reset) begin
-    if (reset) estado_atual <= idle;
+    if (reset) estado_atual <= Idle;
     else estado_atual <= proximo_estado;
   end
 
@@ -117,55 +128,63 @@ module control_unit (
     zera_sinais;
 
     case (estado_atual)  // synthesis parallel_case
-      idle: begin
-        if (reset == 1'b1) proximo_estado = idle;
-        else proximo_estado = fetch;
+      Idle: begin
+        if (reset == 1'b1) proximo_estado = Idle;
+        else proximo_estado = Fetch;
       end
 
-      fetch: begin
+      Fetch: begin
         mem_byte_en = 'hF;
         mem_rd_en   = 1'b1;
-        if (mem_busy) proximo_estado = fetch2;
-        else proximo_estado = fetch;
+        if (mem_busy) proximo_estado = Fetch2;
+        else proximo_estado = Fetch;
       end
-      fetch2: begin
+      Fetch2: begin
         mem_byte_en = 'hF;
         if (!mem_busy) begin
           mem_rd_en = 1'b0;
           ir_en = 1'b1;
-          proximo_estado = decode;
+          proximo_estado = Decode;
         end else begin
           mem_rd_en = 1'b1;
-          proximo_estado = fetch2;
+          proximo_estado = Fetch2;
         end
       end
-      decode: begin
-        if (opcode[1:0] != 2'b11) proximo_estado = halt;
+      Decode: begin
+        if (opcode[1:0] != 2'b11) proximo_estado = Halt;
         else if (opcode[4] == 1'b1) begin
           if (opcode[5] == 1'b1) begin
-            if (opcode[2] == 1'b0) proximo_estado = registrador_registrador;
-            else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = lui;
-            else proximo_estado = halt;
+            if (opcode[2] == 1'b0) begin
+              if (opcode[6] == 1'b0) proximo_estado = RegistradorRegistrador;
+              else begin
+`ifdef ZICSR
+                proximo_estado = Zicsr;
+`else
+                proximo_estado = Halt;
+`endif
+              end
+            end else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = Lui;
+            else proximo_estado = Halt;
           end else begin
-            if (opcode[2] == 1'b0) proximo_estado = registrador_imediato;
-            else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = auipc;
-            else proximo_estado = halt;
+            if (opcode[2] == 1'b0) proximo_estado = RegistradorImediato;
+            else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = Auipc;
+            else proximo_estado = Halt;
           end
         end else begin
           if (opcode[6] == 1'b1) begin
-            if (opcode[3] == 1'b1) proximo_estado = jal;
-            else if (opcode[2] == 1'b0) proximo_estado = desvio_condicional;
-            else if (opcode[5] == 1'b1) proximo_estado = jalr;
-            else proximo_estado = halt;
+            if (opcode[3] == 1'b1) proximo_estado = Jal;
+            else if (opcode[2] == 1'b0) proximo_estado = DesvioCondicional;
+            else if (opcode[5] == 1'b1) proximo_estado = Jalr;
+            else proximo_estado = Halt;
           end else begin
-            if (opcode[5] == 1'b0) proximo_estado = load;
-            else if (opcode[2] == 1'b0 && opcode[3] == 1'b0) proximo_estado = store;
-            else proximo_estado = halt;
+            if (opcode[5] == 1'b0) proximo_estado = Load;
+            else if (opcode[2] == 1'b0 && opcode[3] == 1'b0) proximo_estado = Store;
+            else proximo_estado = Halt;
           end
         end
       end
 
-      registrador_registrador: begin
+      RegistradorRegistrador: begin
 `ifdef RV64I
         aluy_src = opcode[3];
 `endif
@@ -175,10 +194,10 @@ module control_unit (
         pc_en = 1'b1;
         wr_reg_en = 1'b1;
 
-        proximo_estado = fetch;
+        proximo_estado = Fetch;
       end
 
-      lui: begin
+      Lui: begin
         alub_src = 1'b1;
 `ifdef RV64I
         aluy_src = 1'b1;
@@ -186,10 +205,10 @@ module control_unit (
         pc_en = 1'b1;
         wr_reg_en = 1'b1;
 
-        proximo_estado = fetch;
+        proximo_estado = Fetch;
       end
 
-      registrador_imediato: begin
+      RegistradorImediato: begin
         alub_src = 1'b1;
 `ifdef RV64I
         aluy_src = opcode[3];
@@ -199,55 +218,55 @@ module control_unit (
         pc_en = 1'b1;
         wr_reg_en = 1'b1;
 
-        proximo_estado = fetch;
+        proximo_estado = Fetch;
       end
 
-      auipc: begin
+      Auipc: begin
         alua_src = 1'b1;
         alub_src = 1'b1;
         pc_en = 1'b1;
         wr_reg_en = 1'b1;
 
-        proximo_estado = fetch;
+        proximo_estado = Fetch;
       end
 
-      jal: begin
+      Jal: begin
         pc_src = 1'b1;
         pc_en = 1'b1;
         wr_reg_src = 2'b11;
         wr_reg_en = 1'b1;
 
-        proximo_estado = fetch;
+        proximo_estado = Fetch;
       end
 
-      desvio_condicional: begin
+      DesvioCondicional: begin
         sub = 1'b1;
         pc_src = cond;
         pc_en = 1'b1;
 
-        proximo_estado = fetch;
+        proximo_estado = Fetch;
       end
 
-      jalr: begin
+      Jalr: begin
         alupc_src = 1'b1;
         pc_src = 1'b1;
         pc_en = 1'b1;
         wr_reg_src = 2'b11;
         wr_reg_en = 1'b1;
 
-        proximo_estado = fetch;
+        proximo_estado = Fetch;
       end
 
-      load: begin
+      Load: begin
         mem_addr_src = 1'b1;
         mem_byte_en = byte_en;
         alub_src = 1'b1;
         wr_reg_src = 2'b10;
         mem_rd_en = 1'b1;
-        if (mem_busy) proximo_estado = load2;
-        else proximo_estado = load;
+        if (mem_busy) proximo_estado = Load2;
+        else proximo_estado = Load;
       end
-      load2: begin
+      Load2: begin
         mem_addr_src = 1'b1;
         mem_byte_en = byte_en;
         alub_src = 1'b1;
@@ -256,40 +275,48 @@ module control_unit (
           mem_rd_en = 1'b0;
           pc_en = 1'b1;
           wr_reg_en = 1'b1;
-          proximo_estado = fetch;
+          proximo_estado = Fetch;
         end else begin
           mem_rd_en = 1'b1;
-          proximo_estado = load2;
+          proximo_estado = Load2;
         end
       end
 
-      store: begin
+      Store: begin
         mem_addr_src = 1'b1;
         mem_byte_en = byte_en;
         alub_src = 1'b1;
         mem_wr_en = 1'b1;
-        if (mem_busy) proximo_estado = store2;
-        else proximo_estado = store;
+        if (mem_busy) proximo_estado = Store2;
+        else proximo_estado = Store;
       end
-      store2: begin
+      Store2: begin
         mem_addr_src = 1'b1;
         mem_byte_en = byte_en;
         alub_src = 1'b1;
         if (!mem_busy) begin
           mem_wr_en = 1'b0;
           pc_en = 1'b1;
-          proximo_estado = fetch;
+          proximo_estado = Fetch;
         end else begin
           mem_wr_en = 1'b1;
-          proximo_estado = store2;
+          proximo_estado = Store2;
         end
       end
 
-      halt: proximo_estado = halt;
+`ifdef ZICSR
+      Zicsr: begin
+        csr_wr_en = 1'b1;
+      end
+`endif
 
-      default: proximo_estado = halt;
+      Halt: proximo_estado = Halt;
+
+      default: proximo_estado = Halt;
     endcase
-
   end
+
+  assign csr_imm = funct3[2];
+  assign csr_op  = funct3[1:0];
 
 endmodule
