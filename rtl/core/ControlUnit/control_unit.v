@@ -306,6 +306,7 @@ module control_unit (
 
 `ifdef ZICSR
       Zicsr: begin
+        // não significa que algum CSR será escrito
         csr_wr_en = 1'b1;
       end
 `endif
