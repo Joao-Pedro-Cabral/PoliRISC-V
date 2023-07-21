@@ -14,7 +14,9 @@ module sd_controller (
 
     // interface com a pseudocache
     input rd_en,
+    input wr_en,
     input [31:0] addr,
+    input wire [4095:0] write_data,
     output wire [4095:0] read_data,
 
     // interface com o cartão SD
@@ -31,6 +33,7 @@ module sd_controller (
 
   reg [5:0] cmd_index;
   reg [31:0] argument;
+  reg cmd_or_data;
   reg cmd_valid;
   reg [1:0] response_type;
   reg new_response_type;
@@ -43,11 +46,13 @@ module sd_controller (
   reg sck_50M;
   reg sck_en;
 
-  sd_cmd_sender cmd_sender (
+  sd_sender sender (
       .clock(clock),
       .reset(reset),
       .cmd_index(cmd_index),
       .argument(argument),
+      .data(write_data),
+      .cmd_or_data(cmd_or_data),
       .cmd_valid(cmd_valid),
       // interface com o cartão SD
       .mosi(mosi),
@@ -67,25 +72,28 @@ module sd_controller (
 
   assign read_data = received_data;
 
-  localparam reg [3:0]
-    InitBegin = 4'h0,
-    WaitSendCmd = 4'h1,
-    WaitReceiveCmd = 4'h2,
-    SendCmd0 = 4'h3,
-    CheckCmd0 = 4'h4,
-    SendCmd8 = 4'h5,
-    CheckCmd8 = 4'h6,
-    SendCmd55 = 4'h7,
-    CheckCmd55 = 4'h8,
-    SendAcmd41 = 4'h9,
-    CheckAcmd41 = 4'hA,
-    Idle = 4'hB,
-    SendCmd17 = 4'hC,
-    CheckCmd17 = 4'hD,
-    CheckRead = 4'hE,
-    CheckToken = 4'hF;
+  localparam reg [4:0]
+    InitBegin = 5'h0,
+    WaitSendCmd = 5'h1,
+    WaitReceiveCmd = 5'h2,
+    SendCmd0 = 5'h3,
+    CheckCmd0 = 5'h4,
+    SendCmd8 = 5'h5,
+    CheckCmd8 = 5'h6,
+    SendCmd55 = 5'h7,
+    CheckCmd55 = 5'h8,
+    SendAcmd41 = 5'h9,
+    CheckAcmd41 = 5'hA,
+    Idle = 5'hB,
+    SendCmd17 = 5'hC,
+    CheckCmd17 = 5'hD,
+    SendCmd24 = 5'hE,
+    CheckCmd24 = 5'hF,
+    CheckRead = 5'h10,
+    CheckWrite = 5'h11,
+    CheckToken = 5'h12;
 
-  reg [3:0] new_state, state = InitBegin, state_return = InitBegin, new_state_return;
+  reg [4:0] new_state, state = InitBegin, state_return = InitBegin, new_state_return;
   reg state_return_en;
 
   // Antes do Idle: Inicialização (400KHz), Após: Leitura(50MHz)
@@ -115,6 +123,7 @@ module sd_controller (
       new_cs = 1'b1;
       cmd_index = 6'b000000;
       argument = 32'b0;
+      cmd_or_data = 1'b0;
       cmd_valid = 1'b0;
       response_type = 2'b00;
       new_response_type = 1'b0;
@@ -213,11 +222,48 @@ module sd_controller (
         end else new_state = SendCmd55;
       end
 
-      Idle: begin  // Idle: Espera leitura
-        if (rd_en) begin
+      Idle: begin  // Idle: Espera escrita ou leitura
+        if (wr_en) begin
+          new_cs = 1'b0;
+          new_state = SendCmd24;
+        end else if (rd_en) begin
           new_cs = 1'b0;
           new_state = SendCmd17;
         end else new_state = Idle;
+      end
+
+      SendCmd24: begin
+        new_cs = 1'b0;
+        cmd_index = 6'd24;
+        argument = addr;
+        cmd_valid = 1'b1;
+        new_response_type = 1'b1;
+        new_state = WaitSendCmd;
+        new_state_return = CheckCmd24;
+        state_return_en = 1'b1;
+      end
+
+      CheckCmd24: begin  // Checa R1 do CMD24
+        sck_en = 1'b0;
+        new_cs = 1'b0;
+        // R1 sem erros -> Escrita do Data Block
+        if (received_data[7:0] == 8'h00) begin
+          cmd_or_data = 1'b1;
+          cmd_valid = 1'b1;
+          new_response_type = 1'b1;
+          new_state = WaitSendCmd;
+          new_state_return = CheckWrite;
+          state_return_en = 1'b1;
+        end else begin  // R1 com erros -> Idle (TODO: verificar se há alguma resposta)
+          new_state = Idle;
+        end
+      end
+
+      CheckWrite: begin  // Checa escrita de dado
+        if (data_valid) begin  // TODO: implementar recebimento do data_response no sd_receiver
+          end_op = 1'b1;
+          new_state = Idle;
+        end else new_state = CheckCmd24;  // Tentar novamente (talvez não seja a melhor escolha)
       end
 
       SendCmd17: begin  // Envia CMD17
@@ -236,7 +282,7 @@ module sd_controller (
         new_cs = 1'b0;
         new_response_type = 1'b1;
         state_return_en = 1'b1;
-        // R1 sem erros -> Data Block
+        // R1 sem erros -> Leitura do Data Block
         if (received_data[7:0] == 8'h00) begin
           response_type = 2'b10;
           new_state = WaitReceiveCmd;
