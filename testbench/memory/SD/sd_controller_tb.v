@@ -16,6 +16,7 @@ module sd_controller_tb ();
   reg rd_en;
   reg [31:0] addr;
   wire [4095:0] read_data;
+  wire [4095:0] write_data;
   wire miso;
   wire cs;
   wire sck;
@@ -31,6 +32,7 @@ module sd_controller_tb ();
       .reset(reset),
       .rd_en(rd_en),
       .addr(addr),
+      .write_data(write_data),
       .read_data(read_data),
       .miso(miso),
       .cs(cs),
