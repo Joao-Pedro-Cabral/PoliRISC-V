@@ -6,10 +6,10 @@ syn_family = "Artix 7"
 syn_device = "xc7a100t"
 syn_grade = "-1"
 syn_package = "csg324"
-syn_top = "uart" + "_top"
+syn_top = "sd_controller" + "_top"
 syn_project = syn_top
 syn_tool = "vivado"
-program_fpga = True # False: open Vivado
+program_fpga = False # False: open Vivado
 
 # generate constraints tcl file
 constrains_file = open("constraints.tcl", 'w')

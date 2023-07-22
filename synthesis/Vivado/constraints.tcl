@@ -1,3 +1,3 @@
-open_project uart_top.xpr
-add_files -fileset constrs_1 -norecurse ./constrains/uart_top.xdc
+open_project sd_controller_top.xpr
+add_files -fileset constrs_1 -norecurse ./constraints/sd_controller_top.xdc
 exit
