@@ -137,7 +137,7 @@ module sd_receiver (
   end
 
   // Saídas de status
-  assign data_valid = end_transmission & (!response_type_[1] | (crc16 == 0));
+  assign data_valid = end_transmission & (!response_type_[1] | (crc16 == 0)) & miso;
   assign crc_error  = end_transmission & (response_type_[1] & (crc16 != 0));
 
 endmodule
