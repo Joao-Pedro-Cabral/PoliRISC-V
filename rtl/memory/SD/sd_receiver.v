@@ -11,7 +11,7 @@ module sd_receiver (
     input wire clock,
     input wire reset,
     // Controlador
-    input wire [1:0] response_type,  // 00: R1, 01: R3/R7, 1X: Data Block
+    input wire [1:0] response_type,  // 00: R1 e data_response, 01: R3/R7, 1X: Data Block
     input wire new_response_type,  // 1: receiver amostra novo response type
     output wire [4095:0] received_data,
     output wire data_valid,

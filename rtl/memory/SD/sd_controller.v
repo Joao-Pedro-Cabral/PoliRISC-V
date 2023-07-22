@@ -254,16 +254,18 @@ module sd_controller (
           new_state = WaitSendCmd;
           new_state_return = CheckWrite;
           state_return_en = 1'b1;
-        end else begin  // R1 com erros -> Idle (TODO: verificar se há alguma resposta)
-          new_state = Idle;
+        end else begin  // R1 com erros -> Tentar novamente (TODO: verificar se há alguma resposta)
+          new_state = SendCmd24;
         end
       end
 
       CheckWrite: begin  // Checa escrita de dado
-        if (data_valid) begin  // TODO: implementar recebimento do data_response no sd_receiver
-          end_op = 1'b1;
+        if (received_data[3:1] == 3'b010) begin
+          end_op    = 1'b1;
           new_state = Idle;
-        end else new_state = CheckCmd24;  // Tentar novamente (talvez não seja a melhor escolha)
+        end else begin
+          new_state = SendCmd24;  // Tentar novamente (TODO: talvez não seja a melhor escolha)
+        end
       end
 
       SendCmd17: begin  // Envia CMD17
