@@ -1,3 +1,3 @@
 files = [
-    "single_port_ram.v",
+    "single_port_ram.v"
 ]

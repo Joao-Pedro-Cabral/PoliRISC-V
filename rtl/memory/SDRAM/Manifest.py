@@ -3,12 +3,11 @@ files = [
     "sdram_controller2.v",
     "sdram_init.v",
     "sdram_read_write.v",
-    "sdram_ref.v",
-    "sync_parallel_counter.v"
+    "sdram_ref.v"
 ]
 
 modules = {
-    "local" : [
-        "../../core/RegisterFile"
+    "local": [
+        "../../../utils/components"
     ],
 }

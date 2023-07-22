@@ -4,9 +4,10 @@ files = [
 
 modules = {
     "local" : [
+        "../Adder",
         "../ImmediateExtender",
         "../RegisterFile",
         "../ULA",
-        "../Adder"
+        "../../../utils/components"
     ],
 }

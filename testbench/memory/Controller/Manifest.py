@@ -4,6 +4,10 @@ files = [
 
 modules = {
     "local" : [
-        "../../../rtl/memory"
+        "../../../rtl/memory/Cache",
+        "../../../rtl/memory/Controller",
+        "../../../rtl/memory/RAM",
+        "../../../rtl/memory/ROM",
+        "../../../rtl/peripheral/UART"
     ]
 }

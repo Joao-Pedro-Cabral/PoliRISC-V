@@ -5,7 +5,8 @@ files = [
 
 modules = {
     "local" : [
-        "../../../rtl",
-        "../../../utils"
+        "../../../rtl/peripheral/UART",
+        "../../../utils/7_segments"
+        "../../../utils/components"
     ]
 }

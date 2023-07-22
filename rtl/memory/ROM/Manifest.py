@@ -3,7 +3,7 @@ files = [
 ]
 
 modules = {
-    "local" : [
-        "../../core/RegisterFile"
+    "local": [
+        "../../../utils/components"
     ],
 }

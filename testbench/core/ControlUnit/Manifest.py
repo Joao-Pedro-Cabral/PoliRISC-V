@@ -6,9 +6,9 @@ files = [
 modules = {
     "local": [
         "../../../rtl/core/ControlUnit",
-        "../../../rtl/core/ImmediateExtender",
-        "../../../rtl/core/RegisterFile",
+        "../../../rtl/core/Dataflow",
+        "../../../rtl/memory/Controller",
+        "../../../rtl/memory/RAM",
         "../../../rtl/memory/ROM",
-        "../../../rtl/memory/Cache"
     ],
 }

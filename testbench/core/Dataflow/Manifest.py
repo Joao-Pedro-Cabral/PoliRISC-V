@@ -10,6 +10,6 @@ modules = {
         "../../../rtl/core/RegisterFile",
         "../../../rtl/memory/ROM",
         "../../../rtl/memory/RAM",
-        "../../../rtl/memory/Cache"
+        "../../../rtl/memory/Controller"
     ],
 }

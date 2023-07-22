@@ -6,10 +6,13 @@ files = [
 
 modules = {
     "local" : [
-        "../../../rtl/memory",
         "../../../rtl/core/core",
-        "../../../rtl/core/RegisterFile",
         "../../../rtl/core/ImmediateExtender",
-        "../../../rtl/memory/Cache"
+        "../../../rtl/core/RegisterFile",
+        "../../../rtl/memory/Cache",
+        "../../../rtl/memory/Controller",
+        "../../../rtl/memory/RAM",
+        "../../../rtl/memory/ROM",
+        "../../../rtl/peripheral/UART"
     ],
 }

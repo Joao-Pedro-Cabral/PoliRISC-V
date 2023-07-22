@@ -1,7 +1,8 @@
 modules = {
     "local" : [
-        "memory",
+        "components",
         "core",
+        "memory",
         "peripheral"
     ],
 }

@@ -1,10 +1,10 @@
 modules = {
     "local" : [
+        "Cache",
+        "Controller",
         "RAM",
         "ROM",
-        "SDRAM",
         "SD",
-        "Controller",
-        "Cache"
+        "SDRAM"
     ],
 }
