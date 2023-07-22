@@ -26,12 +26,14 @@ module sd_sender (
   reg [31:0] argument_reg;
   reg [4095:0] data_reg;
   reg cmd_or_data_reg;
+  wire _mosi;
 
   wire _sending_cmd;
   wire cmd_valid_pulse;
   wire [12:0] bits_sent;
   wire [39:0] cmd_reg;
   wire [6:0] crc7;
+  reg [15:0] crc16;
   // CRC generate is complete
   wire crc_complete = cmd_or_data_reg ? (bits_sent <= 17) : ((bits_sent <= 8) & _sending_cmd);
 
@@ -81,13 +83,27 @@ module sd_sender (
       .Q(cmd_reg)
   );
 
-  assign mosi = crc_complete ? (cmd_or_data_reg ? crc16[15] : crc7[6]) : cmd_reg[39];
+  assign _mosi = crc_complete ? (cmd_or_data_reg ? crc16[15] : crc7[6]) : cmd_reg[39];
+  assign mosi = _mosi;
   assign _sending_cmd = bits_sent != 13'b0;
   // OR: garantir q sending_cmd suba no ciclo seguinte a subida do cmd_valid
   assign sending_cmd = _sending_cmd | cmd_valid_pulse;
 
+  // CRC16 com LFSR
+  always @(posedge clock) begin
+    if (reset | (cmd_valid_pulse && !_sending_cmd)) begin
+      crc16 <= 16'b0;
+    end else if (_sending_cmd & cmd_or_data_reg) begin
+      crc16[0] <= crc16[15] ^ _mosi;
+      crc16[4:1] <= crc16[3:0];
+      crc16[5] <= crc16[4] ^ crc16[15] ^ _mosi;
+      crc16[11:6] <= crc16[10:5];
+      crc16[12] <= crc16[11] ^ crc16[15] ^ _mosi;
+      crc16[15:13] <= crc16[14:12];
+    end
+  end
+
   // LFSR + shift reg para calcular e amostrar o CRC7
-  // TODO: adicionar cálculo do crc16
   genvar i;
   generate
     for (i = 0; i < 7; i = i + 1) begin : g_crc
