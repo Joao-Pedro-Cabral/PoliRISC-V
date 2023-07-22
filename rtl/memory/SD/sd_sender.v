@@ -78,7 +78,7 @@ module sd_sender (
       .enable(1'b1),
       .D((cmd_valid_pulse && !_sending_cmd) ?
             (cmd_or_data_reg ?
-                {8'b0, data_reg} : {1'b0, 1'b1, cmd_index_reg, argument_reg, {4064{1'b1}}})
+                {8'hFE, data_reg} : {1'b0, 1'b1, cmd_index_reg, argument_reg, {4064{1'b1}}})
             : {cmd_reg[4102:0], 1'b1}),
       .Q(cmd_reg)
   );
