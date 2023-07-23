@@ -51,6 +51,7 @@ module sd_model (
   localparam reg [47:0] ExpectedAcmd41 = {8'h69, 32'h40000000, 8'h77};
   reg [47:0] ExpectedCmd17;
   reg [47:0] ExpectedCmd24;
+  reg [15:0] crc16_calc;
 
   localparam reg [7:0] Cmd0Response = 8'h01;
   localparam reg [39:0] Cmd8Response = {8'h01, 4'h2, 16'h0000, 4'h1, 8'hAA};
@@ -60,7 +61,6 @@ module sd_model (
   localparam reg [7:0] Cmd17Response = 8'h00;
   localparam reg [7:0] Cmd24Response = 8'h00;
   localparam reg [7:0] Cmd17ErrorResponse = {1'b0, 7'h74};
-  localparam reg [7:0] Cmd24ErrorResponse = {1'b0, 7'h47};
   localparam reg [7:0] ErrorTokenResponse = 8'h0F;
   localparam reg [7:0] WriteSuccessfulResponse = {1'b0, 2'b0, 1'b0, 3'b010, 1'b1};
   localparam reg [7:0] WriteErrorResponse = {1'b0, 2'b0, 1'b0, 3'b101, 1'b1};
@@ -86,14 +86,14 @@ module sd_model (
     Busy = 5'h11,
     CmdError = 5'h1F;
 
-  reg [3:0] state = Idle, new_state = Idle, return_state = Idle, new_return_state = Idle;
+  reg [4:0] state = Idle, new_state = Idle, return_state = Idle, new_return_state = Idle;
 
   reg [12:0] bit_counter = 13'd47, new_bit_counter = 13'd47;
 
   reg [47:0] cmd, expected_cmd, new_expected_cmd;
   reg set_cmd, acmd41_idle_flag = 1'b0;
   reg random_error_flag = 1'b0;
-  reg [2:0] random_busy_cycles = 1'b0;  // só três bits para facilitar o debugging
+  reg [2:0] random_busy_cycles = 3'b0;  // só três bits para facilitar o debugging
   reg [4095:0] data_block;
   reg [4095:0] received_data_block;
   reg receive_data_block;
@@ -130,7 +130,8 @@ module sd_model (
 
   // Determinar Random Error Flag
   always @(posedge sck) begin
-    if ((state == DecodeCmd && (index == 6'o21 || index == 6'o30))) random_error_flag <= $urandom;
+    if ((state == DecodeCmd && (index == 6'o21 || index == 6'o30)))
+      random_error_flag <= $urandom & $urandom;
     else random_error_flag <= random_error_flag;
   end
 
@@ -154,16 +155,16 @@ module sd_model (
     end
   end
 
-  // recebe dados ou crc16 do comando de escrita
-  always @(posedge sck) begin
-    if (receive_data_block) received_data_block[bit_counter-17] <= mosi;
-    if (receive_crc16) receive_crc16[bit_counter-1] <= mosi;
-  end
-
   // Atualizar crc no ciclo seguinte a atualização do data block
   always @(posedge sck) begin
     if (change_crc) crc16 <= CRC16(data_block);
     else crc16 <= crc16;
+  end
+
+  // recebe dados ou crc16 do comando de escrita
+  always @(posedge sck) begin
+    if (receive_data_block) received_data_block[bit_counter-17] <= mosi;
+    if (receive_crc16) received_crc16[bit_counter-1] <= mosi;
   end
 
   always @(*) begin
@@ -182,7 +183,7 @@ module sd_model (
     ExpectedCmd24[0]    = 1'b1;
     receive_data_block  = 1'b0;
     receive_crc16       = 1'b0;
-
+    crc16_calc          = 16'b0;
 
     case (state)
       Idle: begin
@@ -312,20 +313,11 @@ module sd_model (
 
       ReturnCmd24: begin
         if (bit_counter) begin
-          if (random_error_flag) begin
-            miso_reg        = Cmd24ErrorResponse[bit_counter-1];
-            new_bit_counter = bit_counter - 6'o01;
-          end else begin
-            miso_reg        = Cmd24Response[bit_counter-1];
-            new_bit_counter = bit_counter - 6'o01;
-          end
+          miso_reg        = Cmd24Response[bit_counter-1];
+          new_bit_counter = bit_counter - 6'o01;
         end else begin
-          if (random_error_flag) begin
-            new_state = Idle;  // TODO: verificar se há algo a ser enviado
-          end else begin
-            new_bit_counter = 13'd4113;
-            new_state = ReceiveDataBlock;
-          end
+          new_bit_counter = 13'd4113;
+          new_state = ReceiveDataBlock;
         end
       end
 
@@ -342,9 +334,9 @@ module sd_model (
       end
 
       CheckWrite: begin
-        miso = 1'b0;
         new_bit_counter = 13'd8;
-        if (CRC16(received_data_block) == received_crc16) new_state = WriteSuccessful;
+        crc16_calc = CRC16(received_data_block);
+        if (crc16_calc == received_crc16 && !random_error_flag) new_state = WriteSuccessful;
         else new_state = WriteError;
       end
 
@@ -363,13 +355,12 @@ module sd_model (
           miso_reg        = WriteErrorResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
         end else begin
-          new_bit_counter = random_busy_cycles;
-          new_state = Busy;
+          new_state = Idle;
         end
       end
 
       Busy: begin
-        miso = 1'b0;
+        miso_reg = 1'b0;
         if (bit_counter) new_bit_counter = bit_counter - 1;
         else new_state = Idle;
       end

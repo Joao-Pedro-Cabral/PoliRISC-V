@@ -10,16 +10,16 @@ module sd_sender (
     input clock,
     input reset,
 
+    // interface com o controlador
     input [5:0] cmd_index,
     input [31:0] argument,
     input [4095:0] data,
     input cmd_or_data,  // 0: cmd; 1: data
     input cmd_valid,
+    output wire sending_cmd,
 
     // interface com o cartão SD
-    output wire mosi,
-
-    output wire sending_cmd
+    output wire mosi
 );
 
   reg [5:0] cmd_index_reg;
@@ -31,11 +31,12 @@ module sd_sender (
   wire _sending_cmd;
   wire cmd_valid_pulse;
   wire [12:0] bits_sent;
-  wire [39:0] cmd_reg;
+  wire [4103:0] cmd_reg;
   wire [6:0] crc7;
   reg [15:0] crc16;
   // CRC generate is complete
-  wire crc_complete = cmd_or_data_reg ? (bits_sent <= 17) : ((bits_sent <= 8) & _sending_cmd);
+  wire crc_complete = cmd_or_data_reg ? (bits_sent <= 16 & _sending_cmd)
+                                      : (bits_sent <= 8 & _sending_cmd);
 
   always @(posedge clock) begin
     if (cmd_valid && !_sending_cmd) begin
@@ -83,7 +84,7 @@ module sd_sender (
       .Q(cmd_reg)
   );
 
-  assign _mosi = crc_complete ? (cmd_or_data_reg ? crc16[15] : crc7[6]) : cmd_reg[39];
+  assign _mosi = crc_complete ? (cmd_or_data_reg ? crc16[15] : crc7[6]) : cmd_reg[4103];
   assign mosi = _mosi;
   assign _sending_cmd = bits_sent != 13'b0;
   // OR: garantir q sending_cmd suba no ciclo seguinte a subida do cmd_valid
@@ -91,15 +92,18 @@ module sd_sender (
 
   // CRC16 com LFSR
   always @(posedge clock) begin
-    if (reset | (cmd_valid_pulse && !_sending_cmd)) begin
+    // Limpa quando enviar o start token
+    if (bits_sent == 13'h1012) begin
       crc16 <= 16'b0;
-    end else if (_sending_cmd & cmd_or_data_reg) begin
+    end else if (!crc_complete) begin  // Calcular CRC
       crc16[0] <= crc16[15] ^ _mosi;
       crc16[4:1] <= crc16[3:0];
       crc16[5] <= crc16[4] ^ crc16[15] ^ _mosi;
       crc16[11:6] <= crc16[10:5];
       crc16[12] <= crc16[11] ^ crc16[15] ^ _mosi;
       crc16[15:13] <= crc16[14:12];
+    end else begin  // Shift
+      crc16 <= {crc16[14:0], 1'b1};
     end
   end
 
@@ -116,7 +120,7 @@ module sd_sender (
             .reset(cmd_valid_pulse && !_sending_cmd),
             .enable(1'b1),
             // Quando o CRC está completo, realiza-se shift
-            .D(crc_complete ? 1'b1 : crc7[6] ^ cmd_reg[39]),
+            .D(crc_complete ? 1'b1 : crc7[6] ^ _mosi),
             .Q(crc7[0])
         );
       end else if (i == 3) begin : g_crc_3
@@ -128,7 +132,7 @@ module sd_sender (
             .reset(cmd_valid_pulse && !_sending_cmd),
             .enable(1'b1),
             // Quando o CRC está completo, realiza-se shift
-            .D(crc_complete ? crc7[2] : crc7[6] ^ cmd_reg[39] ^ crc7[2]),
+            .D(crc_complete ? crc7[2] : crc7[6] ^ _mosi ^ crc7[2]),
             .Q(crc7[3])
         );
       end else begin : g_crc_i

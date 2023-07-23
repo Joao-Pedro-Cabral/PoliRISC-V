@@ -91,7 +91,7 @@ module sd_controller (
     CheckCmd24 = 5'hF,
     CheckRead = 5'h10,
     CheckWrite = 5'h11,
-    CheckToken = 5'h12;
+    CheckErrorToken = 5'h12;
 
   reg [4:0] new_state, state = InitBegin, state_return = InitBegin, new_state_return;
   reg state_return_en;
@@ -223,7 +223,10 @@ module sd_controller (
       end
 
       Idle: begin  // Idle: Espera escrita ou leitura
-        if (wr_en) begin
+        if (!miso) begin  // Cartão não terminou a escrita
+          new_cs = 1'b0;
+          new_state = Idle;
+        end else if (wr_en) begin
           new_cs = 1'b0;
           new_state = SendCmd24;
         end else if (rd_en) begin
@@ -254,12 +257,13 @@ module sd_controller (
           new_state = WaitSendCmd;
           new_state_return = CheckWrite;
           state_return_en = 1'b1;
-        end else begin  // R1 com erros -> Tentar novamente (TODO: verificar se há alguma resposta)
+        end else begin  // R1 com erros -> Tentar novamente
           new_state = SendCmd24;
         end
       end
 
       CheckWrite: begin  // Checa escrita de dado
+        new_cs = 1'b0;
         if (received_data[3:1] == 3'b010) begin
           end_op    = 1'b1;
           new_state = Idle;
@@ -291,7 +295,7 @@ module sd_controller (
           new_state_return = CheckRead;
         end else begin  // R1 com erros -> Error Token
           new_state = WaitReceiveCmd;
-          new_state_return = CheckToken;
+          new_state_return = CheckErrorToken;
         end
       end
 
@@ -302,7 +306,7 @@ module sd_controller (
         end else new_state = SendCmd17;  // Tentar novamente
       end
 
-      CheckToken: begin
+      CheckErrorToken: begin
         if (received_data[3]) new_state = Idle;  // Endereço inválido
         else new_state = SendCmd17;
       end
@@ -314,7 +318,7 @@ module sd_controller (
 
   always @(posedge clock) begin
     if (reset | end_op) busy <= 1'b0;
-    else if (rd_en) busy <= 1'b1;
+    else if (rd_en | wr_en) busy <= 1'b1;
     else busy <= busy;
   end
 
