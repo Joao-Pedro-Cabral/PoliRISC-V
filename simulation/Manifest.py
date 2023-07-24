@@ -2,9 +2,9 @@ import subprocess
 
 action   = "simulation"
 sim_tool = "modelsim"
-sim_top  = "sd_controller" + "_tb"
-use_mif  = False
-mif_name = "set_less_than64" + ".mif"
+sim_top  = "ROM" + "_tb"
+use_mif  = True
+mif_name = "rom_init_file_tb" + ".mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/" + mif_name
 lista_de_macros = ["UART_0"]
