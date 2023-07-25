@@ -5,7 +5,7 @@ files = [
 
 modules = {
     "local" : [
-        "../../../rtl/memory/SD/",
+        "../../../rtl/memory/SD",
         "../../../utils/components",
     ]
 }

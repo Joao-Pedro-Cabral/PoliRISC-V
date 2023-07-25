@@ -21,11 +21,14 @@ module sd_controller_top (
   wire [31:0] addr;
   wire [15:0] tester_state;
   reg clock_50M;
+  reg clock_50M_2;
   reg clock_400K;
   wire [7:0] clock_400K_cnt;
+  wire [4:0] clock_50M_cnt;
+  wire [4:0] clock_50M_cnt_2;
 
   sd_controller_test_driver tester (
-      .clock(clock_50M),
+      .clock(clock_50M_2),
       .reset(reset),
       .read_data(read_data),
       .busy(busy),
@@ -39,7 +42,9 @@ module sd_controller_top (
       .clock_50M(clock_50M),
       .reset(reset),
       .rd_en(rd_en),
+      .wr_en(1'b0),
       .addr(addr),
+      .write_data(4096'b0),
       .read_data(read_data),
       .miso(miso),
       .cs(cs),
@@ -48,10 +53,44 @@ module sd_controller_top (
       .busy(busy)
   );
 
-  // Gerar clock de 50 MHz
+  // Gerar clock de 12,5 MHz
+  sync_parallel_counter #(
+      .size(5),
+      .init_value(0)
+  ) clock_50M_gen (
+      .clock(clock_100M),
+      .reset(reset),
+      .load(clock_50M_cnt == 16),  // Carrega a cada nova transmissão
+      .load_value(5'b0),
+      .inc_enable(1'b1),
+      .dec_enable(1'b0),
+      .value(clock_50M_cnt)
+  );
+
   always @(posedge clock_100M) begin
     if (reset) clock_50M <= 1'b0;
-    else clock_50M <= ~clock_50M;
+    else if (clock_50M_cnt == 16) clock_50M <= ~clock_50M;
+    else clock_50M <= clock_50M;
+  end
+
+  // Gerar clock de 12,5 MHz
+  sync_parallel_counter #(
+      .size(5),
+      .init_value(0)
+  ) clock_50M_gen_2 (
+      .clock(clock_100M),
+      .reset(reset),
+      .load(clock_50M_cnt_2 == 16),  // Carrega a cada nova transmissão
+      .load_value(5'b0),
+      .inc_enable(1'b1),
+      .dec_enable(1'b0),
+      .value(clock_50M_cnt_2)
+  );
+
+  always @(posedge clock_100M) begin
+    if (reset) clock_50M_2 <= 1'b0;
+    else if (clock_50M_cnt_2 == 16) clock_50M_2 <= ~clock_50M_2;
+    else clock_50M_2 <= clock_50M_2;
   end
 
   // Gerar clock de 400 KHz
@@ -61,7 +100,7 @@ module sd_controller_top (
   ) clock_400K_gen (
       .clock(clock_100M),
       .reset(reset),
-      .load(clock_400K_cnt == 250),  // Carrega a cada nova transmissão
+      .load(clock_400K_cnt == 125),  // Carrega a cada nova transmissão
       .load_value(8'b0),
       .inc_enable(1'b1),
       .dec_enable(1'b0),

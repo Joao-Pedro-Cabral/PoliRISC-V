@@ -43,6 +43,6 @@ else:
 
 modules = {
     "local" : [ 
-        "../../toplevel" 
+        "../../toplevel/memory/SD" 
     ],
 }
