@@ -1,1 +1,1 @@
-../../rtl/memory/SDRAM/sdram_controller2.v
+../../../rtl/memory/SDRAM/sdram_controller2.v
