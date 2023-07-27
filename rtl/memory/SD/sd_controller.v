@@ -6,6 +6,9 @@
 //! @date   2023-07-10
 //
 
+`define SDSC
+/* `undef SDSC */
+
 module sd_controller (
     // sinais de sistema
     input clock_400K,
@@ -92,6 +95,9 @@ module sd_controller (
     CheckRead = 5'h10,
     CheckWrite = 5'h11,
     CheckErrorToken = 5'h12;
+`ifdef SDSC
+  localparam reg [4:0] SendCmd16 = 5'h1E, CheckCmd16 = 5'h1F;
+`endif
 
   reg [4:0] new_state, state = InitBegin, state_return = InitBegin, new_state_return;
   reg state_return_en;
@@ -218,9 +224,31 @@ module sd_controller (
       CheckAcmd41: begin  // Checa ACMD41 -> Até sair do Idle
         if (received_data[7:0] == 8'h00) begin
           new_sck_50M = 1'b1;
-          new_state   = Idle;
+`ifdef SDSC
+          new_state = SendCmd16;
+`else
+          new_state = Idle;
+`endif
         end else new_state = SendCmd55;
       end
+
+`ifdef SDSC
+      SendCmd16: begin
+        new_cs = 1'b0;
+        cmd_index = 6'd16;
+        argument = 32'd512;
+        cmd_valid = 1'b1;
+        new_response_type = 1'b1;
+        new_state = WaitSendCmd;
+        new_state_return = CheckCmd16;
+        state_return_en = 1'b1;
+      end
+
+      CheckCmd16: begin
+        if (received_data[7:0] != 8'h00) new_state = SendCmd16;
+        else new_state = Idle;
+      end
+`endif
 
       Idle: begin  // Idle: Espera escrita ou leitura
         if (!miso) begin  // Cartão não terminou a escrita
