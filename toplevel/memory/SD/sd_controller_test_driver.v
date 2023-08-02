@@ -48,7 +48,7 @@ module sd_controller_test_driver (
   reg state_vars_enable;
 
   /* lógica de mudança de estados */
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) begin
       state               <= Test0;
       state_return        <= Test0;
@@ -125,6 +125,14 @@ module sd_controller_test_driver (
       TestRead: begin
         if (read_data == expected_data_block) next_state = state_return;
         else next_state = ReadError;
+      end
+
+      TestEnd: begin
+        next_state = state;
+      end
+
+      ReadError: begin
+        next_state = state;
       end
 
       default: next_state = Test0;

@@ -17,7 +17,10 @@ module sd_receiver (
     output wire data_valid,
     output wire crc_error,
     // SD
-    input wire miso
+    input wire miso,
+
+    // debug
+    output wire [12:0] bits_received_dbg
 );
 
   wire [12:0] transmission_size;  // R1: 7, R3 e R7: 39, Data: 4113
@@ -52,6 +55,8 @@ module sd_receiver (
       .value(bits_received)
   );
 
+  assign bits_received_dbg = bits_received;
+
   register_d #(
       .N(2),
       .reset_value(2'b0)
@@ -64,7 +69,7 @@ module sd_receiver (
       .Q(response_type_)
   );
 
-  assign transmission_size = response_type_[1] ? 4112 : (response_type_[0] ? 39 : 7);
+  assign transmission_size = response_type_[1] ? 13'd4112 : (response_type_[0] ? 13'd39 : 13'd7);
 
   // Shift Register
   register_d #(
@@ -96,7 +101,7 @@ module sd_receiver (
   end
 
   // FSM
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) state <= Idle;
     else state <= new_state;
   end

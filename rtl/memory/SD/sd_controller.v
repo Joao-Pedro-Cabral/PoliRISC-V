@@ -29,7 +29,15 @@ module sd_controller (
     output wire mosi,
 
     // sinal de status
-    output reg busy
+    output reg busy,
+
+    // debug
+    output wire [12:0] bits_received_dbg,
+    output reg  [ 7:0] check_cmd_0_dbg,
+    output reg  [ 7:0] check_cmd_8_dbg,
+    output reg  [ 7:0] check_cmd_55_dbg,
+    output reg  [ 7:0] check_acmd_41_dbg,
+    output reg  [ 7:0] check_cmd_16_dbg
 );
 
   wire clock;
@@ -37,6 +45,7 @@ module sd_controller (
   reg [5:0] cmd_index;
   reg [31:0] argument;
   reg cmd_or_data;
+  wire sending_cmd;
   reg cmd_valid;
   reg [1:0] response_type;
   reg new_response_type;
@@ -70,7 +79,8 @@ module sd_controller (
       .received_data(received_data),
       .data_valid(data_valid),
       .crc_error(crc_error),
-      .miso(miso)
+      .miso(miso),
+      .bits_received_dbg(bits_received_dbg)
   );
 
   assign read_data = received_data;
@@ -106,12 +116,24 @@ module sd_controller (
   assign clock = sck_50M ? clock_50M : clock_400K;
   assign sck   = sck_en & ~clock;
 
+  reg
+      check_cmd_0_dbg_en,
+      check_cmd_8_dbg_en,
+      check_cmd_55_dbg_en,
+      check_acmd_41_dbg_en,
+      check_cmd_16_dbg_en;
+
   always @(posedge clock, posedge reset) begin
     if (reset) begin
       cs    <= 1'b1;
       sck_50M <= 1'b0;
       state <= InitBegin;
       state_return <= InitBegin;
+      check_cmd_0_dbg <= 8'h00;
+      check_cmd_8_dbg <= 8'h00;
+      check_cmd_55_dbg <= 8'h00;
+      check_acmd_41_dbg <= 8'h00;
+      check_cmd_16_dbg <= 8'h00;
     end else begin
       cs    <= new_cs;
       state <= new_state;
@@ -119,6 +141,11 @@ module sd_controller (
       else state_return <= state_return;
       if (new_sck_50M) sck_50M <= 1'b1;
       else sck_50M <= sck_50M;
+      if (check_cmd_0_dbg_en) check_cmd_0_dbg <= received_data[7:0];
+      if (check_cmd_8_dbg_en) check_cmd_8_dbg <= received_data[39:32];
+      if (check_cmd_55_dbg_en) check_cmd_55_dbg <= received_data[7:0];
+      if (check_acmd_41_dbg_en) check_acmd_41_dbg <= received_data[7:0];
+      if (check_cmd_16_dbg_en) check_cmd_16_dbg <= received_data[7:0];
     end
   end
 
@@ -138,6 +165,11 @@ module sd_controller (
       new_state_return = InitBegin;
       state_return_en = 1'b0;
       end_op = 1'b0;
+      check_cmd_0_dbg_en = 1'b0;
+      check_cmd_8_dbg_en = 1'b0;
+      check_cmd_55_dbg_en = 1'b0;
+      check_acmd_41_dbg_en = 1'b0;
+      check_cmd_16_dbg_en = 1'b0;
     end
   endtask
 
@@ -173,6 +205,7 @@ module sd_controller (
       end
 
       CheckCmd0: begin  // Checa se cartão SD está InitBegin e sem erros
+        check_cmd_0_dbg_en = 1'b1;
         if (received_data[7:0] == 8'h01) new_state = SendCmd8;
         else new_state = SendCmd0;
       end
@@ -190,7 +223,9 @@ module sd_controller (
       end
 
       CheckCmd8: begin  // Checa check pattern e se a tensão é suportada
-        if (received_data[7:0] != 8'hAA) new_state = SendCmd8;
+        check_cmd_8_dbg_en = 1'b1;
+        if (received_data[39:32] == 8'h05) new_state = SendCmd55;
+        else if (received_data[7:0] != 8'hAA) new_state = SendCmd8;
         else if (received_data[11:8] != 4'h1) new_state = InitBegin;
         else new_state = SendCmd55;
       end
@@ -206,6 +241,7 @@ module sd_controller (
       end
 
       CheckCmd55: begin  // Checa se ainda está em Idle
+        check_cmd_55_dbg_en = 1'b1;
         if (received_data[7:0] == 8'h01) new_state = SendAcmd41;
         else new_state = SendCmd55;
       end
@@ -213,7 +249,11 @@ module sd_controller (
       SendAcmd41: begin  // Envia ACMD41
         new_cs = 1'b0;
         cmd_index = 6'd41;
+`ifdef SDSC
+        argument = 32'h00000000;
+`else
         argument = 32'h40000000;
+`endif
         cmd_valid = 1'b1;
         new_response_type = 1'b1;
         new_state = WaitSendCmd;
@@ -222,6 +262,7 @@ module sd_controller (
       end
 
       CheckAcmd41: begin  // Checa ACMD41 -> Até sair do Idle
+        check_acmd_41_dbg_en = 1'b1;
         if (received_data[7:0] == 8'h00) begin
           new_sck_50M = 1'b1;
 `ifdef SDSC
@@ -245,6 +286,7 @@ module sd_controller (
       end
 
       CheckCmd16: begin
+        check_cmd_16_dbg_en = 1'b1;
         if (received_data[7:0] != 8'h00) new_state = SendCmd16;
         else new_state = Idle;
       end

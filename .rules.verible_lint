@@ -1,5 +1,2 @@
 -explicit-task-lifetime
 -always-comb
--unpacked-ordering
--unpacked-dimensions-range-ordering
--function-task-explicit-lifetime
