@@ -22,6 +22,8 @@ module CSR (
     input wire mret,
     input wire sret,
     output reg [`DATA_SIZE-1:0] rd_data,
+    output wire [31:0] mepc,
+    output wire [31:0] sepc,
     output wire trap,
     output wire [1:0] privilege_mode
 );
@@ -52,10 +54,10 @@ module CSR (
   wire [`DATA_SIZE-1:0] sie_;
 
   // MEPC
-  wire [`DATA_SIZE-1:0] mepc;
+  wire [`DATA_SIZE-1:0] mepc_;
 
   // SEPC
-  wire [`DATA_SIZE-1:0] sepc;
+  wire [`DATA_SIZE-1:0] sepc_;
 
   // MCAUSE
   localparam integer SSI = 1, MSI = 3, STI = 5, MTI = 7, SEI = 9, MEI = 11;  // Interrupts
@@ -229,18 +231,20 @@ module CSR (
 
   // MEPC
   always @(posedge clock) begin
-    if (reset) mepc <= 0;
+    if (reset) mepc_ <= 0;
     else begin
-      if (_trap) mepc <= pc;  // All traps go to M-Mode
-      else if (wr_en && (addr == 12'h341)) mepc <= {wr_data[31:2], 2'b00};
+      if (_trap) mepc_ <= pc;  // All traps go to M-Mode
+      else if (wr_en && (addr == 12'h341)) mepc_ <= {wr_data[31:2], 2'b00};
     end
   end
+  assign mepc = mepc_;
 
   // SEPC
   always @(posedge clock) begin
-    if (reset) sepc <= 0;
-    else if (wr_en && (addr == 12'h141)) sepc <= {wr_data[31:2], 2'b00};
+    if (reset) sepc_ <= 0;
+    else if (wr_en && (addr == 12'h141)) sepc_ <= {wr_data[31:2], 2'b00};
   end
+  assign sepc = sepc_;
 
   // MCAUSE
   always @(posedge clock) begin
@@ -312,12 +316,12 @@ module CSR (
     case (addr)
       12'h100: rd_data = sstatus;
       12'h104: rd_data = sie_;
-      12'h141: rd_data = sepc;
+      12'h141: rd_data = sepc_;
       12'h142: rd_data = scause;
       12'h144: rd_data = sip;
       12'h300: rd_data = mstatus;
       12'h304: rd_data = mie_;
-      12'h341: rd_data = mepc;
+      12'h341: rd_data = mepc_;
       12'h342: rd_data = mcause;
       12'h344: rd_data = mip;
       default: rd_data = 0;
