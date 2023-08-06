@@ -16,15 +16,35 @@
 
 `timescale 1 ns / 1 ns
 
+`include "macros.vh"
+
+`ifdef RV64I
+`define BYTE_NUM 8
+`define DATA_SIZE 64
+`else
+`define BYTE_NUM 4
+`define DATA_SIZE 32
+`endif
+
 `define ASSERT(condition) if (!(condition)) $stop
 
 module control_unit_RV32I_tb ();
   // Parâmetros do Sheets
   localparam integer NLineI = 49;  // Números de linhas do RV*I
-  localparam integer NColumnI = 36;  // Número de colunas do RV*I
+  // Número de colunas do RV*I
+`ifdef RV64I
+  localparam integer NColumnI = 41;
+`else
+  localparam integer NColumnI = 36;
+`endif
   // Parâmetros do df_src
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
-  localparam integer NotOnlyOp = 8;  // Bits do df_src que não dependem apenas do opcode
+  // Bits do df_src que não dependem apenas do opcode
+`ifdef RV64I
+  localparam integer NotOnlyOp = 12;
+`else
+  localparam integer NotOnlyOp = 8;
+`endif
   // sinais do DUT
   // Common
   reg clock;
@@ -32,7 +52,7 @@ module control_unit_RV32I_tb ();
   // Bus
   wire mem_wr_en;
   wire mem_rd_en;
-  wire [3:0] mem_byte_en;
+  wire [`BYTE_NUM-1:0] mem_byte_en;
   wire mem_busy;
   // From Dataflow
   wire [6:0] opcode;
@@ -45,6 +65,9 @@ module control_unit_RV32I_tb ();
   // To Dataflow
   wire alua_src;
   wire alub_src;
+  `ifdef RV64I
+    wire aluy_src;
+  `endif
   wire [2:0] alu_src;
   wire sub;
   wire arithmetic;
@@ -56,23 +79,23 @@ module control_unit_RV32I_tb ();
   wire ir_en;
   wire mem_addr_src;
   // Sinais do Controlador de Memória
-  wire [31:0] mem_addr;
-  wire [31:0] wr_data;
-  wire [31:0] rd_data;
+  wire [`DATA_SIZE-1:0] mem_addr;
+  wire [`DATA_SIZE-1:0] wr_data;
+  wire [`DATA_SIZE-1:0] rd_data;
   // Sinais do Barramento
   // Instruction Memory
   wire [31:0] rom_data;
-  wire [31:0] rom_addr;
+  wire [`DATA_SIZE-1:0] rom_addr;
   wire rom_enable;
   wire rom_busy;
   // Data Memory
-  wire [31:0] ram_address;
-  wire [31:0] ram_write_data;
-  wire [31:0] ram_read_data;
+  wire [`DATA_SIZE-1:0] ram_address;
+  wire [`DATA_SIZE-1:0] ram_write_data;
+  wire [`DATA_SIZE-1:0] ram_read_data;
   wire ram_output_enable;
   wire ram_write_enable;
   wire ram_chip_select;
-  wire [3:0] ram_byte_enable;
+  wire [`BYTE_NUM-1:0] ram_byte_enable;
   wire ram_busy;
   // Sinais intermediários de teste
   reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela
@@ -101,6 +124,9 @@ module control_unit_RV32I_tb ();
       .overflow(overflow),
       .alua_src(alua_src),
       .alub_src(alub_src),
+    `ifdef RV64I
+      .aluy_src(aluy_src),
+    `endif
       .alu_src(alu_src),
       .sub(sub),
       .arithmetic(arithmetic),
@@ -123,6 +149,9 @@ module control_unit_RV32I_tb ();
       .mem_addr(mem_addr),
       .alua_src(alua_src),
       .alub_src(alub_src),
+    `ifdef RV64I
+      .aluy_src(aluy_src),
+    `endif
       .alu_src(alu_src),
       .sub(sub),
       .arithmetic(arithmetic),
@@ -143,7 +172,7 @@ module control_unit_RV32I_tb ();
 
   // Instanciação do barramento
   memory_controller #(
-      .BYTE_AMNT(4)
+      .BYTE_AMNT(`BYTE_NUM)
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -152,7 +181,11 @@ module control_unit_RV32I_tb ();
       .mem_addr(mem_addr),
       .rd_data(rd_data),
       .mem_busy(mem_busy),
+    `ifdef RV64I
+      .inst_cache_data({32'b0, rom_data}),
+    `else
       .inst_cache_data(rom_data),
+    `endif
       .inst_cache_busy(rom_busy),
       .inst_cache_enable(rom_enable),
       .inst_cache_addr(rom_addr),
@@ -186,7 +219,7 @@ module control_unit_RV32I_tb ();
       .RAM_INIT_FILE("./RAM.mif"),
       .ADDR_SIZE(12),
       .BYTE_SIZE(8),
-      .DATA_SIZE(32),
+      .DATA_SIZE(`DATA_SIZE),
       .BUSY_CYCLES(2)
   ) Data_Memory (
       .clk(clock),
@@ -266,6 +299,9 @@ module control_unit_RV32I_tb ();
     // Sinais determinados pelo opcode
     alua_src,
     alub_src,
+  `ifdef RV64I
+    aluy_src,
+  `endif
     alu_src,
     sub,
     arithmetic,
@@ -283,7 +319,11 @@ module control_unit_RV32I_tb ();
   // testar o DUT
   initial begin : Testbench
     $display("Program  size: %d", `program_size);
+  `ifdef RV64I
+    $readmemb("./MIFs/core/core/RV64I.mif", LUT_uc);
+  `else
     $readmemb("./MIFs/core/core/RV32I.mif", LUT_uc);
+  `endif
     $display("SOT!");
     // Idle
     @(negedge clock);
@@ -298,7 +338,7 @@ module control_unit_RV32I_tb ();
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);
       // Fetch
-      `ASSERT(db_df_src === 5'h1F);
+      `ASSERT(db_df_src === {{DfSrcSize-`BYTE_NUM+1{1'b0}},1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
       @(posedge mem_busy);
       @(negedge mem_busy);
       @(negedge clock);
@@ -362,7 +402,7 @@ module control_unit_RV32I_tb ();
           wait_1_cycle;
         end
         // JAL, JALR, U-type & ULA R/I-type
-        7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0110111, 7'b0010111: begin
+        7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011, 7'b0110111, 7'b0010111: begin
           `ASSERT(pc_en === 1'b1);
           wait_1_cycle;
         end
