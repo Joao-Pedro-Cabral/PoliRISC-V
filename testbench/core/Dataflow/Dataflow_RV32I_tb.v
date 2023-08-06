@@ -14,7 +14,9 @@
 // Para isso irei verificar as saídas do DF (principalmente pc e reg_data,
 // pois elas determinam o contexto)
 
-`timescale 1 ns / 100 ps
+`timescale 1 ns / 1 ns
+
+`define ASSERT(condition) if (!(condition)) $stop
 
 module Dataflow_RV32I_tb();
     // sinais do DUT
@@ -76,7 +78,7 @@ module Dataflow_RV32I_tb();
     reg  [31:0]   reg_data;         // write data do banco de registradores
     wire [31:0]   A;                // read data 1 do banco de registradores
     wire [31:0]   B;                // read data 2 do banco de registradores
-    reg  [31:0]   pc = 0;           // pc -> Uso esse pc para acessar a memória de instrução(para tentar achar mais erros)
+    reg  [31:0]   pc = 0;           // pc -> Acessa memória de instrução
     reg  [31:0]   pc_imm;           // pc + (imediato << 1) OU {A + immediate[31:1], 0} -> JALR
     reg  [31:0]   pc_4;             // pc + 4
     // flags da ULA ->  geradas de forma simulada
@@ -92,35 +94,107 @@ module Dataflow_RV32I_tb();
     genvar  j;
 
     // DUT
-    Dataflow DUT
-    (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .ir_en(ir_en), .mem_addr_src(mem_addr_src), .mem_addr(mem_addr), .alua_src(alua_src), 
-     .alub_src(alub_src), .alu_src(alu_src), .sub(sub), .arithmetic(arithmetic), .alupc_src(alupc_src), .pc_src(pc_src), .pc_en(pc_en), .wr_reg_src(wr_reg_src), 
-     .wr_reg_en(wr_reg_en), .opcode(opcode), .funct3(funct3), .funct7(funct7), .zero(zero), .negative(negative), .carry_out(carry_out), .overflow(overflow));
+    Dataflow DUT (
+      .clock(clock),
+      .reset(reset),
+      .rd_data(rd_data),
+      .wr_data(wr_data),
+      .ir_en(ir_en),
+      .mem_addr_src(mem_addr_src),
+      .mem_addr(mem_addr),
+      .alua_src(alua_src),
+      .alub_src(alub_src),
+      .alu_src(alu_src),
+      .sub(sub),
+      .arithmetic(arithmetic),
+      .alupc_src(alupc_src),
+      .pc_src(pc_src),
+      .pc_en(pc_en),
+      .wr_reg_src(wr_reg_src),
+      .wr_reg_en(wr_reg_en),
+      .opcode(opcode),
+      .funct3(funct3),
+      .funct7(funct7),
+      .zero(zero),
+      .negative(negative),
+      .carry_out(carry_out),
+      .overflow(overflow));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./ROM.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
-                            .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
+    ROM #(
+      .rom_init_file("./ROM.mif"),
+      .word_size(8),
+      .addr_size(10),
+      .offset(2),
+      .busy_cycles(2))
+    Instruction_Memory (
+      .clock(clock),
+      .enable(rom_enable),
+      .addr(rom_addr[9:0]),
+      .data(rom_data),
+      .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./RAM.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(32), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
-                        .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
+    single_port_ram #(
+      .RAM_INIT_FILE("./RAM.mif"),
+      .ADDR_SIZE(12),
+      .BYTE_SIZE(8),
+      .DATA_SIZE(32),
+      .BUSY_CYCLES(2))
+    Data_Memory (
+      .clk(clock),
+      .address(ram_address),
+      .write_data(ram_write_data),
+      .output_enable(ram_output_enable),
+      .write_enable(ram_write_enable),
+      .chip_select(ram_chip_select),
+      .byte_enable(ram_byte_enable),
+      .read_data(ram_read_data),
+      .busy(ram_busy));
 
     // Instanciação do barramento
-    memory_controller #(.BYTE_AMNT(4))
-    BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
-    .mem_busy(mem_busy),
-    .inst_cache_data(rom_data),
-    .inst_cache_busy(rom_busy),
-    .inst_cache_enable(rom_enable),
-    .inst_cache_addr(rom_addr), .ram_read_data(ram_read_data),
-    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data),
-    .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
-    .ram_byte_enable(ram_byte_enable));
+    memory_controller #(
+      .BYTE_AMNT(4)
+    ) BUS (
+      .mem_rd_en(mem_rd_en),
+      .mem_wr_en(mem_wr_en),
+      .mem_byte_en(mem_byte_en),
+      .wr_data(wr_data),
+      .mem_addr(mem_addr),
+      .rd_data(rd_data),
+      .mem_busy(mem_busy),
+      .inst_cache_data(rom_data),
+      .inst_cache_busy(rom_busy),
+      .inst_cache_enable(rom_enable),
+      .inst_cache_addr(rom_addr),
+      .ram_read_data(ram_read_data),
+      .ram_busy(ram_busy),
+      .ram_address(ram_address),
+      .ram_write_data(ram_write_data),
+      .ram_output_enable(ram_output_enable),
+      .ram_write_enable(ram_write_enable),
+      .ram_chip_select(ram_chip_select),
+      .ram_byte_enable(ram_byte_enable));
 
     // Componentes auxiliares para a verificação -> Supostamente corretos
-    ImmediateExtender #(.N(32)) extensor_imediato (.immediate(immediate), .instruction(instruction));
-    register_file #(.size(32), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(wr_reg_en), .read_address1(instruction[19:15]),
-                                .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
+    ImmediateExtender #(.N(32))
+    extensor_imediato (.immediate(immediate), .instruction(instruction));
+    register_file #(.size(32), .N(5)) banco_de_registradores
+    (.clock(clock), .reset(reset),
+    .write_enable(wr_reg_en),
+    .read_address1(instruction[19:15]),
+    .read_address2(instruction[24:20]),
+    .write_address(instruction[11:7]),
+    .write_data(reg_data),
+    .read_data1(A), .read_data2(B));
+
+    // Esperar a borda de descida do ciclo seguinte(padronizar com o tb do DF) -> Execute
+    task automatic wait_1_cycle;
+      begin
+        @(posedge clock);
+        @(negedge clock);
+      end
+    endtask
 
     // geração do clock
     always begin
@@ -137,7 +211,8 @@ module Dataflow_RV32I_tb();
     endgenerate
 
     // função para determinar os seletores(sinais provenientes da UC) a partir do opcode, funct3 e funct7
-    function automatic [18:0] find_instruction( [6:0] opcode,  [2:0] funct3,  [6:0] funct7,  [1763:0] LUT_linear);
+    function automatic [18:0] find_instruction( input reg [6:0] opcode, input reg [2:0] funct3,
+     input reg [6:0] funct7,  input reg [1763:0] LUT_linear);
             integer i;
             reg [18:0] temp;
         begin
@@ -165,7 +240,8 @@ module Dataflow_RV32I_tb();
             // R: opcode, funct3 e funct7
             else if(opcode === 7'b0111011 || opcode === 7'b0110011) begin
                for(i = 34; i < 49; i = i + 1) // Eu coloquei I, S, B nas linhas 34 a 48 do mif
-                    if(opcode === LUT_linear[29+36*i+:7] && funct3 === LUT_linear[26+36*i+:3] && funct7 === LUT_linear[19+36*i+:7])
+                    if(opcode === LUT_linear[29+36*i+:7] && funct3 === LUT_linear[26+36*i+:3]
+                    && funct7 === LUT_linear[19+36*i+:7])
                         temp = LUT_linear[36*i+:19];
             end
             find_instruction = temp;
@@ -173,7 +249,9 @@ module Dataflow_RV32I_tb();
     endfunction
 
     // função que simula o comportamento da ULA
-    function [31:0] ULA_function( [31:0] A,  [31:0] B,  [3:0] seletor);
+    function automatic [31:0] ULA_function( 
+      input reg [31:0] A,  input reg [31:0] B,
+      input reg [3:0] seletor);
             reg   [31:0] xorB;
             reg   [31:0] add_sub;
             reg   overflow;
@@ -187,15 +265,15 @@ module Dataflow_RV32I_tb();
                 4'b0001: // SLL
                     ULA_function = A << (B[5:0]);
                 4'b0010: begin // SLT
-                    xorB     = B ^ -32'b1;
-                    add_sub  = xorB + A + 32'b01;
+                    xorB     = B ^ -2;
+                    add_sub  = xorB + A + 1;
                     negative = add_sub[31];
                     overflow = (~(A[31] ^ B[31] ^ 1'b1)) & (A[31] ^ add_sub[31]);
                     ULA_function = {{31{1'b0}}, negative ^ overflow};
                 end
                 4'b0011: begin // SLTU
-                    xorB                  = B ^ -32'b1;
-                    {carry_out, add_sub}  = xorB + A + 32'b01;
+                    xorB                  = B ^ -2;
+                    {carry_out, add_sub}  = xorB + A + 1;
                     ULA_function          = {{31{1'b0}}, ~carry_out};
                 end
                 4'b0100: // XOR
@@ -210,13 +288,15 @@ module Dataflow_RV32I_tb();
                     ULA_function = $signed(A) - $signed(B);
                 4'b1101: // SRA
                     ULA_function = $signed(A) >>> (B[5:0]);
+                  default:
+                  ULA_function = 0;
             endcase
         end
     endfunction
 
     // flags da ULA -> Apenas conferidas para B-type
     assign xorB                  = B ^ {32{1'b1}};
-    assign {carry_out_, add_sub} = A + xorB + 32'b01;
+    assign {carry_out_, add_sub} = A + xorB + 1;
     assign zero_                 = ~(|add_sub);
     assign negative_             = add_sub[31];
     assign overflow_             = (~(A[31] ^ B[31] ^ sub)) & (A[31] ^ add_sub[31]);
@@ -226,8 +306,8 @@ module Dataflow_RV32I_tb();
 
     // testar o DUT
     initial begin
-        $display("Program  size: %d", `program_size); // program size -> tamanho do programa a ser rodado
-        $readmemb("./MIFs/core/core/RV32I.mif", LUT_uc); // mif com os valores da LUT_uc(google sheets)
+        $display("Program  size: %d", `program_size);
+        $readmemb("./MIFs/core/core/RV32I.mif", LUT_uc);
         $display("SOT!");
         // desabilito os enables no começo
         pc_en = 1'b0;
@@ -237,11 +317,11 @@ module Dataflow_RV32I_tb();
         mem_byte_en = 4'b0;
         ir_en = 1'b0;
         // Idle
-        #2; // espero 2ns e reseto
+        @(negedge clock);
         reset = 1'b1;
-        #6; // 6ns = 1 ciclo de clock
+        wait_1_cycle;
         reset = 1'b0;
-        #6; 
+        wait_1_cycle;
         // fim do reset
         for(i = 0; i < limit; i = i + 1) begin
             $display("Test: %d", i);
@@ -256,31 +336,26 @@ module Dataflow_RV32I_tb();
             mem_wr_en = 1'b0;
             mem_addr_src = 1'b0;
             mem_byte_en  = 4'hF;
-            #0.1; // espero um pouco
+            @(negedge clock);
             // Testo o endereço de acesso a Memória de Instrução
-            if(pc !== mem_addr) begin
-                $display("Error Fetch PC: pc = %x, mem_addr = %x", pc, mem_addr);
-                $stop;
-            end
+            `ASSERT(pc === mem_addr);
             mem_rd_en = 1'b1; // habilito a memória
             wait (mem_busy == 1'b1);
             wait (mem_busy == 1'b0);
             mem_rd_en = 1'b0; // desabilito, após descida do busy
             instruction = rd_data;
             ir_en = 1'b1; // habilito IR
-            wait (clock == 1'b0);
-            wait (clock == 1'b1); // espero o clock subir
-            #0.1;
+            wait_1_cycle;
+            @(negedge clock);
             // Decode (testo se a saída do IR está correta: opcode, funct3, funct7)
-            if(opcode !== instruction[6:0] || funct3 !== instruction[14:12] || funct7 !== instruction[31:25]) begin
-                $display("Error Decode: opcode = %x, funct3 = %x, funct7 = %x", opcode, funct3, funct7);
-                $stop;
-            end
+            `ASSERT(opcode === instruction[6:0]);
+            `ASSERT(funct3 === instruction[14:12]);
+            `ASSERT(funct7 === instruction[31:25]);
             // Obtenho os sinais da UC
             df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
             ir_en = 1'b0;
-            wait (clock == 1'b0); // Espero a borda de descida
             // Execute(atribuo aos sinais de controle do DF os valores do sheets)
+            @(posedge clock)
             alua_src                    = df_src[18];
             alub_src                    = df_src[17];
             alu_src                     = df_src[16:14];
@@ -297,54 +372,34 @@ module Dataflow_RV32I_tb();
                 // Store(S*) e Load(L*)
                 7'b0100011, 7'b0000011: begin
                     pc_src = df_src[10];
-                    #0.1;
+                    @(negedge clock)
                     // Confiro o endereço de acesso
-                    if(mem_addr !== A + immediate) begin
-                        $display("Error Load/Store: mem_addr = %x, A = %x, immediate = %x, opcode = %x", mem_addr, A, immediate, opcode);
-                        $stop;
-                    end
+                    `ASSERT(mem_addr !== A + immediate);
                     // Caso seja store -> confiro a palavra a ser escrita
-                    if(opcode[5] === 1'b1 && wr_data !== B) begin
-                        $display("Error Store: write_data = %x, B = %x", wr_data, B);
-                        $stop;
-                    end
-                    wait (mem_busy == 1'b1);
-                    wait (mem_busy == 1'b0); // espero o busy descer
+                    if(opcode[5] == 1'b1) `ASSERT(wr_data === B);
+                    @(posedge mem_busy);
+                    @(negedge mem_busy); // espero o busy descer
                     wr_reg_en = df_src[7];   // caso necessário habilito a escrita no banco
                     reg_data  = rd_data;     // escrevo no banco
                     mem_rd_en = 1'b0;        // desabilito a memória
-                    #0.1;
+                    @(negedge clock);
                     // Caso L* -> confiro a leitura
-                    if(opcode[5] === 1'b0 && DUT.reg_data_destiny !== reg_data) begin
-                        $display("Error Load: reg_data = %x, DUT_reg_data = %x", DUT.reg_data_destiny, reg_data);
-                        $stop;
-                    end
+                    if(opcode[5] === 1'b0) `ASSERT(DUT.reg_data_destiny === reg_data);
                     // Incremento PC
                     pc_en = 1'b1;
                     pc_4  = pc + 4;
-                    wait (clock == 1'b0);
-                    wait (clock == 1'b1);
+                    wait_1_cycle;
                     mem_addr_src = 1'b0;
-                    #0.1;
                     // Ciclo seguinte: Confiro novo valor de PC
-                    if(pc_4 !== mem_addr) begin
-                        $display("Error Store/Load PC: pc_4 = %x, pc = %x", pc_4, mem_addr);
-                        $stop;
-                    end
+                    `ASSERT(pc_4 === mem_addr);
                     pc = pc_4;
-                    wait (clock == 1'b0);
                 end
                 // Branch(B*)
                 7'b1100011: begin
                     // Decido o valor de pc_src com base em funct3 e no valor das flags simuladas
-                    #0.1;
-                    if(funct3[2:1] === 2'b00)
-                        pc_src = zero_ ^ funct3[0];
-                    else if(funct3[2:1] === 2'b10) begin
-                        pc_src = negative_ ^ overflow ^ funct3[0];
-                    end
-                    else if(funct3[2:1] === 2'b11)
-                        pc_src = carry_out_ ~^ funct3[0];
+                    if(funct3[2:1] === 2'b00) pc_src = zero_ ^ funct3[0];
+                    else if(funct3[2:1] === 2'b10) pc_src = negative_ ^ overflow ^ funct3[0];
+                    else if(funct3[2:1] === 2'b11) pc_src = carry_out_ ~^ funct3[0];
                     else begin
                         $display("Error B-type: Invalid funct3! funct3 : %x", funct3);
                         $stop;
@@ -354,25 +409,19 @@ module Dataflow_RV32I_tb();
                     pc_imm                = pc + (immediate << 1);
                     pc_en                 = 1'b1;
                     wr_reg_en             = 1'b0;
-                    #0.1;
+                    @(negedge clock);
                     // Confiro as flags da ULA
-                    if(overflow !== overflow_ || carry_out !== carry_out_ || negative !== negative_ || zero !== zero_) begin
-                        $display("Error B-type flags: overflow = %x, carry_out = %x, negative = %x, zero = %x, funct3 = %x", overflow, carry_out, negative, zero, funct3);
-                        $stop;
-                    end
-                    wait (clock == 1'b1);
-                    #0.1;
-                    // Após a subida do clock, confiro se o novo valor do pc está correto
-                    if((pc_src === 1'b1 && pc_imm !== mem_addr) || (pc_src === 1'b0 && pc_4 !== mem_addr)) begin
-                        $display("Error B-type PC: pc_src = %x, pc_imm = %x, pc_4 = %x, pc = %x", pc_src, pc_imm, pc_4, mem_addr);
-                        $stop;
-                    end
+                    `ASSERT(overflow === overflow_);
+                    `ASSERT(carry_out === carry_out_);
+                    `ASSERT(negative === negative_);
+                    `ASSERT(zero === zero_);
+                    wait_1_cycle;
+                    // Confiro o novo valor do pc
+                    if(pc_src === 1'b1) `ASSERT(pc_imm === mem_addr);
+                    else `ASSERT(pc_4 === mem_addr);
                     // Incremento pc
-                    if(pc_src === 1'b1) 
-                        pc = pc_imm;
-                    else
-                        pc = pc_4;
-                    wait (clock == 1'b0);
+                    if(pc_src === 1'b1) pc = pc_imm;
+                    else pc = pc_4;
                 end
                 // LUI e AUIPC
                 7'b0110111, 7'b0010111: begin
@@ -380,27 +429,17 @@ module Dataflow_RV32I_tb();
                     pc_src    = df_src[10];
                     pc_en = 1'b1;
                     wr_reg_en = 1'b1;
-                    if(opcode[5] === 1)
-                        reg_data = immediate; // LUI
-                    else
-                        reg_data = pc + immediate; // AUIPC
-                    #0.1;
+                    if(opcode[5] === 1) reg_data = immediate; // LUI
+                    else reg_data = pc + immediate; // AUIPC
+                    @(negedge clock);
                     // Confiro se reg_data está correto
-                    if(reg_data !== DUT.reg_data_destiny) begin
-                        $display("Error AUIPC/LUI: reg_data = %x, DUT_reg_data = %x, opcode = %x", reg_data, DUT.reg_data_destiny, opcode);
-                        $stop;
-                    end
+                    `ASSERT(reg_data === DUT.reg_data_destiny);
                     pc_4 = pc + 4;
-                    wait (clock == 1'b1);
-                    #0.1;
+                    wait_1_cycle;
                     // Após a subida do clock, confiro se o pc foi incrementado corretamente
-                    if(pc_4 !== mem_addr) begin
-                        $display("Error AUIPC/LUI PC: pc_4 = %x, pc = %x", pc_4, mem_addr);
-                        $stop;
-                    end
+                    `ASSERT(pc_4 === mem_addr);
                     // Incremento pc
                     pc = pc_4;
-                    wait (clock == 1'b0);
                 end
                 // JAL e JALR
                 7'b1101111, 7'b1100111: begin
@@ -413,22 +452,14 @@ module Dataflow_RV32I_tb();
                     else
                         pc_imm    = {A_immediate[31:1],1'b0}; // JALR
                     reg_data = pc + 4; // escrever pc + 4 no banco -> Link
-                    #0.1;
+                    @(negedge clock);
                     // Confiro a escrita no banco
-                    if(DUT.reg_data_destiny !== reg_data) begin
-                        $display("Error JAL/JALR: reg_data = %x, DUT_reg_data = %x, opcode = %x", DUT.reg_data_destiny, reg_data, opcode);
-                        $stop;
-                    end
-                    wait (clock == 1'b1);
-                    #0.1;
+                    `ASSERT(DUT.reg_data_destiny === reg_data);
+                    wait_1_cycle;
                     // No ciclo seguinte, confiro o salto
-                    if(pc_imm !== mem_addr) begin
-                        $display("Error JAL/JALR: pc_imm = %x, mem_addr = %x", pc_imm, mem_addr);
-                        $stop;
-                    end
+                    `ASSERT(pc_imm === mem_addr);
                     // Atualizo pc
                     pc = pc_imm;
-                    wait(clock == 1'b0);
                 end
                 // ULA R/I-type
                 7'b0010011, 7'b0110011: begin
@@ -436,7 +467,6 @@ module Dataflow_RV32I_tb();
                     pc_src    = df_src[10];
                     pc_en     = 1'b1;
                     wr_reg_en = 1'b1;
-                    #0.1;
                     // Uso ULA_function para calcular o reg_data
                     if(opcode[5] === 1'b1)
                         reg_data = ULA_function(A, B, {funct7[5], funct3});
@@ -444,29 +474,19 @@ module Dataflow_RV32I_tb();
                         reg_data = ULA_function(A, immediate, {funct7[5], funct3});
                     else
                         reg_data = ULA_function(A, immediate, {1'b0, funct3});
-                    #0.1;
+                    @(negedge clock);
                     // Verifico reg_data
-                    if(reg_data !== DUT.reg_data_destiny) begin
-                        $display("Error ULA R/I-type: reg_data = %x, DUT_reg_data = %x, opcode = %x, funct3 = %x, funct7 = %x", reg_data, DUT.reg_data_destiny, opcode, funct3, funct7);
-                        $stop;
-                    end
+                    `ASSERT(reg_data === DUT.reg_data_destiny);
                     pc_4 = pc + 4;
-                    wait (clock == 1'b1);
-                    #0.1;
+                    wait_1_cycle;
                     // Após a borda de subida, confiro se o pc foi incrementado corretamente
-                    if(pc_4 !== mem_addr) begin
-                        $display("Error ULA R-type PC: pc_4 = %x, pc = %x", pc_4, mem_addr);
-                        $stop;
-                    end
+                    `ASSERT(pc_4 === mem_addr);
                     pc = pc_4;
-                    wait(clock == 1'b0);
                 end
                 7'b0000000: begin
                     // Fim do programa -> última instrução 0000000
-                    if(pc === `program_size - 4)
-                        $display("End of program!");
-                    else
-                        $display("Error opcode case: opcode = %x, program_size = %x", opcode, `program_size);
+                    if(pc === `program_size - 4) $display("End of program!");
+                    else $display("Error opcode case: opcode = %x", opcode);
                     $stop;
                 end
                 default: begin // Erro: opcode inexistente
