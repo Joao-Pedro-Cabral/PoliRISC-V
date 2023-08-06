@@ -5,8 +5,6 @@
 //! @date   2023-05-16
 //
 
-`timescale 1 ns / 100 ps
-
 module instruction_cache_path #(
     parameter integer L2_CACHE_SIZE = 8,  // log_2(tamanho da cache em bytes)
     parameter integer L2_BLOCK_SIZE = 6,  // log_2(tamanho do bloco em bytes)
@@ -53,7 +51,7 @@ module instruction_cache_path #(
   wire [(BYTE_OFFSET>0 ? BYTE_OFFSET-1 : 0):0] byte_offset = BYTE_OFFSET > 0 ? offset[BYTE_OFFSET-1:0] : 0;
   wire [(BLOCK_OFFSET>0 ? BLOCK_OFFSET-1 : 0):0] block_offset = BLOCK_OFFSET > 0 ? offset[OFFSET-1:BYTE_OFFSET] : 0;
 
-  wire [(INDEX>0 ? INDEX-1 : 0):0] index = INDEX>0 ? inst_cache_addr[INDEX+OFFSET-1:OFFSET] : 0;
+  wire [(INDEX>0 ? INDEX-1 : 0):0] index = INDEX > 0 ? inst_cache_addr[INDEX+OFFSET-1:OFFSET] : 0;
 
   wire [TAG-1:0] tag = inst_cache_addr[2**L2_ADDR_SIZE-1:INDEX+OFFSET];
 

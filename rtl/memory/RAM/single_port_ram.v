@@ -5,8 +5,6 @@
 //! @date   2023-02-22
 //
 
-`timescale 1 ns / 100 ps
-
 module single_port_ram #(
     parameter RAM_INIT_FILE = "ram_init_file.mif",
     parameter ADDR_SIZE = 2,
@@ -28,7 +26,7 @@ module single_port_ram #(
   reg busy_flag;
 
   function automatic [ADDR_SIZE-1:0] offset_and_truncate_address(input [DATA_SIZE-1:0] addr,
-                                                                   input integer offset);
+                                                                 input integer offset);
     offset_and_truncate_address = addr + offset;
   endfunction
 

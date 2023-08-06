@@ -5,8 +5,6 @@
 //! @date   2023-05-16
 //
 
-`timescale 1 ns / 100 ps
-
 module instruction_cache_control (
     /* Sinais do sistema */
     input clock,

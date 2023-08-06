@@ -5,8 +5,6 @@
 //! @date   2023-05-02
 //
 
-`timescale 1 ns / 100 ps
-
 module instruction_cache #(
     parameter integer L2_CACHE_SIZE = 8,  // log_2(tamanho da cache em bytes)
     parameter integer L2_BLOCK_SIZE = 6,  // log_2(tamanho do bloco em bytes)
