@@ -32,12 +32,15 @@ module sd_controller (
     output reg busy,
 
     // debug
-    output wire [12:0] bits_received_dbg,
-    output reg  [ 7:0] check_cmd_0_dbg,
-    output reg  [ 7:0] check_cmd_8_dbg,
-    output reg  [ 7:0] check_cmd_55_dbg,
-    output reg  [ 7:0] check_acmd_41_dbg,
-    output reg  [ 7:0] check_cmd_16_dbg
+    /* output wire [12:0] bits_received_dbg, */
+    output wire [4:0] sd_controller_state,
+    output reg  [7:0] check_cmd_0_dbg,
+    output reg  [7:0] check_cmd_8_dbg,
+    output reg  [7:0] check_cmd_55_dbg,
+    output reg  [7:0] check_acmd_41_dbg,
+    output reg  [7:0] check_cmd_16_dbg,
+    output reg  [7:0] check_cmd_24_dbg,
+    output reg  [7:0] check_cmd_17_dbg
 );
 
   wire clock;
@@ -80,7 +83,7 @@ module sd_controller (
       .data_valid(data_valid),
       .crc_error(crc_error),
       .miso(miso),
-      .bits_received_dbg(bits_received_dbg)
+      /* .bits_received_dbg(bits_received_dbg) */
   );
 
   assign read_data = received_data;
@@ -121,7 +124,9 @@ module sd_controller (
       check_cmd_8_dbg_en,
       check_cmd_55_dbg_en,
       check_acmd_41_dbg_en,
-      check_cmd_16_dbg_en;
+      check_cmd_16_dbg_en,
+      check_cmd_24_dbg_en,
+      check_cmd_17_dbg_en;
 
   always @(posedge clock, posedge reset) begin
     if (reset) begin
@@ -130,10 +135,12 @@ module sd_controller (
       state <= InitBegin;
       state_return <= InitBegin;
       check_cmd_0_dbg <= 8'h00;
-      check_cmd_8_dbg <= 8'h00;
-      check_cmd_55_dbg <= 8'h00;
-      check_acmd_41_dbg <= 8'h00;
-      check_cmd_16_dbg <= 8'h00;
+      check_cmd_8_dbg <= 8'd8;
+      check_cmd_55_dbg <= 8'd55;
+      check_acmd_41_dbg <= 8'd41;
+      check_cmd_16_dbg <= 8'd16;
+      check_cmd_24_dbg <= 8'd24;
+      check_cmd_17_dbg <= 8'd17;
     end else begin
       cs    <= new_cs;
       state <= new_state;
@@ -146,6 +153,8 @@ module sd_controller (
       if (check_cmd_55_dbg_en) check_cmd_55_dbg <= received_data[7:0];
       if (check_acmd_41_dbg_en) check_acmd_41_dbg <= received_data[7:0];
       if (check_cmd_16_dbg_en) check_cmd_16_dbg <= received_data[7:0];
+      if (check_cmd_24_dbg_en) check_cmd_24_dbg <= received_data[7:0];
+      if (check_cmd_17_dbg_en) check_cmd_17_dbg <= received_data[7:0];
     end
   end
 
@@ -170,6 +179,8 @@ module sd_controller (
       check_cmd_55_dbg_en = 1'b0;
       check_acmd_41_dbg_en = 1'b0;
       check_cmd_16_dbg_en = 1'b0;
+      check_cmd_17_dbg_en = 1'b0;
+      check_cmd_24_dbg_en = 1'b0;
     end
   endtask
 
@@ -293,8 +304,8 @@ module sd_controller (
 `endif
 
       Idle: begin  // Idle: Espera escrita ou leitura
+        new_cs = 1'b0;
         if (!miso) begin  // Cartão não terminou a escrita
-          new_cs = 1'b0;
           new_state = Idle;
         end else if (wr_en) begin
           new_cs = 1'b0;
@@ -317,6 +328,7 @@ module sd_controller (
       end
 
       CheckCmd24: begin  // Checa R1 do CMD24
+        check_cmd_24_dbg_en = 1'b1;
         sck_en = 1'b0;
         new_cs = 1'b0;
         // R1 sem erros -> Escrita do Data Block
@@ -354,6 +366,7 @@ module sd_controller (
       end
 
       CheckCmd17: begin  // Checa R1 do CMD17
+        check_cmd_17_dbg_en = 1'b1;
         sck_en = 1'b0;
         new_cs = 1'b0;
         new_response_type = 1'b1;
@@ -386,10 +399,13 @@ module sd_controller (
     endcase
   end
 
-  always @(posedge clock) begin
-    if (reset | end_op) busy <= 1'b0;
-    else if (rd_en | wr_en) busy <= 1'b1;
+  always @(posedge clock, posedge reset) begin
+    if (reset) busy <= 1'b0;
+    else if (end_op) busy <= 1'b0;
+    else if ((rd_en | wr_en) && state > Idle && state < SendCmd16) busy <= 1'b1;
     else busy <= busy;
   end
+
+  assign sd_controller_state = state;
 
 endmodule

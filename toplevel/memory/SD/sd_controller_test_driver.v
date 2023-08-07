@@ -14,7 +14,9 @@ module sd_controller_test_driver (
     input [4095:0] read_data,
     input busy,
     output reg rd_en,
+    output reg wr_en,
     output reg [31:0] addr,
+    output reg [4095:0] write_data,
 
     /* depuração */
     output [15:0] test_driver_state
@@ -32,15 +34,17 @@ module sd_controller_test_driver (
   localparam reg [31:0] Address3 = 32'h3;
 
   localparam reg [15:0]
-    Test0         = 16'h0000,
-    Test1         = 16'h0001,
-    Test2         = 16'h0002,
-    Test3         = 16'h0003,
-    ReadDataBlock = 16'h0004,
-    WaitRead      = 16'h0005,
-    TestRead      = 16'h0006,
-    ReadError     = 16'hFFFE,
-    TestEnd       = 16'hFFFF;
+    Test0          = 16'h0000,
+    Test1          = 16'h0001,
+    Test2          = 16'h0002,
+    Test3          = 16'h0003,
+    ReadDataBlock  = 16'h0004,
+    WriteDataBlock = 16'h0005,
+    WaitRead       = 16'h0006,
+    WaitWrite      = 16'h0007,
+    TestRead       = 16'h0008,
+    ReadError      = 16'hFFFE,
+    TestEnd        = 16'hFFFF;
   reg [15:0] state, next_state, state_return, next_state_return;
 
   reg [31:0] addr_reg, next_addr_reg;
@@ -70,15 +74,17 @@ module sd_controller_test_driver (
 
   always @(*) begin
     rd_en                    = 1'b0;
+    wr_en                    = 1'b0;
     addr                     = 32'h00000000;
     state_vars_enable        = 1'b0;
     next_state_return        = Test0;
     next_addr_reg            = Address0;
     next_expected_data_block = DataBlock0;
+    write_data               = 4096'h0;
 
     case (state)
       Test0: begin
-        next_state               = ReadDataBlock;
+        next_state               = WriteDataBlock;
         state_vars_enable        = 1'b1;
         next_state_return        = Test1;
         next_addr_reg            = Address0;
@@ -88,9 +94,9 @@ module sd_controller_test_driver (
       Test1: begin
         next_state               = ReadDataBlock;
         state_vars_enable        = 1'b1;
-        next_state_return        = Test2;
-        next_addr_reg            = Address1;
-        next_expected_data_block = DataBlock1;
+        next_state_return        = TestEnd;
+        next_addr_reg            = Address0;
+        next_expected_data_block = DataBlock0;
       end
 
       Test2: begin
@@ -109,11 +115,25 @@ module sd_controller_test_driver (
         next_expected_data_block = DataBlock3;
       end
 
+      WriteDataBlock: begin
+        wr_en      = 1'b1;
+        write_data = expected_data_block;
+        addr       = addr_reg;
+        if (busy) next_state = WaitWrite;
+        else next_state = state;
+      end
+
       ReadDataBlock: begin
         rd_en = 1'b1;
         addr  = addr_reg;
         if (busy) next_state = WaitRead;
         else next_state = state;
+      end
+
+      WaitWrite: begin
+        write_data = expected_data_block;
+        if (busy) next_state = state;
+        else next_state = state_return;
       end
 
       WaitRead: begin
