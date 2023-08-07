@@ -13,7 +13,7 @@
 // corretamente e se o comportamento desses componentes está sincronizado
 // Para isso irei verificar as saídas do toplevel
 
-`timescale 1 ns / 100 ps
+`timescale 1 ns / 1 ns
 
 module RV32I_tb();
     // sinais do DUT
@@ -75,28 +75,53 @@ module RV32I_tb();
     integer estado = 0;                         // sinal de depuração -> 0: Idle, 1: Fetch, 2: Decode, 3: Execute  
 
     // DUT
-    core DUT (.clock(clock), .reset(reset), .rd_data(rd_data), .wr_data(wr_data), .mem_addr(mem_addr), .mem_busy(mem_busy),
+    core DUT (.clock(clock), .reset(reset), .rd_data(rd_data), 
+    .wr_data(wr_data), .mem_addr(mem_addr), .mem_busy(mem_busy),
     .mem_rd_en(mem_rd_en), .mem_byte_en(mem_byte_en), .mem_wr_en(mem_wr_en));
 
     // Instruction Memory
-    ROM #(.rom_init_file("./ROM.mif"), .word_size(8), .addr_size(10), .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
-                            .enable(rom_enable), .addr(rom_addr[9:0]), .data(rom_data), .busy(rom_busy));
+    ROM #(.rom_init_file("./ROM.mif"), .word_size(8), .addr_size(10),
+     .offset(2), .busy_cycles(2)) Instruction_Memory (.clock(clock),
+                            .enable(rom_enable), .addr(rom_addr[9:0]), 
+                            .data(rom_data), .busy(rom_busy));
 
     // Data Memory
-    single_port_ram #(.RAM_INIT_FILE("./RAM.mif"), .ADDR_SIZE(12), .BYTE_SIZE(8), .DATA_SIZE(32), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
-                        .output_enable(ram_output_enable), .write_enable(ram_write_enable), .chip_select(ram_chip_select), .byte_enable(ram_byte_enable), .read_data(ram_read_data), .busy(ram_busy));
+    single_port_ram #(.RAM_INIT_FILE("./RAM.mif"), .ADDR_SIZE(12),
+     .BYTE_SIZE(8), .DATA_SIZE(32), .BUSY_CYCLES(2)) Data_Memory (.clk(clock), .address(ram_address), .write_data(ram_write_data),
+                        .output_enable(ram_output_enable), 
+                        .write_enable(ram_write_enable),
+                         .chip_select(ram_chip_select), 
+                         .byte_enable(ram_byte_enable), 
+                         .read_data(ram_read_data), .busy(ram_busy));
 
     // Instanciação do barramento
     memory_controller #(.BYTE_AMNT(4))
-    BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en), .mem_byte_en(mem_byte_en), .wr_data(wr_data), .mem_addr(mem_addr), .rd_data(rd_data),
-    .mem_busy(mem_busy), .inst_cache_data(rom_data), .inst_cache_busy(rom_busy), .inst_cache_enable(rom_enable), .inst_cache_addr(rom_addr), .ram_read_data(ram_read_data), 
-    .ram_busy(ram_busy), .ram_address(ram_address), .ram_write_data(ram_write_data), .ram_output_enable(ram_output_enable), .ram_write_enable(ram_write_enable), .ram_chip_select(ram_chip_select),
+    BUS (.mem_rd_en(mem_rd_en), .mem_wr_en(mem_wr_en),
+     .mem_byte_en(mem_byte_en), 
+    .wr_data(wr_data), .mem_addr(mem_addr),
+    .rd_data(rd_data),
+    .mem_busy(mem_busy), 
+    .inst_cache_data(rom_data), .inst_cache_busy(rom_busy), 
+    .inst_cache_enable(rom_enable), 
+    .inst_cache_addr(rom_addr), .ram_read_data(ram_read_data), 
+    .ram_busy(ram_busy), 
+    .ram_address(ram_address), 
+    .ram_write_data(ram_write_data), 
+    .ram_output_enable(ram_output_enable), 
+    .ram_write_enable(ram_write_enable), 
+    .ram_chip_select(ram_chip_select),
     .ram_byte_enable(ram_byte_enable));
 
     // Componentes auxiliares para a verificação
-    ImmediateExtender #(.N(32)) extensor_imediato (.immediate(immediate), .instruction(instruction));
-    register_file #(.size(32), .N(5)) banco_de_registradores (.clock(clock), .reset(reset), .write_enable(wr_reg_en), .read_address1(instruction[19:15]),
-                                .read_address2(instruction[24:20]), .write_address(instruction[11:7]), .write_data(reg_data), .read_data1(A), .read_data2(B));
+    ImmediateExtender #(.N(32))
+     extensor_imediato (.immediate(immediate), 
+     .instruction(instruction));
+    register_file #(.size(32), .N(5)) banco_de_registradores (.clock(clock), 
+    .reset(reset), .write_enable(wr_reg_en), 
+    .read_address1(instruction[19:15]),
+                                .read_address2(instruction[24:20]),
+                                 .write_address(instruction[11:7]), .write_data(reg_data), 
+                                 .read_data1(A), .read_data2(B));
 
     // geração do clock
     always begin
@@ -154,7 +179,7 @@ module RV32I_tb();
     assign zero_                 = ~(|add_sub);
     assign negative_             = add_sub[31];
     assign overflow_             = (~(A[31] ^ B[31] ^ DUT.sub)) & (A[31] ^ add_sub[31]);
-    
+
     // geração dos sinais da instrução
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];

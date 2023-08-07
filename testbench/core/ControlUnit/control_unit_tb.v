@@ -28,7 +28,7 @@
 
 `define ASSERT(condition) if (!(condition)) $stop
 
-module control_unit_RV32I_tb ();
+module control_unit_tb ();
   // Parâmetros do Sheets
   localparam integer NLineI = 49;  // Números de linhas do RV*I
   // Número de colunas do RV*I
@@ -256,14 +256,14 @@ module control_unit_RV32I_tb ();
       // U,J : apenas opcode
       if (opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
         for (i = 0; i < 3; i = i + 1)  // Eu coloquei U, J nas linhas 0 a 2 do mif
-        if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7])
-          temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
+          if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7])
+            temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end  // I, S, B: opcode e funct3
       else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
-                opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
+              opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
         for (i = 3; i < 34; i = i + 1) begin  // Eu coloquei I, S, B nas linhas 3 a 33 do mif
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
-          funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
+              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
             if (funct3 === 3'b101 && opcode[4] == 1'b1) begin
               if (funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
@@ -274,10 +274,10 @@ module control_unit_RV32I_tb ();
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
         for (i = 34; i < 49; i = i + 1)  // Eu coloquei I, S, B nas linhas 34 a 48 do mif
-        if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
-          funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
-          funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
-          temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
+          if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
+             funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
+             funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
+            temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end
       find_instruction = temp;
     end
@@ -402,7 +402,8 @@ module control_unit_RV32I_tb ();
           wait_1_cycle;
         end
         // JAL, JALR, U-type & ULA R/I-type
-        7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011, 7'b0110111, 7'b0010111: begin
+        7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011,
+        7'b0110111, 7'b0010111: begin
           `ASSERT(pc_en === 1'b1);
           wait_1_cycle;
         end
