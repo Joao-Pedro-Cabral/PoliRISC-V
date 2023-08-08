@@ -1,6 +1,5 @@
 files = [
-    "Dataflow_RV64I_tb.v",
-    "Dataflow_RV32I_tb.v"
+    "Dataflow_tb.v"
 ]
 
 modules = {

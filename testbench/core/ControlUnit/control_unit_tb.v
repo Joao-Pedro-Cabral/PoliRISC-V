@@ -1,6 +1,6 @@
 
 //
-//! @file   control_unit_RV32I_tb.v
+//! @file   control_unit_tb.v
 //! @brief  Testbench da control_unit
 //! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
 //! @date   2023-03-03
@@ -243,7 +243,8 @@ module control_unit_tb ();
 
   // geração do LUT linear -> função não suporta array
   generate
-    for (j = 0; j < NLineI; j = j + 1) assign LUT_linear[NColumnI*(j+1)-1:NColumnI*j] = LUT_uc[j];
+    for (j = 0; j < NLineI; j = j + 1)
+      assign LUT_linear[NColumnI*(j+1)-1:NColumnI*j] = LUT_uc[j];
   endgenerate
 
   // função para determinar os seletores(sinais provenientes da UC) a partir do opcode, funct3 e funct7
@@ -338,7 +339,7 @@ module control_unit_tb ();
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);
       // Fetch
-      `ASSERT(db_df_src === {{DfSrcSize-`BYTE_NUM+1{1'b0}},1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
+      `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
       @(posedge mem_busy);
       @(negedge mem_busy);
       @(negedge clock);
