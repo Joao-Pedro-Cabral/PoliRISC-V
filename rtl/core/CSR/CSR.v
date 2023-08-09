@@ -14,7 +14,7 @@ module CSR (
     input wire external_interrupt,
     input wire mem_msip,
     input wire mem_ssip,
-    input wire [31:0] pc,
+    input wire [`DATA_SIZE-1:0] pc,
     input wire [63:0] mem_mtime,
     input wire [63:0] mem_mtimecmp,
     input wire illegal_instruction,
@@ -22,8 +22,8 @@ module CSR (
     input wire mret,
     input wire sret,
     output reg [`DATA_SIZE-1:0] rd_data,
-    output wire [31:0] mepc,
-    output wire [31:0] sepc,
+    output wire [`DATA_SIZE-1:0] mepc,
+    output wire [`DATA_SIZE-1:0] sepc,
     output wire trap,
     output wire [1:0] privilege_mode
 );
@@ -234,7 +234,7 @@ module CSR (
     if (reset) mepc_ <= 0;
     else begin
       if (_trap) mepc_ <= pc;  // All traps go to M-Mode
-      else if (wr_en && (addr == 12'h341)) mepc_ <= {wr_data[31:2], 2'b00};
+      else if (wr_en && (addr == 12'h341)) mepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
     end
   end
   assign mepc = mepc_;
@@ -242,7 +242,7 @@ module CSR (
   // SEPC
   always @(posedge clock) begin
     if (reset) sepc_ <= 0;
-    else if (wr_en && (addr == 12'h141)) sepc_ <= {wr_data[31:2], 2'b00};
+    else if (wr_en && (addr == 12'h141)) sepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
   end
   assign sepc = sepc_;
 
@@ -273,8 +273,11 @@ module CSR (
   generate
     for (i = 0; i < `DATA_SIZE; i = i + 1) begin : gen_async_mcause
       if (i <= MEI && (i % 2 == 1)) begin : gen_exception_code
-        assign interrupt_priority[i] = !(mcause_async[prev_prior_bit(i)] |
-                                        interrupt_priority[prev_prior_bit(i)]);
+        assign interrupt_priority[i] = !(mcause_async[prev_prior_bit(
+            i
+        )] | interrupt_priority[prev_prior_bit(
+            i
+        )]);
         if (i % 4 == 1)
           assign mcause_async[i] = mie_[i] & mip[i] & !priv[1] & (!priv[0] | mstatus[SIE]);
         else assign mcause_async[i] = mie_[i] & mip[i] & (!priv[1] | mstatus[MIE]);
