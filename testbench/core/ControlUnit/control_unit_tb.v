@@ -284,7 +284,7 @@ module control_unit_tb ();
     end
   endfunction
 
-  // Esperar a borda de descida do ciclo seguinte(padronizar com o tb do DF) -> Execute
+  // Esperar a borda de descida do ciclo seguinte
   task automatic wait_1_cycle;
     begin
       @(posedge clock);
@@ -411,7 +411,7 @@ module control_unit_tb ();
         7'b0000000: begin
           // Fim do programa -> última instrução 0000000
           if (DF.pc === `program_size - 4) $display("End of program!");
-          else $display("Error opcode case: opcode = %x", opcode);
+          else $display("Error pc: pc = %x", DF.pc);
           $stop;
         end
         default: begin  // Erro: opcode  inexistente
