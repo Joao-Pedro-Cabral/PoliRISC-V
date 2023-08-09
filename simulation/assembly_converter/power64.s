@@ -66,5 +66,8 @@ li a5,0
 mv a0,a5
 ld ra,40(sp)
 ld s0,32(sp)
-addi sp,sp,48
+addi sp,sp,44
+addi x1,x0,1
+sw x1, 0(sp)
+addi sp,sp,4
 jr ra
