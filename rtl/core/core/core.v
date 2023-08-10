@@ -24,7 +24,13 @@ module core (
     input wire mem_busy,
     output wire mem_rd_en,
     output wire mem_wr_en,
-    output wire [`DATA_SIZE/8-1:0] mem_byte_en
+    output wire [`DATA_SIZE/8-1:0] mem_byte_en,
+    // Interrupts from Memory
+    input wire external_interrupt,
+    input wire mem_msip,
+    input wire mem_ssip,
+    input wire [63:0] mem_mtime,
+    input wire [63:0] mem_mtimecmp
 );
 
   // Sinais comuns do DF e da UC
@@ -50,6 +56,10 @@ module core (
   wire negative;
   wire carry_out;
   wire overflow;
+  wire trap;
+  wire [1:0] privilege_mode;
+  wire ecall;
+  wire illegal_instruction;
 `ifdef ZICSR
   wire csr_wr_en;
   wire [1:0] csr_op;
@@ -73,6 +83,13 @@ module core (
       .arithmetic(arithmetic),
       .ir_en(ir_en),
       .mem_addr_src(mem_addr_src),
+      .ecall(ecall),
+      .illegal_instruction(illegal_instruction),
+      .external_interrupt(external_interrupt),
+      .mem_msip(mem_msip),
+      .mem_ssip(mem_ssip),
+      .mem_mtime(mem_mtime),
+      .mem_mtimecmp(mem_mtimecmp),
 `ifdef ZICSR
       .csr_wr_en(csr_wr_en),
       .csr_op(csr_op),
@@ -89,7 +106,9 @@ module core (
       .zero(zero),
       .negative(negative),
       .carry_out(carry_out),
-      .overflow(overflow)
+      .overflow(overflow),
+      .trap(trap),
+      .privilege_mode(privilege_mode)
   );
 
   // Control Unit
@@ -108,6 +127,8 @@ module core (
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
+      .trap(trap),
+      .privilege_mode(privilege_mode),
       .alua_src(alua_src),
       .alub_src(alub_src),
 `ifdef RV64I
@@ -126,7 +147,9 @@ module core (
       .csr_op(csr_op),
       .csr_imm(csr_imm),
 `endif
-      .mem_addr_src(mem_addr_src)
+      .mem_addr_src(mem_addr_src),
+      .ecall(ecall),
+      .illegal_instruction(illegal_instruction)
   );
 
 endmodule

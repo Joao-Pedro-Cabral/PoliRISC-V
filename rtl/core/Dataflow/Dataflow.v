@@ -37,6 +37,15 @@ module Dataflow (
     input wire wr_reg_en,
     input wire ir_en,
     input wire mem_addr_src,
+    // Interrupts/Exceptions from UC
+    input wire ecall,
+    input wire illegal_instruction,
+    // Interrupts from Memory
+    input wire external_interrupt,
+    input wire mem_msip,
+    input wire mem_ssip,
+    input wire [63:0] mem_mtime,
+    input wire [63:0] mem_mtimecmp,
 `ifdef ZICSR
     input wire csr_wr_en,
     input wire [1:0] csr_op,
@@ -49,7 +58,9 @@ module Dataflow (
     output wire zero,
     output wire negative,
     output wire carry_out,
-    output wire overflow
+    output wire overflow,
+    output wire trap,
+    output wire [1:0] privilege_mode
 );
   // Fios intermediários
   // Register File
@@ -78,6 +89,11 @@ module Dataflow (
   wire [`DATA_SIZE-1:0] pc;
   // Instruction Register(IR)
   wire [          31:0] ir;
+  // CSR
+  wire                  _trap;
+  wire [`DATA_SIZE-1:0] mepc;
+  wire [`DATA_SIZE-1:0] sepc;
+  wire [           1:0] _privilege_mode;
   // ZICSR
 `ifdef ZICSR
   wire [`DATA_SIZE-1:0] csr_rd_data;
@@ -255,26 +271,50 @@ module Dataflow (
       .Y(mem_addr)
   );
   // CSR
-`ifdef ZICSR
   csr csr_bank (
       .clock(clock),
       .reset(reset),
-      // Escreve caso seja CSRRW(I) ou CSRRC/S(I) com rs1 != x0
+      // Interrupt/Exception Signals
+      .ecall(ecall),
+      .illegal_instruction(illegal_instruction),
+      .external_interrupt(external_interrupt),
+      .mem_msip(mem_msip),
+      .mem_ssip(mem_ssip),
+      .mem_mtime(mem_mtime),
+      .mem_mtimecmp(mem_mtimecmp),
+      .trap(_trap),
+      .privilege_mode(_privilege_mode),
+      // CSR RW interface
+`ifdef ZICSR
       .wr_en(csr_wr_en & (~csr_op[1] | (|ir[19:15]))),
       .addr(ir[31:20]),
       .wr_data(csr_wr_data),
-      .rd_data(csr_rd_data)
-  );
-  assign csr_aux_wr = csr_imm ? $unsigned(ir[19:15]) : reg_data_source_1;
-  assign csr_wr_data = csr_op[1] ? (csr_op[0] ? (csr_rd_data & (~csr_aux_wr))
-                        : (csr_rd_data | csr_aux_wr)) : csr_aux_wr;
+      .rd_data(csr_rd_data),
+`else
+      .wr_en(1'b0),
+      .addr(12'b0),
+      .wr_data(`DATA_SIZE'b0),
+      .rd_data(),
 `endif
+      // MRET & SRET
+      .mret(),
+      .sret(),
+      .mepc(),
+      .sepc()
+  );
 
 
   // Atribuições intermediárias
   // Mascarar LUI no Rs1
   assign reg_addr_source_1 = ir[19:15] & {5{(~(ir[4] & ir[2]))}};
   assign muxaluY_out[31:0] = aluY[31:0];
+
+  // Zicsr
+`ifdef ZICSR
+  assign csr_aux_wr = csr_imm ? $unsigned(ir[19:15]) : reg_data_source_1;
+  assign csr_wr_data = csr_op[1] ? (csr_op[0] ? (csr_rd_data & (~csr_aux_wr))
+                        : (csr_rd_data | csr_aux_wr)) : csr_aux_wr;
+`endif
 
   // Saídas
   // Memory
@@ -283,5 +323,7 @@ module Dataflow (
   assign opcode = ir[6:0];
   assign funct3 = ir[14:12];
   assign funct7 = ir[31:25];
+  assign trap = _trap;
+  assign privilege_mode = _privilege_mode;
 
 endmodule

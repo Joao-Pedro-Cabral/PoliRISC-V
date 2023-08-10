@@ -32,6 +32,8 @@ module control_unit (
     input negative,
     input carry_out,
     input overflow,
+    input trap,
+    input [1:0] privilege_mode,
 
     // Sinais de Controle do Fluxo de Dados
     output reg alua_src,
@@ -53,7 +55,9 @@ module control_unit (
     output reg csr_wr_en
 `endif
     output reg ir_en,
-    output reg mem_addr_src
+    output reg mem_addr_src,
+    output reg illegal_instruction,
+    output reg ecall
 );
 
   // sinais úteis
@@ -73,7 +77,7 @@ module control_unit (
         Load2 = 5'h0B,
         Store = 5'h0C,
         Store2 = 5'h0D,
-        Halt = 5'h0E,
+        Ecall = 5'h0E,
         Idle = 5'h0F;
 `ifdef ZICSR
   localparam reg [4:0] Zicsr = 5'h10;
@@ -101,15 +105,19 @@ module control_unit (
       wr_reg_en    = 1'b0;
       ir_en        = 1'b0;
       mem_addr_src = 1'b0;
+      ecall        = 1'b0;
 `ifdef ZICSR
       csr_wr_en = 1'b0;
 `endif
+      illegal_instruction = 1'b0;
+      proximo_estado = Fetch;
     end
   endtask
 
   // lógica da mudança de estados
   always @(posedge clock, posedge reset) begin
     if (reset) estado_atual <= Idle;
+    else if (trap) estado_atual <= Fetch;
     else estado_atual <= proximo_estado;
   end
 
@@ -129,15 +137,13 @@ module control_unit (
 
     case (estado_atual)  // synthesis parallel_case
       Idle: begin
-        if (reset == 1'b1) proximo_estado = Idle;
-        else proximo_estado = Fetch;
+        if (reset) proximo_estado = Idle;
       end
 
       Fetch: begin
         mem_byte_en = 'hF;
         mem_rd_en   = 1'b1;
         if (mem_busy) proximo_estado = Fetch2;
-        else proximo_estado = Fetch;
       end
       Fetch2: begin
         mem_byte_en = 'hF;
@@ -151,35 +157,40 @@ module control_unit (
         end
       end
       Decode: begin
-        if (opcode[1:0] != 2'b11) proximo_estado = Halt;
+        if (opcode[1:0] != 2'b11) illegal_instruction = 1'b1;
         else if (opcode[4] == 1'b1) begin
           if (opcode[5] == 1'b1) begin
             if (opcode[2] == 1'b0) begin
               if (opcode[6] == 1'b0) proximo_estado = RegistradorRegistrador;
               else begin
+                if (funct3 == 3'b0) begin
+                  if (funct7 == 7'b0) proximo_estado = Ecall;
+                  else illegal_instruction = 1'b1;
+                end else if (funct3 == 3'b100) illegal_instruction = 1'b1;
+                else
 `ifdef ZICSR
-                proximo_estado = Zicsr;
+                  proximo_estado = Zicsr;
 `else
-                proximo_estado = Halt;
+                  illegal_instruction = 1'b1;
 `endif
               end
             end else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = Lui;
-            else proximo_estado = Halt;
+            else illegal_instruction = 1'b1;
           end else begin
             if (opcode[2] == 1'b0) proximo_estado = RegistradorImediato;
             else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = Auipc;
-            else proximo_estado = Halt;
+            else illegal_instruction = 1'b1;
           end
         end else begin
           if (opcode[6] == 1'b1) begin
             if (opcode[3] == 1'b1) proximo_estado = Jal;
             else if (opcode[2] == 1'b0) proximo_estado = DesvioCondicional;
             else if (opcode[5] == 1'b1) proximo_estado = Jalr;
-            else proximo_estado = Halt;
+            else illegal_instruction = 1'b1;
           end else begin
             if (opcode[5] == 1'b0) proximo_estado = Load;
             else if (opcode[2] == 1'b0 && opcode[3] == 1'b0) proximo_estado = Store;
-            else proximo_estado = Halt;
+            else illegal_instruction = 1'b1;
           end
         end
       end
@@ -304,6 +315,11 @@ module control_unit (
         end
       end
 
+      Ecall: begin
+        ecall = 1'b1;
+        proximo_estado = Fetch;
+      end
+
 `ifdef ZICSR
       Zicsr: begin
         // não significa que algum CSR será escrito
@@ -311,9 +327,7 @@ module control_unit (
       end
 `endif
 
-      Halt: proximo_estado = Halt;
-
-      default: proximo_estado = Halt;
+      default: proximo_estado = Idle;
     endcase
   end
 
