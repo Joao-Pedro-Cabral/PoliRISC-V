@@ -1,69 +1,75 @@
-  addi sp,sp,-32
-  sd s0,24(sp)
-  addi s0,sp,32
-  li a5,1
-  sh a5,-18(s0)
-  li a5,1
-  sh a5,-20(s0)
-  li a5,2
-  sw a5,-24(s0)
-  li a5,1
-  sw a5,-28(s0)
-  lh a4,-18(s0)
-  lh a5,-20(s0)
-  sext.w a4,a4
-  sext.w a5,a5
-  bne a4,a5,24
-  lhu a5,-18(s0)
-  addiw a5,a5,1
-  slli a5,a5,48
-  srli a5,a5,48
-  sh a5,-20(s0)
-  lh a4,-20(s0)
-  lh a5,-18(s0)
-  sext.w a4,a4
-  sext.w a5,a5
-  blt a4,a5,24
-  lhu a5,-20(s0)
-  addiw a5,a5,1
-  slli a5,a5,48
-  srli a5,a5,48
-  sh a5,-18(s0)
-  lwu a5,-24(s0)
-  mv a4,a5
-  lwu a5,-28(s0)
-  sext.w a4,a4
-  sext.w a5,a5
-  bltu a4,a5,16
-  lwu a5,-24(s0)
-  addiw a5,a5,1
-  sw a5,-28(s0)
-  lh a4,-20(s0)
-  lh a5,-18(s0)
-  sext.w a4,a4
-  sext.w a5,a5
-  bge a4,a5,12
-  lhu a5,-18(s0)
-  sh a5,-20(s0)
-  lwu a5,-24(s0)
-  mv a4,a5
-  lwu a5,-28(s0)
-  sext.w a4,a4
-  sext.w a5,a5
-  bgeu a4,a5,16
-  lwu a5,-28(s0)
-  addiw a5,a5,1
-  sw a5,-24(s0)
-  lwu a5,-24(s0)
-  mv a4,a5
-  lwu a5,-28(s0)
-  sext.w a4,a4
-  sext.w a5,a5
-  beq a4,a5,12
-  lwu a5,-28(s0)
-  sw a5,-24(s0)
-  li a5,0
-  mv a0,a5
-  ld s0,24(sp)
-  addi sp,sp,32
-  jr ra
+lui sp,4096 ; main 
+lui x5,1     
+or sp,sp,x5     
+addi sp,sp,-32
+sd s0,24(sp)
+addi s0,sp,32
+li a5,1
+sh a5,-18(s0)
+li a5,1
+sh a5,-20(s0)
+li a5,2
+sw a5,-24(s0)
+li a5,1
+sw a5,-28(s0)
+lh a4,-18(s0)
+lh a5,-20(s0)
+sext.w a4,a4
+sext.w a5,a5
+bne a4,a5,24
+lhu a5,-18(s0)
+addiw a5,a5,1
+slli a5,a5,48
+srli a5,a5,48
+sh a5,-20(s0)
+lh a4,-20(s0)
+lh a5,-18(s0)
+sext.w a4,a4
+sext.w a5,a5
+blt a4,a5,24
+lhu a5,-20(s0)
+addiw a5,a5,1
+slli a5,a5,48
+srli a5,a5,48
+sh a5,-18(s0)
+lwu a5,-24(s0)
+mv a4,a5
+lwu a5,-28(s0)
+sext.w a4,a4
+sext.w a5,a5
+bltu a4,a5,16
+lwu a5,-24(s0)
+addiw a5,a5,1
+sw a5,-28(s0)
+lh a4,-20(s0)
+lh a5,-18(s0)
+sext.w a4,a4
+sext.w a5,a5
+bge a4,a5,12
+lhu a5,-18(s0)
+sh a5,-20(s0)
+lwu a5,-24(s0)
+mv a4,a5
+lwu a5,-28(s0)
+sext.w a4,a4
+sext.w a5,a5
+bgeu a4,a5,16
+lwu a5,-28(s0)
+addiw a5,a5,1
+sw a5,-24(s0)
+lwu a5,-24(s0)
+mv a4,a5
+lwu a5,-28(s0)
+sext.w a4,a4
+sext.w a5,a5
+beq a4,a5,12
+lwu a5,-28(s0)
+sw a5,-24(s0)
+li a5,0
+mv a0,a5
+ld s0,24(sp)
+addi sp,sp,28
+addi x1,x0,1
+sw x1,0(sp)
+addi sp,sp,4
+jr ra

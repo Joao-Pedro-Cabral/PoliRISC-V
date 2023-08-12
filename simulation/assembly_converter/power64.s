@@ -20,7 +20,7 @@ lw a5,-52(s0)
 mv a1,a4
 mv a0,a5
 auipc x1,0     ; call power
-jalr x1,x1,-80 ; watch out!
+jalr x1,-80(x1) ; watch out!
 sd a0,-40(s0)
 sd zero,-24(s0)
 sw zero,-28(s0)
@@ -58,7 +58,7 @@ lw a5,0(a5)
 mv a1,a5
 mv a0,a4
 auipc x1,0      ; call power
-jalr x1,x1,-232 ; corrigir
+jalr x1,-232(x1) ; corrigir
 mv a4,a0
 ld a5,-40(s0)
 sd a4,0(a5)
@@ -68,6 +68,6 @@ ld ra,40(sp)
 ld s0,32(sp)
 addi sp,sp,44
 addi x1,x0,1
-sw x1, 0(sp)
+sw x1,0(sp)
 addi sp,sp,4
 jr ra

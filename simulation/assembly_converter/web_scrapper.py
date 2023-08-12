@@ -17,7 +17,7 @@ def sextw(tokens):
     return "addiw "+tokens[1]+","+tokens[2]+",0\n"
 
 def jr(tokens):
-    return "jalr x0,"+tokens[1]+",0\n"
+    return "jalr x0,0("+tokens[1]+")\n"
 
 def j(tokens):
     return "jal x0,"+tokens[1]+"\n"
