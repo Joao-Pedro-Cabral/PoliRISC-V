@@ -4,6 +4,7 @@ files = [
 
 modules = {
     "local": [
+        "../../../rtl/core/CSR",
         "../../../rtl/core/Dataflow",
         "../../../rtl/core/ImmediateExtender",
         "../../../rtl/core/RegisterFile",

@@ -73,14 +73,19 @@ module Dataflow_tb ();
   wire wr_reg_en;
   wire ir_en;
   wire mem_addr_src;
+  wire ecall = 1'b0;
+  wire illegal_instruction = 1'b0;
   // To Control Unit
   wire [6:0] opcode;
   wire [2:0] funct3;
   wire [6:0] funct7;
+  wire [11:0] funct12;
   wire zero;
   wire negative;
   wire carry_out;
   wire overflow;
+  wire trap;
+  wire [1:0] privilege_mode;
   // Sinais do Barramento
   // Instruction Memory
   wire [31:0] rom_data;
@@ -96,6 +101,20 @@ module Dataflow_tb ();
   wire ram_chip_select;
   wire [`BYTE_NUM-1:0] ram_byte_enable;
   wire ram_busy;
+  // Registradores do CSR mapeados em memória
+  wire msip_en;
+  wire ssip_en;
+  wire mtime_en;
+  wire mtimecmp_en;
+  wire [`DATA_SIZE-1:0] csr_mem_wr_data;
+  wire [`DATA_SIZE-1:0] msip;
+  wire [`DATA_SIZE-1:0] ssip;
+  wire [63:0] mtime;
+  wire [63:0] mtimecmp;
+  wire csr_high_addr;
+  wire csr_mem_busy;
+  // Dispositivos
+  wire external_interrupt = 1'b0;
   // Sinais intermediários de teste
   reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela(google sheets)
   wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
@@ -144,13 +163,22 @@ module Dataflow_tb ();
       .pc_en(pc_en),
       .wr_reg_src(wr_reg_src),
       .wr_reg_en(wr_reg_en),
+      .ecall(ecall),
+      .illegal_instruction(illegal_instruction),
+      .external_interrupt(external_interrupt),
+      .mem_msip(msip),
+      .mem_ssip(ssip),
+      .mem_mtime(mtime),
+      .mem_mtimecmp(mtimecmp),
       .opcode(opcode),
       .funct3(funct3),
       .funct7(funct7),
       .zero(zero),
       .negative(negative),
       .carry_out(carry_out),
-      .overflow(overflow)
+      .overflow(overflow),
+      .trap(trap),
+      .privilege_mode(privilege_mode)
   );
 
   // Instruction Memory
@@ -187,6 +215,23 @@ module Dataflow_tb ();
       .busy(ram_busy)
   );
 
+  // Registradores em memória do CSR
+  CSR_mem mem_csr (
+    .clock(clock),
+    .reset(reset),
+    .msip_en(msip_en),
+    .ssip_en(ssip_en),
+    .mtime_en(mtime_en),
+    .mtimecmp_en(mtimecmp_en),
+    .wr_data(csr_mem_wr_data),
+    .high_addr(high_addr),
+    .busy(csr_mem_busy),
+    .msip(msip),
+    .ssip(ssip),
+    .mtime(mtime),
+    .mtimecmp(mtimecmp)
+  );
+
   // Instanciação do barramento
   memory_controller #(
       .BYTE_AMNT(`BYTE_NUM)
@@ -213,7 +258,18 @@ module Dataflow_tb ();
       .ram_output_enable(ram_output_enable),
       .ram_write_enable(ram_write_enable),
       .ram_chip_select(ram_chip_select),
-      .ram_byte_enable(ram_byte_enable)
+      .ram_byte_enable(ram_byte_enable),
+      .msip_en(msip_en),
+      .ssip_en(ssip_en),
+      .mtime_en(mtime_en),
+      .mtimecmp_en(mtimecmp_en),
+      .csr_mem_wr_data(csr_mem_wr_data),
+      .high_addr(high_addr),
+      .csr_mem_busy(csr_mem_busy),
+      .msip(msip),
+      .ssip(ssip),
+      .mtime(mtime),
+      .mtimecmp(mtimecmp)
   );
 
   // Componentes auxiliares para a verificação
@@ -416,7 +472,7 @@ module Dataflow_tb ();
           if (!opcode[5]) reg_data = rd_data;
           @(negedge clock);
           // Caso load -> confiro a leitura
-          if (!opcode[5]) `ASSERT(DUT.reg_data_destiny === reg_data);
+          if (!opcode[5]) `ASSERT(DUT.rd === reg_data);
           // Incremento PC
           db_df_src[DfSrcSize+1] = 1'b1;
           pc_4 = pc + 4;
@@ -460,7 +516,7 @@ module Dataflow_tb ();
           else reg_data = pc + immediate;  // AUIPC
           @(negedge clock);
           // Confiro se reg_data está correto
-          `ASSERT(reg_data === DUT.reg_data_destiny);
+          `ASSERT(reg_data === DUT.rd);
           pc_4 = pc + 4;
           wait_1_cycle;
           pc = pc_4;
@@ -475,7 +531,7 @@ module Dataflow_tb ();
           if (opcode[3]) pc_imm = pc + (immediate << 1);  // JAL
           else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
           // Confiro a escrita no banco
-          `ASSERT(DUT.reg_data_destiny === reg_data);
+          `ASSERT(DUT.rd === reg_data);
           wait_1_cycle;
           // Atualizo pc
           pc = pc_imm;
@@ -493,7 +549,7 @@ module Dataflow_tb ();
           // opcode[3] = 1'b1 -> RV64I
           if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
           // Verifico reg_data
-          `ASSERT(reg_data === DUT.reg_data_destiny);
+          `ASSERT(reg_data === DUT.rd);
           pc_4 = pc + 4;
           wait_1_cycle;
           pc = pc_4;

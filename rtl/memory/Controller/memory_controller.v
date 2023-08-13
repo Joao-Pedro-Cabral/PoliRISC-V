@@ -10,10 +10,10 @@
 
 module memory_controller #(
     parameter integer BYTE_AMNT = 8,
-    parameter integer MSIP_ADDR,
-    parameter integer SSIP_ADDR,
-    parameter integer MTIME_ADDR, // Alinhado em 8 bytes
-    parameter integer MTIMECMP_ADDR // Alinhado em 8 bytes
+    parameter integer MSIP_ADDR = 32'hFFFFFFC0,
+    parameter integer SSIP_ADDR = 32'hFFFFFFD0,
+    parameter integer MTIME_ADDR = 32'hFFFFFFE0, // Alinhado em 8 bytes
+    parameter integer MTIMECMP_ADDR = 32'hFFFFFFF0 // Alinhado em 8 bytes
 ) (
     /* Interface com o cache de instruções */
     input [8*BYTE_AMNT-1:0] inst_cache_data,
@@ -38,7 +38,9 @@ module memory_controller #(
     input [8*BYTE_AMNT-1:0] ssip,
     input [63:0] mtime,
     input [63:0] mtimecmp,
-    output [8*BYTE_AMNT-1:0] csr_reg_wr_data,
+    input csr_mem_busy,
+    output [8*BYTE_AMNT-1:0] csr_mem_wr_data,
+    output high_addr,
     output msip_en,
     output ssip_en,
     output mtime_en,
@@ -63,10 +65,6 @@ module memory_controller #(
     input [8*BYTE_AMNT-1:0] mem_addr,
 
     output [8*BYTE_AMNT-1:0] rd_data,
-    output [8*BYTE_AMNT-1:0] mem_msip,
-    output [8*BYTE_AMNT-1:0] mem_ssip,
-    output [63:0] mem_mtime,
-    output [63:0] mem_mtimecmp,
     output mem_busy
     /* //// */
 );
@@ -90,13 +88,6 @@ module memory_controller #(
   assign inst_cache_enable = s_rom_enable & mem_rd_en;
   assign ram_chip_select = s_ram_chip_select;
 
-  reg csr_reg_busy;
-  always @(posedge clock, posedge reset) begin
-    if(reset || csr_reg_busy) csr_reg_busy <= 1'b0;
-    else if((mem_rd_en || mem_wr_en) &&
-    (msip_cs || ssip_cs || mtime_cs || mtimecmp_cs)) csr_reg_busy <= 1'b1;
-  end
-
   // Trocar por OR invés de mux?
   assign mem_busy =
     s_rom_enable ? inst_cache_busy
@@ -104,7 +95,7 @@ module memory_controller #(
     `ifdef UART_0
         : uart_0_cs ? uart_0_busy
     `endif
-    : (msip_cs || ssip_cs || mtime_cs || mtimecmp_cs) ? csr_reg_busy
+    : (msip_cs || ssip_cs || mtime_cs || mtimecmp_cs) ? csr_mem_busy
     : 1'b0;
 
   assign ram_output_enable = s_ram_chip_select ? mem_rd_en : 1'b0;
@@ -135,6 +126,8 @@ module memory_controller #(
 `ifdef UART_0
   assign uart_0_addr = mem_addr[4:0];
 `endif
+
+  assign high_addr = mem_addr[2];
   /* //// */
 
   /* Entradas de dados  */

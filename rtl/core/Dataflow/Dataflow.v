@@ -69,11 +69,10 @@ module Dataflow (
 );
   // Fios intermediários
   // Register File
-  wire [           4:0] reg_addr_source_1;
-  wire [`DATA_SIZE-1:0] reg_data_source_1;
-  wire [`DATA_SIZE-1:0] reg_data_source_2;
-  wire [`DATA_SIZE-1:0] reg_data_destiny;
-  wire [`DATA_SIZE-1:0] muxpc4_data_out;  // PC + 4 or read_data
+  wire [           4:0] rs1_addr;
+  wire [`DATA_SIZE-1:0] rs1;
+  wire [`DATA_SIZE-1:0] rs2;
+  wire [`DATA_SIZE-1:0] rd;
   // Extensor de Imediato
   wire [`DATA_SIZE-1:0] immediate;
   // ULA
@@ -85,8 +84,6 @@ module Dataflow (
   wire [`DATA_SIZE-1:0] pc_plus_4;
   wire [`DATA_SIZE-1:0] cte_4 = 4;
   // Somador PC + Imediato
-  wire [`DATA_SIZE-1:0] muxpc_reg_out;  // PC or Rs1
-  wire [`DATA_SIZE-1:0] muxpc_immediate_out;  // Immediate
   wire [`DATA_SIZE-1:0] pc_plus_immediate;
   // Mux PC
   wire [`DATA_SIZE-1:0] muxpc_out;
@@ -111,32 +108,17 @@ module Dataflow (
 
   // Instanciação de Componentes
   // Register File
-`ifdef ZICSR  // Com ZICSR há 4 possíveis origens do reg_data_destiny
+`ifdef ZICSR  // Com ZICSR há 4 possíveis origens do rd
   gen_mux #(
       .size(`DATA_SIZE),
       .N(2)
   ) mux11 (
       .A({pc_plus_4, rd_data, csr_rd_data, muxaluY_out}),
       .S(wr_reg_src),
-      .Y(reg_data_destiny)
+      .Y(rd)
   );
 `else  // Sem ZICSR: 3 origens -> Economizar 1 reg
-  mux2to1 #(
-      .size(`DATA_SIZE)
-  ) muxpc4_data (
-      .A(rd_data),
-      .B(pc_plus_4),
-      .S(wr_reg_src[0]),
-      .Y(muxpc4_data_out)
-  );
-  mux2to1 #(
-      .size(`DATA_SIZE)
-  ) muxreg_destiny (
-      .A(muxaluY_out),
-      .B(muxpc4_data_out),
-      .S(wr_reg_src[1]),
-      .Y(reg_data_destiny)
-  );
+  assign rd = wr_reg_src[1] ? (wr_reg_src[0] ? pc_plus_4 : rd_data) : muxaluY_out;
 `endif
   register_file #(
       .size(`DATA_SIZE),
@@ -145,40 +127,19 @@ module Dataflow (
       .clock(clock),
       .reset(reset),
       .write_enable(wr_reg_en),
-      .read_address1(reg_addr_source_1),
+      .read_address1(rs1_addr),
       .read_address2(ir[24:20]),
       .write_address(ir[11:7]),
-      .write_data(reg_data_destiny),
-      .read_data1(reg_data_source_1),
-      .read_data2(reg_data_source_2)
+      .write_data(rd),
+      .read_data1(rs1),
+      .read_data2(rs2)
   );
   // ULA
-  mux2to1 #(
-      .size(`DATA_SIZE)
-  ) muxaluA (
-      .A(reg_data_source_1),
-      .B(pc),
-      .S(alua_src),
-      .Y(aluA)
-  );
-  mux2to1 #(
-      .size(`DATA_SIZE)
-  ) muxaluB (
-      .A(reg_data_source_2),
-      .B(immediate),
-      .S(alub_src),
-      .Y(aluB)
-  );
+  assign aluA = alua_src ? pc : rs1;
+  assign aluB = alub_src ? immediate : rs2;
 
 `ifdef RV64I
-  mux2to1 #(
-      .size(32)
-  ) muxaluY (
-      .A(aluY[`DATA_SIZE-1:32]),
-      .B({32{aluY[31]}}),
-      .S(aluy_src),
-      .Y(muxaluY_out[`DATA_SIZE-1:32])
-  );
+  assign muxaluY_out[`DATA_SIZE-1:32] = aluy_src ? {32{aluY[31]}} : aluY[`DATA_SIZE-1:32];
 `endif
 
   ULA #(
@@ -209,38 +170,13 @@ module Dataflow (
   sklansky_adder #(
       .INPUT_SIZE(`DATA_SIZE)
   ) pc_immediate (
-      .A(muxpc_reg_out),
-      .B(muxpc_immediate_out),
+      .A(alupc_src ? {rs1[`DATA_SIZE-1:1], 1'b0} : pc),
+      .B(alupc_src ? {immediate[`DATA_SIZE-1:1], 1'b0} : {immediate[`DATA_SIZE-2:0], 1'b0}),
       .c_in(1'b0),
       .c_out(),
       .S(pc_plus_immediate)
   );
-  mux2to1 #(
-      .size(`DATA_SIZE)
-  ) muxpc_reg (
-      .A(pc),
-      .B({reg_data_source_1[`DATA_SIZE-1:1], 1'b0}),
-      .S(alupc_src),
-      .Y(muxpc_reg_out)
-  );
-  mux2to1 #(
-      .size(`DATA_SIZE)
-  ) muxpc_immediate (
-      .A({immediate[`DATA_SIZE-2:0], 1'b0}),
-      .B({immediate[`DATA_SIZE-1:1], 1'b0}),
-      .S(alupc_src),
-      .Y(muxpc_immediate_out)
-  );
   // PC
-  mux2to1 #(
-      .size(`DATA_SIZE)
-  ) muxpc (
-      .A(pc_plus_4),
-      .B(pc_plus_immediate),
-      .S(pc_src),
-      .Y(muxpc_out)
-  );
-
   register_d #(
       .N(`DATA_SIZE),
       .reset_value(0)
@@ -248,7 +184,7 @@ module Dataflow (
       .clock(clock),
       .reset(reset),
       .enable(pc_en),
-      .D(muxpc_out),
+      .D(pc_src ? pc_plus_immediate : pc_plus_4),
       .Q(pc)
   );
   // Immediate Extender
@@ -270,16 +206,9 @@ module Dataflow (
       .Q(ir)
   );
   // Memory
-  mux2to1 #(
-      .size(`DATA_SIZE)
-  ) muxmem_addr (
-      .A(pc),
-      .B(aluY),
-      .S(mem_addr_src),
-      .Y(mem_addr)
-  );
+  assign mem_addr = mem_addr_src ? aluY : pc;
   // CSR
-  csr csr_bank (
+  CSR csr_bank (
       .clock(clock),
       .reset(reset),
       // Interrupt/Exception Signals
@@ -292,6 +221,7 @@ module Dataflow (
       .mem_mtimecmp(mem_mtimecmp),
       .trap(_trap),
       .privilege_mode(_privilege_mode),
+      .pc(pc),
       // CSR RW interface
 `ifdef ZICSR
       .wr_en(csr_wr_en & (~csr_op[1] | (|ir[19:15]))),
@@ -321,19 +251,19 @@ module Dataflow (
 
   // Atribuições intermediárias
   // Mascarar LUI no Rs1
-  assign reg_addr_source_1 = ir[19:15] & {5{(~(ir[4] & ir[2]))}};
+  assign rs1_addr = ir[19:15] & {5{(~(ir[4] & ir[2]))}};
   assign muxaluY_out[31:0] = aluY[31:0];
 
   // Zicsr
 `ifdef ZICSR
-  assign csr_aux_wr = csr_imm ? $unsigned(ir[19:15]) : reg_data_source_1;
+  assign csr_aux_wr = csr_imm ? $unsigned(ir[19:15]) : rs1;
   assign csr_wr_data = csr_op[1] ? (csr_op[0] ? (csr_rd_data & (~csr_aux_wr))
                         : (csr_rd_data | csr_aux_wr)) : csr_aux_wr;
 `endif
 
   // Saídas
   // Memory
-  assign wr_data = reg_data_source_2;
+  assign wr_data = rs2;
   // Control Unit
   assign opcode = ir[6:0];
   assign funct3 = ir[14:12];

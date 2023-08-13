@@ -331,7 +331,7 @@ module core_tb ();
           // Na borda de descida, confiro se os sinais de controle abaixaram
           `ASSERT(db_mem_en === {2'b00, mem_byte_en_});
           // Caso load -> confiro a leitura
-          if (!opcode[5]) `ASSERT(DUT.DF.reg_data_destiny === reg_data);
+          if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
           wait_1_cycle;
           pc = pc + 4;
         end
@@ -360,7 +360,7 @@ module core_tb ();
           if (opcode[5]) reg_data = immediate;  // LUI
           else reg_data = mem_addr + immediate;  // AUIPC
           // Confiro se reg_data está correto
-          `ASSERT(reg_data === DUT.DF.reg_data_destiny);
+          `ASSERT(reg_data === DUT.DF.rd);
           // Verifico se os enables estão desligados
           `ASSERT(db_mem_en === 0);
           wait_1_cycle;
@@ -375,7 +375,7 @@ module core_tb ();
           if (opcode[3]) pc_imm = mem_addr + (immediate << 1);  // JAL
           else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
           // Confiro a escrita no banco
-          `ASSERT(DUT.DF.reg_data_destiny === reg_data);
+          `ASSERT(DUT.DF.rd === reg_data);
           // Verifico se os enables estão desligados
           `ASSERT(db_mem_en === 0);
           wait_1_cycle;
@@ -392,7 +392,7 @@ module core_tb ();
           // opcode[3] = 1'b1 -> RV64I
           if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
           // Verifico reg_data
-          `ASSERT(reg_data === DUT.DF.reg_data_destiny);
+          `ASSERT(reg_data === DUT.DF.rd);
           // Verifico se os enables estão desligados
           `ASSERT(db_mem_en === 0);
           wait_1_cycle;

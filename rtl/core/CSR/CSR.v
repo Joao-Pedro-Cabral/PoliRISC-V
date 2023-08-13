@@ -54,10 +54,10 @@ module CSR (
   wire [`DATA_SIZE-1:0] sie_;
 
   // MEPC
-  wire [`DATA_SIZE-1:0] mepc_;
+  reg  [`DATA_SIZE-1:0] mepc_;
 
   // SEPC
-  wire [`DATA_SIZE-1:0] sepc_;
+  reg  [`DATA_SIZE-1:0] sepc_;
 
   // MCAUSE
   localparam integer SSI = 1, MSI = 3, STI = 5, MTI = 7, SEI = 9, MEI = 11;  // Interrupts
@@ -86,7 +86,7 @@ module CSR (
         9: previous_bit = 3;  // SEI -> MSI
         default: previous_bit = 0;  // Others 1'b1
       endcase
-      previous_priority_bit = previous_bit;
+      prev_prior_bit = previous_bit;
     end
   endfunction
 
@@ -140,12 +140,12 @@ module CSR (
     end
   end
 
-  assign mstatus[MRPV] = mrpv;
+  assign mstatus[MPRV] = mprv;
   always @(posedge clock) begin
     if (reset) mprv <= 1'b0;
     else if (!_trap) begin
       if ((mret && mpp != 2'b11) || sret) mprv <= 1'b0;
-      else if (wr_en && (addr == 12'h300)) mrpv <= wr_data[MPRV];
+      else if (wr_en && (addr == 12'h300)) mprv <= wr_data[MPRV];
     end
   end
 
@@ -211,7 +211,7 @@ module CSR (
   register_d #(
       .N(3),
       .reset_value(3'b0)
-  ) mie_reg (
+  ) sie_reg (
       .clock(clock),
       .reset(reset),
       .enable(!_trap && wr_en && ((addr == 12'h304) || (addr == 12'h104))),

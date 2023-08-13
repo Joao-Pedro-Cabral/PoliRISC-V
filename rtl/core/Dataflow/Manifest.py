@@ -5,6 +5,7 @@ files = [
 modules = {
     "local" : [
         "../Adder",
+        "../CSR",
         "../ImmediateExtender",
         "../RegisterFile",
         "../ULA",
