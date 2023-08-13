@@ -27,8 +27,8 @@ module core (
     output wire [`DATA_SIZE/8-1:0] mem_byte_en,
     // Interrupts from Memory
     input wire external_interrupt,
-    input wire mem_msip,
-    input wire mem_ssip,
+    input wire [`DATA_SIZE-1:0] mem_msip,
+    input wire [`DATA_SIZE-1:0] mem_ssip,
     input wire [63:0] mem_mtime,
     input wire [63:0] mem_mtimecmp
 );
@@ -60,6 +60,10 @@ module core (
   wire [1:0] privilege_mode;
   wire ecall;
   wire illegal_instruction;
+`ifdef TrapReturn
+  wire mret;
+  wire sret;
+`endif
 `ifdef ZICSR
   wire csr_wr_en;
   wire [1:0] csr_op;
@@ -84,6 +88,10 @@ module core (
       .ir_en(ir_en),
       .mem_addr_src(mem_addr_src),
       .ecall(ecall),
+`ifdef TrapReturn
+      .mret(mret),
+      .sret(sret),
+`endif
       .illegal_instruction(illegal_instruction),
       .external_interrupt(external_interrupt),
       .mem_msip(mem_msip),
@@ -149,6 +157,10 @@ module core (
 `endif
       .mem_addr_src(mem_addr_src),
       .ecall(ecall),
+`ifdef TrapReturn
+      .mret(mret),
+      .sret(sret),
+`endif
       .illegal_instruction(illegal_instruction)
   );
 

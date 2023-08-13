@@ -40,10 +40,15 @@ module Dataflow (
     // Interrupts/Exceptions from UC
     input wire ecall,
     input wire illegal_instruction,
+    // Trap Return
+`ifdef TrapReturn
+    input wire mret,
+    input wire sret,
+`endif
     // Interrupts from Memory
     input wire external_interrupt,
-    input wire mem_msip,
-    input wire mem_ssip,
+    input wire [`DATA_SIZE-1:0] mem_msip,
+    input wire [`DATA_SIZE-1:0] mem_ssip,
     input wire [63:0] mem_mtime,
     input wire [63:0] mem_mtimecmp,
 `ifdef ZICSR
@@ -91,9 +96,12 @@ module Dataflow (
   wire [          31:0] ir;
   // CSR
   wire                  _trap;
+  wire [           1:0] _privilege_mode;
+  // Trap Return
+`ifdef TrapReturn
   wire [`DATA_SIZE-1:0] mepc;
   wire [`DATA_SIZE-1:0] sepc;
-  wire [           1:0] _privilege_mode;
+`endif
   // ZICSR
 `ifdef ZICSR
   wire [`DATA_SIZE-1:0] csr_rd_data;
@@ -278,8 +286,8 @@ module Dataflow (
       .ecall(ecall),
       .illegal_instruction(illegal_instruction),
       .external_interrupt(external_interrupt),
-      .mem_msip(mem_msip),
-      .mem_ssip(mem_ssip),
+      .mem_msip(|mem_msip),
+      .mem_ssip(|mem_ssip),
       .mem_mtime(mem_mtime),
       .mem_mtimecmp(mem_mtimecmp),
       .trap(_trap),
@@ -297,10 +305,17 @@ module Dataflow (
       .rd_data(),
 `endif
       // MRET & SRET
+`ifdef TrapReturn
+      .mret(mret),
+      .sret(sret),
+      .mepc(mepc),
+      .sepc(sepc)
+`else
       .mret(),
       .sret(),
       .mepc(),
       .sepc()
+`endif
   );
 
 

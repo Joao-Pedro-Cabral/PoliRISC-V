@@ -28,6 +28,7 @@ module control_unit (
     input [6:0] opcode,
     input [2:0] funct3,
     input [6:0] funct7,
+    input [11:0] funct12,
     input zero,
     input negative,
     input carry_out,
@@ -56,6 +57,10 @@ module control_unit (
 `endif
     output reg ir_en,
     output reg mem_addr_src,
+  `ifdef TrapReturn
+    output reg mret,
+    output reg sret,
+  `endif
     output reg illegal_instruction,
     output reg ecall
 );
@@ -77,7 +82,7 @@ module control_unit (
         Load2 = 5'h0B,
         Store = 5'h0C,
         Store2 = 5'h0D,
-        Ecall = 5'h0E,
+        System = 5'h0E,
         Idle = 5'h0F;
 `ifdef ZICSR
   localparam reg [4:0] Zicsr = 5'h10;
@@ -106,6 +111,10 @@ module control_unit (
       ir_en        = 1'b0;
       mem_addr_src = 1'b0;
       ecall        = 1'b0;
+`ifdef TrapReturn;
+      mret         = 1'b0;
+      sret         = 1'b0;
+`endif
 `ifdef ZICSR
       csr_wr_en = 1'b0;
 `endif
@@ -164,7 +173,11 @@ module control_unit (
               if (opcode[6] == 1'b0) proximo_estado = RegistradorRegistrador;
               else begin
                 if (funct3 == 3'b0) begin
-                  if (funct7 == 7'b0) proximo_estado = Ecall;
+                  if ((funct12 == 12'b0)
+                  `ifdef TrapReturn
+                  || (funct12 == 12'h102) || (funct12 == 12'h302)
+                  `endif )
+                    proximo_estado = System;  // ECALL, MRET, SRET
                   else illegal_instruction = 1'b1;
                 end else if (funct3 == 3'b100) illegal_instruction = 1'b1;
                 else
@@ -315,8 +328,16 @@ module control_unit (
         end
       end
 
-      Ecall: begin
-        ecall = 1'b1;
+      System: begin
+        `ifdef TrapReturn
+          if (funct12[9:8] == 2'b00) ecall = 1'b1;
+          else if (privilege_mode[0] && (privilege_mode[1] ^ funct12[9])) begin
+            mret = funct12[9];
+            sret = ~funct12[9];
+          end else illegal_instruction = 1'b1;  // Não existe URET
+        `else
+          ecall = 1'b1;
+        `endif
         proximo_estado = Fetch;
       end
 
