@@ -43,6 +43,7 @@ module sd_controller_top (
   wire [7:0] check_acmd_41_dbg;
   wire [7:0] check_cmd_16_dbg;
   wire [7:0] check_cmd_24_dbg;
+  wire [7:0] check_write_dbg;
   wire [7:0] check_cmd_17_dbg;
 
   sd_controller_test_driver tester (
@@ -58,7 +59,7 @@ module sd_controller_top (
       .test_driver_state(tester_state)
   );
 
-  sd_controller DUT (
+  sd_controller2 DUT (
       .clock_400K(clock_400K),
       /* .clock_50M(clock_50M), */
       .clock_50M(clock_400K),
@@ -81,6 +82,7 @@ module sd_controller_top (
       .check_acmd_41_dbg(check_acmd_41_dbg),
       .check_cmd_16_dbg(check_cmd_16_dbg),
       .check_cmd_24_dbg(check_cmd_24_dbg),
+      .check_write_dbg(check_write_dbg),
       .check_cmd_17_dbg(check_cmd_17_dbg)
   );
 
@@ -134,13 +136,13 @@ module sd_controller_top (
       4'b0101: led = {2'b00, check_acmd_41_dbg};
       4'b0110: led = {2'b00, check_cmd_16_dbg};
       4'b0111: led = {2'b00, check_cmd_24_dbg};
-      4'b1000: led = {2'b00, check_cmd_17_dbg};
-      4'b1001: led = bits_received_dbg[9:0];
+      4'b1000: led = {2'b00, check_write_dbg};
+      4'b1001: led = {2'b00, check_cmd_17_dbg};
       4'b1010: led = read_data[9:0];
       4'b1011: led = read_data[19:10];
-      4'b1100: led = read_data[29:20];
-      4'b1101: led = read_data[39:30];
-      4'b1110: led = read_data[49:40];
+      4'b1100: led = read_data[4075:4066];
+      4'b1101: led = read_data[4085:4076];
+      4'b1110: led = read_data[4095:4086];
       4'b1111: led = {5'b00000, sd_controller_state};
       default: led = 0;
     endcase

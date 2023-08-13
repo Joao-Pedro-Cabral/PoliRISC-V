@@ -6,22 +6,29 @@
 //! @date   2023-07-09
 //
 
-module sd_receiver (
+module sd_receiver2 (
     // Comum
     input clock,
     input reset,
+
     // Controlador
     input [1:0] response_type,  // 00: R1/token, 01: R3/R7, 1X: Data Block
-    input new_response_type,  // 1: receiver amostra novo response type
     output wire [4095:0] received_data,
-    output wire data_valid,
+    output wire ready,
+    input valid,
     output wire crc_error,
-    // SD
-    input miso,
 
+    // SD
+    input miso
+
+`ifdef DEBUG
+    ,
     // debug
     output wire [12:0] bits_received_dbg
+`endif
 );
+
+  reg _ready;
 
   wire [12:0] transmission_size;  // R1: 7, R3 e R7: 39, Data: 4112
   wire [12:0] bits_received;
@@ -32,10 +39,9 @@ module sd_receiver (
   reg init_transmission;
   reg receiving;
   reg end_transmission;
-  wire [1:0] response_type_;
 
   // FSM
-  localparam reg [1:0] Idle = 2'b00, Receive = 2'b01, End = 2'b10;
+  localparam reg [1:0] Idle = 2'b00, WaitingSD = 2'b01, Receiving = 2'b10;
 
   reg [1:0] new_state, state;
 
@@ -55,21 +61,11 @@ module sd_receiver (
       .value(bits_received)
   );
 
+`ifdef DEBUG
   assign bits_received_dbg = bits_received;
+`endif
 
-  register_d #(
-      .N(2),
-      .reset_value(2'b0)
-  ) response_type_reg (
-      .clock(clock),
-      .reset(reset),
-      // Paro o reg antes dele pegar o CRC16
-      .enable(new_response_type),
-      .D(response_type),
-      .Q(response_type_)
-  );
-
-  assign transmission_size = response_type_[1] ? 13'd4112 : (response_type_[0] ? 13'd39 : 13'd7);
+  assign transmission_size = response_type[1] ? 13'd4112 : (response_type[0] ? 13'd39 : 13'd7);
 
   // Shift Register
   register_d #(
@@ -79,12 +75,10 @@ module sd_receiver (
       .clock(clock),
       .reset(reset),
       // Paro o reg antes dele pegar o CRC16
-      .enable(receiving & !(response_type_[1] & bits_received <= 16)),
+      .enable(receiving && !(response_type[1] && bits_received <= 16)),
       .D({data_received[4094:0], miso}),
       .Q(data_received)
   );
-
-  assign received_data = data_received;
 
   // CRC16 com LFSR
   always @(posedge clock) begin
@@ -106,43 +100,60 @@ module sd_receiver (
     else state <= new_state;
   end
 
-  always @(*) begin
-    receiving = 1'b0;
+  task reset_signals;
+    begin
+    _ready = 1'b0;
     init_transmission = 1'b0;
+    receiving = 1'b0;
     end_transmission = 1'b0;
+    end
+  endtask
+
+  always @* begin
+    reset_signals;
     new_state = Idle;
+
     case (state)
       Idle: begin
-        if (!miso) begin
+        _ready = 1'b1;
+        end_transmission = 1'b1;
+        if (valid) begin
+          if (~miso) begin
+            init_transmission = 1'b1;
+            receiving = 1'b1;
+            new_state = Receiving;
+          end else new_state = WaitingSD;
+        end else new_state = state;
+      end
+
+      WaitingSD: begin
+        if (~miso) begin
           init_transmission = 1'b1;
           receiving = 1'b1;
-          new_state = Receive;
-        end
+          new_state = Receiving;
+        end else new_state = state;
       end
-      Receive: begin
+
+      Receiving: begin
         if (bits_received == 13'b0) begin
           end_transmission = 1'b1;
-          new_state = End;
+          if (miso) new_state = Idle;
+          else new_state = state;
         end else begin
           receiving = 1'b1;
-          new_state = Receive;
+          new_state = state;
         end
       end
-      End: begin
-        if (!miso) begin
-          init_transmission = 1'b1;
-          receiving = 1'b1;
-          new_state = Receive;
-        end else end_transmission = 1'b1;
-      end
+
       default: begin
         new_state = Idle;
       end
     endcase
   end
 
-  // Saídas de status
-  assign data_valid = end_transmission & (!response_type_[1] | (crc16 == 0));
-  assign crc_error  = end_transmission & (response_type_[1] & (crc16 != 0));
+  // Saídas
+  assign crc_error  = end_transmission && (response_type[1] && (crc16 != 0));
+  assign ready = _ready;
+  assign received_data = data_received;
 
 endmodule

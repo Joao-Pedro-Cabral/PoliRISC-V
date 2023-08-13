@@ -366,6 +366,7 @@ module sd_model (
       end
 
       CmdError: begin
+        $display("\n\tindex: 0x%h\n\tcmd: 0x%h\n\texpected_cmd: 0x%h", index, cmd, expected_cmd);
         cmd_error = 1'b1;
         new_state = state;
       end

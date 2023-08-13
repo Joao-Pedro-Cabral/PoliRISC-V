@@ -43,7 +43,7 @@ module sd_controller_tb ();
     end
   end
 
-  sd_controller DUT (
+  sd_controller2 DUT (
       .clock_400K(clock_400K),
       .clock_50M(clock_50M),
       .reset(reset),
@@ -100,6 +100,8 @@ module sd_controller_tb ();
       rd_en = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
       `ASSERT(cmd_error === 1'b0);
+      $display("[CheckRead]:\n\tread_data: 0x%h\n\tsd_card.data_block: 0x%h", read_data,
+               sd_card.data_block);
       `ASSERT(read_data === sd_card.data_block);
       $display(" Leu: [%0t]", $time);
     end
