@@ -34,17 +34,12 @@ module memory_controller #(
     /* //// */
 
     /* Registradores do CSR mapeados em memória */
-    input [8*BYTE_AMNT-1:0] msip,
-    input [8*BYTE_AMNT-1:0] ssip,
-    input [63:0] mtime,
-    input [63:0] mtimecmp,
     input csr_mem_busy,
+    input [8*BYTE_AMNT-1:0] csr_mem_rd_data,
     output [8*BYTE_AMNT-1:0] csr_mem_wr_data,
-    output high_addr,
-    output msip_en,
-    output ssip_en,
-    output mtime_en,
-    output mtimecmp_en,
+    output csr_mem_rd_en,
+    output csr_mem_wr_en,
+    output [2:0] csr_mem_addr,
 
     /* Interface com a UART */
 `ifdef UART_0
@@ -84,6 +79,7 @@ module memory_controller #(
   wire ssip_cs = (mem_addr == SSIP_ADDR);
   wire mtime_cs = (mem_addr[8*BYTE_AMNT-1:3] == (MTIME_ADDR/8));
   wire mtimecmp_cs = (mem_addr[8*BYTE_AMNT-1:3] == (MTIMECMP_ADDR/8));
+  wire csr_mem_cs = msip_cs | ssip_cs | mtime_cs | mtimecmp_cs;
 
   assign inst_cache_enable = s_rom_enable & mem_rd_en;
   assign ram_chip_select = s_ram_chip_select;
@@ -95,7 +91,7 @@ module memory_controller #(
     `ifdef UART_0
         : uart_0_cs ? uart_0_busy
     `endif
-    : (msip_cs || ssip_cs || mtime_cs || mtimecmp_cs) ? csr_mem_busy
+    : csr_mem_cs ? csr_mem_busy
     : 1'b0;
 
   assign ram_output_enable = s_ram_chip_select ? mem_rd_en : 1'b0;
@@ -107,10 +103,13 @@ module memory_controller #(
   assign uart_0_wr_en = uart_0_cs ? mem_wr_en : 1'b0;
 `endif
 
-  assign msip_en = msip_cs & mem_wr_en;
-  assign ssip_en = ssip_cs & mem_wr_en;
-  assign mtime_en = mtime_cs & mem_wr_en;
-  assign mtimecmp_en = mtimecmp_cs & mem_wr_en;
+  assign msip_en = msip_cs;
+  assign ssip_en = ssip_cs;
+  assign mtime_en = mtime_cs;
+  assign mtimecmp_en = mtimecmp_cs;
+
+  assign csr_mem_wr_en = csr_mem_cs & mem_wr_en;
+  assign csr_mem_rd_en = csr_mem_cs & mem_rd_en;
   /* //// */
 
   /* Endereçamento */
@@ -127,7 +126,11 @@ module memory_controller #(
   assign uart_0_addr = mem_addr[4:0];
 `endif
 
-  assign high_addr = mem_addr[2];
+  assign csr_mem_addr[1:0] = msip_cs ? 2'b00 :
+                            (ssip_cs ? 2'b01 :
+                            (mtime_cs ? 2'b10 :
+                            (mtimecmp_cs ? 2'b11 : 2'b00)));
+  assign csr_mem_addr[2] = mem_addr[2];
   /* //// */
 
   /* Entradas de dados  */
@@ -137,25 +140,18 @@ module memory_controller #(
     `ifdef UART_0
        : uart_0_cs ? uart_0_rd_data
     `endif
-    : msip_cs ? msip
-    : ssip_cs ? ssip
-    `ifdef RV64I
-      : mtime_cs ? mtime
-      : mtimecmp_cs ? mtimecmp
-    `else
-      : mtime_cs ? (mem_addr[2] ? mtime[63:32] : mtime[31:0])
-      : mtimecmp_cs ? (mem_addr[2] ? mtimecmp[63:32] : mtimecmp[31:0])
-    `endif
+    : csr_mem_cs ? csr_mem_rd_data
     : 0;
   /* //// */
 
   /* Saídas de dados */
-  // Tirar os muxes e passar direto
   assign ram_write_data = wr_data;
 
 `ifdef UART_0
   assign uart_0_wr_data = wr_data;
 `endif
+
+  assign csr_mem_wr_data = wr_data;
   /* //// */
 
 endmodule

@@ -13,7 +13,9 @@
 `define DATA_SIZE 32
 `endif
 
-module Dataflow (
+module Dataflow #(
+    parameter integer TrapAddress = 1000
+) (
     // Common
     input wire clock,
     input wire reset,
@@ -89,6 +91,7 @@ module Dataflow (
   wire [`DATA_SIZE-1:0] muxpc_out;
   // PC
   wire [`DATA_SIZE-1:0] pc;
+  reg  [`DATA_SIZE-1:0] new_pc;
   // Instruction Register(IR)
   wire [          31:0] ir;
   // CSR
@@ -183,10 +186,19 @@ module Dataflow (
   ) pc_register (
       .clock(clock),
       .reset(reset),
-      .enable(pc_en),
-      .D(pc_src ? pc_plus_immediate : pc_plus_4),
+      .enable(pc_en | mret | sret | _trap),
+      .D(new_pc),
       .Q(pc)
   );
+  always @(*) begin
+    if (_trap) new_pc = TrapAddress;
+    `ifdef TrapReturn
+    else if (mret) new_pc = mepc;
+    else if (sret) new_pc = sepc;
+    `endif
+    else if (pc_src) new_pc = pc_plus_immediate;
+    else new_pc = pc_plus_4;
+  end
   // Immediate Extender
   ImmediateExtender #(
       .N(`DATA_SIZE)
@@ -219,7 +231,7 @@ module Dataflow (
       .mem_ssip(|mem_ssip),
       .mem_mtime(mem_mtime),
       .mem_mtimecmp(mem_mtimecmp),
-      .trap(_trap),
+      .trap(trap),
       .privilege_mode(_privilege_mode),
       .pc(pc),
       // CSR RW interface
@@ -268,7 +280,7 @@ module Dataflow (
   assign opcode = ir[6:0];
   assign funct3 = ir[14:12];
   assign funct7 = ir[31:25];
-  assign trap = _trap;
+  assign _trap = 1'b0;
   assign privilege_mode = _privilege_mode;
 
 endmodule

@@ -30,12 +30,12 @@
 
 module Dataflow_tb ();
   // Parâmetros do Sheets
-  localparam integer NLineI = 49;  // Números de linhas do RV*I
+  localparam integer NLineI = 50;  // Números de linhas do RV*I
   // Número de colunas do RV*I
 `ifdef RV64I
-  localparam integer NColumnI = 41;
+  localparam integer NColumnI = 43;
 `else
-  localparam integer NColumnI = 36;
+  localparam integer NColumnI = 38;
 `endif
   // Parâmetros do df_src
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
@@ -45,6 +45,7 @@ module Dataflow_tb ();
 `else
   localparam integer NotOnlyOp = 8;
 `endif
+  localparam integer TrapAddress = 1000;
   // sinais do DUT
   // Common
   reg clock;
@@ -73,13 +74,12 @@ module Dataflow_tb ();
   wire wr_reg_en;
   wire ir_en;
   wire mem_addr_src;
-  wire ecall = 1'b0;
-  wire illegal_instruction = 1'b0;
+  wire ecall;
+  wire illegal_instruction;
   // To Control Unit
   wire [6:0] opcode;
   wire [2:0] funct3;
   wire [6:0] funct7;
-  wire [11:0] funct12;
   wire zero;
   wire negative;
   wire carry_out;
@@ -102,16 +102,15 @@ module Dataflow_tb ();
   wire [`BYTE_NUM-1:0] ram_byte_enable;
   wire ram_busy;
   // Registradores do CSR mapeados em memória
-  wire msip_en;
-  wire ssip_en;
-  wire mtime_en;
-  wire mtimecmp_en;
+  wire csr_mem_rd_en;
+  wire csr_mem_wr_en;
+  wire [2:0] csr_mem_addr;
   wire [`DATA_SIZE-1:0] csr_mem_wr_data;
+  wire [`DATA_SIZE-1:0] csr_mem_rd_data;
   wire [`DATA_SIZE-1:0] msip;
   wire [`DATA_SIZE-1:0] ssip;
   wire [63:0] mtime;
   wire [63:0] mtimecmp;
-  wire csr_high_addr;
   wire csr_mem_busy;
   // Dispositivos
   wire external_interrupt = 1'b0;
@@ -147,8 +146,6 @@ module Dataflow_tb ();
       .reset(reset),
       .rd_data(rd_data),
       .wr_data(wr_data),
-      .ir_en(ir_en),
-      .mem_addr_src(mem_addr_src),
       .mem_addr(mem_addr),
       .alua_src(alua_src),
       .alub_src(alub_src),
@@ -163,6 +160,8 @@ module Dataflow_tb ();
       .pc_en(pc_en),
       .wr_reg_src(wr_reg_src),
       .wr_reg_en(wr_reg_en),
+      .ir_en(ir_en),
+      .mem_addr_src(mem_addr_src),
       .ecall(ecall),
       .illegal_instruction(illegal_instruction),
       .external_interrupt(external_interrupt),
@@ -219,12 +218,11 @@ module Dataflow_tb ();
   CSR_mem mem_csr (
     .clock(clock),
     .reset(reset),
-    .msip_en(msip_en),
-    .ssip_en(ssip_en),
-    .mtime_en(mtime_en),
-    .mtimecmp_en(mtimecmp_en),
+    .rd_en(csr_mem_rd_en),
+    .wr_en(csr_mem_wr_en),
+    .addr(csr_mem_addr),
     .wr_data(csr_mem_wr_data),
-    .high_addr(high_addr),
+    .rd_data(csr_mem_rd_data),
     .busy(csr_mem_busy),
     .msip(msip),
     .ssip(ssip),
@@ -259,17 +257,12 @@ module Dataflow_tb ();
       .ram_write_enable(ram_write_enable),
       .ram_chip_select(ram_chip_select),
       .ram_byte_enable(ram_byte_enable),
-      .msip_en(msip_en),
-      .ssip_en(ssip_en),
-      .mtime_en(mtime_en),
-      .mtimecmp_en(mtimecmp_en),
+      .csr_mem_addr(csr_mem_addr),
+      .csr_mem_rd_en(csr_mem_rd_en),
+      .csr_mem_wr_en(csr_mem_wr_en),
       .csr_mem_wr_data(csr_mem_wr_data),
-      .high_addr(high_addr),
-      .csr_mem_busy(csr_mem_busy),
-      .msip(msip),
-      .ssip(ssip),
-      .mtime(mtime),
-      .mtimecmp(mtimecmp)
+      .csr_mem_rd_data(csr_mem_rd_data),
+      .csr_mem_busy(csr_mem_busy)
   );
 
   // Componentes auxiliares para a verificação
@@ -323,6 +316,7 @@ module Dataflow_tb ();
     integer i;
     reg [DfSrcSize-1:0] temp;
     begin
+      temp = 0;
       // U,J : apenas opcode
       if (opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
         for (i = 0; i < 3; i = i + 1)  // Eu coloquei U, J nas linhas 0 a 2 do mif
@@ -331,7 +325,7 @@ module Dataflow_tb ();
       end  // I, S, B: opcode e funct3
       else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
               opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
-        for (i = 3; i < 34; i = i + 1) begin  // Eu coloquei I, S, B nas linhas 3 a 33 do mif
+        for (i = 3; i < 35; i = i + 1) begin  // Eu coloquei I, S, B nas linhas 3 a 33 do mif
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
@@ -343,12 +337,13 @@ module Dataflow_tb ();
         end
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
-        for (i = 34; i < 49; i = i + 1)  // Eu coloquei I, S, B nas linhas 34 a 48 do mif
+        for (i = 35; i < 50; i = i + 1)  // Eu coloquei I, S, B nas linhas 34 a 48 do mif
         if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
           temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end
+      if(temp == 0) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
       find_instruction = temp;
     end
   endfunction
@@ -401,12 +396,14 @@ module Dataflow_tb ();
   assign {
       // Sinais determinados pelo estado
       pc_en, ir_en,
+      // Exceção -> Instrução não existe ou falta privilégio (não está no sheets!)
+      illegal_instruction,
       // Sinais determinados pelo opcode
       alua_src, alub_src,
   `ifdef RV64I
     aluy_src,
   `endif
-      alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src,
+      alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src, ecall,
       // Sinais que não dependem apenas do opcode
       pc_src,  // Pressuponho que seja NotOnlyOp -1
       wr_reg_en,  // Pressuponho que seja NotOnlyOp -2
@@ -558,11 +555,16 @@ module Dataflow_tb ();
           // Fim do programa -> última instrução 0000000
           if (pc === `program_size - 4) $display("End of program!");
           else $display("Error pc: pc = %x", pc);
+          @(negedge clock);
           $stop;
         end
-        default: begin  // Erro: opcode inexistente
-          $display("Error opcode case: opcode = %x", opcode);
-          $stop;
+        default: begin  // Illegal instruction
+          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = 2'b00;
+          db_df_src[DfSrcSize+1] = 1'b0;
+          @(negedge clock);
+          `ASSERT(trap == 1'b1);
+          wait_1_cycle;
+          pc = TrapAddress;
         end
       endcase
     end

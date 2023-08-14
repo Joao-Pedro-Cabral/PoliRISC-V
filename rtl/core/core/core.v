@@ -85,14 +85,18 @@ module core (
 `endif
       .sub(sub),
       .arithmetic(arithmetic),
+      .alupc_src(alupc_src),
+      .pc_src(pc_src),
+      .pc_en(pc_en),
+      .wr_reg_src(wr_reg_src),
       .ir_en(ir_en),
       .mem_addr_src(mem_addr_src),
       .ecall(ecall),
+      .illegal_instruction(illegal_instruction),
 `ifdef TrapReturn
       .mret(mret),
       .sret(sret),
 `endif
-      .illegal_instruction(illegal_instruction),
       .external_interrupt(external_interrupt),
       .mem_msip(mem_msip),
       .mem_ssip(mem_ssip),
@@ -103,10 +107,6 @@ module core (
       .csr_op(csr_op),
       .csr_imm(csr_imm),
 `endif
-      .alupc_src(alupc_src),
-      .pc_src(pc_src),
-      .pc_en(pc_en),
-      .wr_reg_src(wr_reg_src),
       .wr_reg_en(wr_reg_en),
       .opcode(opcode),
       .funct3(funct3),
@@ -123,15 +123,14 @@ module core (
   control_unit UC (
       .clock(clock),
       .reset(reset),
+      .mem_busy(mem_busy),
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
       .mem_byte_en(mem_byte_en),
-      .mem_busy(mem_busy),
       .opcode(opcode),
       .funct3(funct3),
       .funct7(funct7),
       .zero(zero),
-      .ir_en(ir_en),
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
@@ -155,13 +154,14 @@ module core (
       .csr_op(csr_op),
       .csr_imm(csr_imm),
 `endif
+      .ir_en(ir_en),
       .mem_addr_src(mem_addr_src),
-      .ecall(ecall),
 `ifdef TrapReturn
       .mret(mret),
       .sret(sret),
 `endif
-      .illegal_instruction(illegal_instruction)
+      .illegal_instruction(illegal_instruction),
+      .ecall(ecall),
   );
 
 endmodule

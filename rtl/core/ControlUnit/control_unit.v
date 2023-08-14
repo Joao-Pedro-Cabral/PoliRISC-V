@@ -28,7 +28,6 @@ module control_unit (
     input [6:0] opcode,
     input [2:0] funct3,
     input [6:0] funct7,
-    input [11:0] funct12,
     input zero,
     input negative,
     input carry_out,
@@ -173,9 +172,9 @@ module control_unit (
               if (opcode[6] == 1'b0) proximo_estado = RegistradorRegistrador;
               else begin
                 if (funct3 == 3'b0) begin
-                  if ((funct12 == 12'b0)
+                  if ((funct7 == 7'b0)
                   `ifdef TrapReturn
-                  || (funct12 == 12'h102) || (funct12 == 12'h302)
+                  || (funct7 == 7'h18) || (funct7 == 7'h38)
                   `endif )
                     proximo_estado = System;  // ECALL, MRET, SRET
                   else illegal_instruction = 1'b1;
@@ -330,10 +329,10 @@ module control_unit (
 
       System: begin
         `ifdef TrapReturn
-          if (funct12[9:8] == 2'b00) ecall = 1'b1;
-          else if (privilege_mode[0] && (privilege_mode[1] ^ funct12[9])) begin
-            mret = funct12[9];
-            sret = ~funct12[9];
+          if (funct7[4:3] == 2'b00) ecall = 1'b1;
+          else if (privilege_mode[0] && (privilege_mode[1] ^ funct7[4])) begin
+            mret = funct7[4];
+            sret = ~funct7[4];
           end else illegal_instruction = 1'b1;  // Não existe URET
         `else
           ecall = 1'b1;
