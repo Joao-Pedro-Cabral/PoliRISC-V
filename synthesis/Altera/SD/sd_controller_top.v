@@ -45,6 +45,8 @@ module sd_controller_top (
   wire [7:0] check_cmd_24_dbg;
   wire [7:0] check_write_dbg;
   wire [7:0] check_cmd_17_dbg;
+  wire [7:0] check_read_dbg;
+  wire crc_error;
 
   sd_controller_test_driver tester (
       /* .clock(clock_50M), */
@@ -83,7 +85,9 @@ module sd_controller_top (
       .check_cmd_16_dbg(check_cmd_16_dbg),
       .check_cmd_24_dbg(check_cmd_24_dbg),
       .check_write_dbg(check_write_dbg),
-      .check_cmd_17_dbg(check_cmd_17_dbg)
+      .check_cmd_17_dbg(check_cmd_17_dbg),
+      .check_read_dbg(check_read_dbg),
+      .crc_error_dbg(crc_error)
   );
 
   // Gerar clock de 12,5 MHz
@@ -129,7 +133,7 @@ module sd_controller_top (
   always @(*) begin
     case (sw)
       4'b0000: led = tester_state[9:0];
-      4'b0001: led = {reset, 3'b000, tester_state[15:10]};
+      4'b0001: led = {reset, crc_error, 2'b00, tester_state[15:10]};
       4'b0010: led = {2'b00, check_cmd_0_dbg};
       4'b0011: led = {2'b00, check_cmd_8_dbg};
       4'b0100: led = {2'b00, check_cmd_55_dbg};
@@ -138,9 +142,9 @@ module sd_controller_top (
       4'b0111: led = {2'b00, check_cmd_24_dbg};
       4'b1000: led = {2'b00, check_write_dbg};
       4'b1001: led = {2'b00, check_cmd_17_dbg};
-      4'b1010: led = read_data[9:0];
-      4'b1011: led = read_data[19:10];
-      4'b1100: led = read_data[4075:4066];
+      4'b1010: led = {2'b00, check_read_dbg};
+      4'b1011: led = read_data[9:0];
+      4'b1100: led = read_data[19:10];
       4'b1101: led = read_data[4085:4076];
       4'b1110: led = read_data[4095:4086];
       4'b1111: led = {5'b00000, sd_controller_state};

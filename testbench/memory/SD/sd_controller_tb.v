@@ -5,10 +5,10 @@
 
 module sd_controller_tb ();
 
-  localparam integer AmntOfTests = 5;
+  localparam integer AmntOfTests = 10;
   localparam integer Clock400KPeriod = 10;
   localparam integer Clock50MPeriod = 4;
-  localparam integer Seed = 77;
+  localparam integer Seed = 420;
 
   // Sinais do DUT
   reg clock_400K;
@@ -31,17 +31,6 @@ module sd_controller_tb ();
 
   integer i;
 
-  // Determinar write_data
-  integer j;
-  always @(posedge sck) begin
-    if (generate_write_data) begin
-      for (j = 0; j < 64; j = j + 1) begin
-        write_data[64*j+:64] <= $urandom;
-      end
-    end else begin
-      write_data <= write_data;
-    end
-  end
 
   sd_controller2 DUT (
       .clock_400K(clock_400K),
@@ -100,18 +89,22 @@ module sd_controller_tb ();
       rd_en = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
       `ASSERT(cmd_error === 1'b0);
-      $display("[CheckRead]:\n\tread_data: 0x%h\n\tsd_card.data_block: 0x%h", read_data,
-               sd_card.data_block);
       `ASSERT(read_data === sd_card.data_block);
       $display(" Leu: [%0t]", $time);
     end
   endtask
 
+  event   write_data_event;
+  integer j;
+  always @(write_data_event) begin
+    for (j = 0; j < 64; j = j + 1) begin
+      write_data[64*j+:64] <= $urandom;
+    end
+  end
+
   task CheckWrite;
     begin
-      generate_write_data = 1;
       @(negedge clock_50M);
-      generate_write_data = 0;
       while (busy == 1'b1) begin
         @(posedge clock_50M);
         // Checar se não há erro
@@ -136,6 +129,9 @@ module sd_controller_tb ();
     @(negedge clock_400K);
     reset = 1'b0;
     rd_en = $urandom(Seed);
+    wr_en = ~rd_en;
+    addr  = $urandom;
+    ->write_data_event;
     @(negedge clock_400K);
 
     $display(" SOT: [%0t]", $time);
@@ -148,14 +144,17 @@ module sd_controller_tb ();
 
     // Realizar leituras
     for (i = 0; i < AmntOfTests; i = i + 1) begin
-      rd_en = $urandom;
-      wr_en = ~rd_en;
-      addr  = $urandom;
-
       if (rd_en) begin
         CheckRead;  // Confere a leitura
       end else begin
         CheckWrite;  // Confere a escrita
+      end
+
+      rd_en = $urandom;
+      wr_en = ~rd_en;
+      addr  = $urandom;
+      if (wr_en) begin
+        ->write_data_event;
       end
 
       @(negedge clock_50M);

@@ -112,7 +112,7 @@ module sd_sender2 (
   // CRC16 com LFSR
   always @(posedge clock) begin
     // Limpa quando enviar o start token
-    if (bits_sent == 13'h1012) begin
+    if (bits_sent == 13'd4113) begin
       crc16 <= 16'b0;
     end else if (!crc_complete) begin  // Calcular CRC
       crc16[0] <= crc16[15] ^ _mosi;

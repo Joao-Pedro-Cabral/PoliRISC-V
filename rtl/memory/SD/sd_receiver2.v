@@ -12,7 +12,7 @@ module sd_receiver2 (
     input reset,
 
     // Controlador
-    input [1:0] response_type,  // 00: R1/token, 01: R3/R7, 1X: Data Block
+    input [1:0] response_type,  // 00: R1, 01: R3/R7, 10: data_token, 11: Data Block
     output wire [4095:0] received_data,
     output wire ready,
     input valid,
@@ -41,7 +41,7 @@ module sd_receiver2 (
   reg end_transmission;
 
   // FSM
-  localparam reg [1:0] Idle = 2'b00, WaitingSD = 2'b01, Receiving = 2'b10;
+  localparam reg [1:0] Idle = 2'b00, WaitingSD = 2'b01, Receiving = 2'b10, WaitBusy = 2'b11;
 
   reg [1:0] new_state, state;
 
@@ -65,7 +65,7 @@ module sd_receiver2 (
   assign bits_received_dbg = bits_received;
 `endif
 
-  assign transmission_size = response_type[1] ? 13'd4112 : (response_type[0] ? 13'd39 : 13'd7);
+  assign transmission_size = (response_type == 2'b11) ? 13'd4113 : (response_type[0] ? 13'd39 : 13'd7);
 
   // Shift Register
   register_d #(
@@ -75,7 +75,7 @@ module sd_receiver2 (
       .clock(clock),
       .reset(reset),
       // Paro o reg antes dele pegar o CRC16
-      .enable(receiving && !(response_type[1] && bits_received <= 16)),
+      .enable(receiving && !((response_type == 2'b11) && bits_received <= 16)),
       .D({data_received[4094:0], miso}),
       .Q(data_received)
   );
@@ -137,12 +137,18 @@ module sd_receiver2 (
       Receiving: begin
         if (bits_received == 13'b0) begin
           end_transmission = 1'b1;
-          if (miso) new_state = Idle;
-          else new_state = state;
+          if (response_type == 2'b10) new_state = WaitBusy;
+          else new_state = Idle;
         end else begin
           receiving = 1'b1;
           new_state = state;
         end
+      end
+
+      WaitBusy: begin
+        end_transmission = 1'b1;
+        if (miso) new_state = Idle;
+        else new_state = state;
       end
 
       default: begin
@@ -152,7 +158,7 @@ module sd_receiver2 (
   end
 
   // Saídas
-  assign crc_error  = end_transmission && (response_type[1] && (crc16 != 0));
+  assign crc_error  = end_transmission && ((response_type == 2'b11) && (crc16 != 0));
   assign ready = _ready;
   assign received_data = data_received;
 

@@ -7,7 +7,7 @@
 //
 
 /* `define SDSC */
-/* `define DEBUG */
+`define DEBUG
 
 module sd_controller2 (
     // sinais de sistema
@@ -42,7 +42,8 @@ module sd_controller2 (
     output reg  [7:0] check_cmd_24_dbg,
     output reg  [7:0] check_write_dbg,
     output reg  [7:0] check_cmd_17_dbg,
-    output reg  [7:0] check_read_dbg
+    output reg  [7:0] check_read_dbg,
+    output wire crc_error_dbg
 `endif
 );
 
@@ -67,31 +68,6 @@ module sd_controller2 (
 
   reg sender_valid, receiver_valid;
   wire sender_ready, receiver_ready;
-
-  sd_sender2 sender (
-      .clock(clock),
-      .reset(reset),
-      .cmd_index(cmd_index),
-      .argument(argument),
-      .cmd_or_data(cmd_or_data),
-      .ready(sender_ready),
-      .valid(sender_valid),
-      .data(write_data_reg),
-      .mosi(mosi)
-  );
-
-  sd_receiver2 receiver (
-      .clock(clock),
-      .reset(reset),
-      .response_type(response_type),
-      .received_data(received_data),
-      .ready(receiver_ready),
-      .valid(receiver_valid),
-      .crc_error(crc_error),
-      .miso(miso)
-  );
-
-  assign read_data = received_data;
 
   localparam reg [4:0]
     InitBegin = 5'h0,
@@ -125,9 +101,28 @@ module sd_controller2 (
       new_state_return;
   reg state_return_en, response_type_en;
 
-  // Antes do Idle: Inicialização (400KHz), Após: Leitura(50MHz)
-  assign clock = sck_50M ? clock_50M : clock_400K;
-  assign sck   = sck_en & ~clock; // TODO: ver se tirar o enable muda algo
+  sd_sender2 sender (
+      .clock(clock),
+      .reset(reset),
+      .cmd_index(cmd_index),
+      .argument(argument),
+      .cmd_or_data(cmd_or_data),
+      .ready(sender_ready),
+      .valid(sender_valid),
+      .data(write_data_reg),
+      .mosi(mosi)
+  );
+
+  sd_receiver2 receiver (
+      .clock(clock),
+      .reset(reset),
+      .response_type((state != CheckCmd17) ? response_type : new_response_type),
+      .received_data(received_data),
+      .ready(receiver_ready),
+      .valid(receiver_valid),
+      .crc_error(crc_error),
+      .miso(miso)
+  );
 
 `ifdef DEBUG
   reg
@@ -160,7 +155,7 @@ module sd_controller2 (
       check_cmd_24_dbg <= 8'd24;
       check_write_dbg <= 8'd10;
       check_cmd_17_dbg <= 8'd17;
-      check_read_dbg <= 8'd11;
+      check_read_dbg <= 8'b11110000;
 `endif
     end else begin
       cs    <= new_cs;
@@ -188,7 +183,6 @@ module sd_controller2 (
 `endif
     end
   end
-
 
   task reset_signals;
     begin
@@ -342,6 +336,7 @@ module sd_controller2 (
 `ifdef SDSC
           new_state = SendCmd16;
 `else
+          new_cs = 1'b0;
           new_initializing = 1'b0;
           initializing_en = 1'b1;
           new_sck_50M = 1'b1;
@@ -371,6 +366,7 @@ module sd_controller2 (
   `endif
         if (received_data[7:0] != 8'h00) new_state = SendCmd16;
         else begin
+          new_cs = 1'b0;
           new_initializing = 1'b0;
           initializing_en = 1'b1;
           new_sck_50M = 1'b1;
@@ -380,7 +376,10 @@ module sd_controller2 (
 `endif
 
       Idle: begin  // Idle: Espera escrita ou leitura
-        if (wr_en) begin
+        new_cs = 1'b0;
+        if (~miso) begin
+          new_state = state;
+        end else if (wr_en) begin
           new_busy = 1'b1;
           busy_en = 1'b1;
           new_state = SendCmd24;
@@ -414,7 +413,7 @@ module sd_controller2 (
         // R1 sem erros -> Escrita do Data Block
         if (received_data[7:0] == 8'h00) begin
           cmd_or_data = 1'b1;
-          new_response_type = 2'b00;
+          new_response_type = 2'b10;
           response_type_en = 1'b1;
           new_state_return = CheckWrite;
           state_return_en = 1'b1;
@@ -431,6 +430,7 @@ module sd_controller2 (
         check_write_dbg_en = 1'b1;
 `endif
         if (received_data[3:1] == 3'b010) begin
+            new_cs = 1'b0;
             new_busy = 1'b0;
             busy_en = 1'b1;
             new_state = Idle;
@@ -460,7 +460,7 @@ module sd_controller2 (
         new_cs = 1'b0;
         // R1 sem erros -> Leitura do Data Block
         if (received_data[7:0] == 8'h00) begin
-          new_response_type = 2'b10;
+          new_response_type = 2'b11;
           new_state_return = CheckRead;
         end else begin  // R1 com erros -> Error Token
           new_response_type = 2'b00;
@@ -475,6 +475,7 @@ module sd_controller2 (
 
       CheckRead: begin  // Checa dado lido
           if (~crc_error) begin
+              new_cs = 1'b0;
               new_busy = 1'b0;
               busy_en = 1'b1;
               new_state = Idle;
@@ -487,6 +488,7 @@ module sd_controller2 (
         check_read_dbg_en = 1'b1;
 `endif
         if (received_data[3]) begin
+          new_cs = 1'b0;
           new_busy = 1'b0;
           busy_en = 1'b1;
           new_state = Idle;  // Endereço inválido
@@ -514,6 +516,13 @@ module sd_controller2 (
 
 `ifdef DEBUG
   assign sd_controller_state = state;
+  assign crc_error_dbg = crc_error;
 `endif
+
+  assign read_data = received_data;
+
+  // Antes do Idle: Inicialização (400KHz), Após: Leitura(50MHz)
+  assign clock = sck_50M ? clock_50M : clock_400K;
+  assign sck   = sck_en & ~clock; // TODO: ver se tirar o enable muda algo
 
 endmodule

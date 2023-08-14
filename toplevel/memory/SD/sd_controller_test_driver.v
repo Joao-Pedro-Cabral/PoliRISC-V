@@ -95,8 +95,8 @@ module sd_controller_test_driver (
         next_state               = ReadDataBlock;
         state_vars_enable        = 1'b1;
         next_state_return        = TestEnd;
-        next_addr_reg            = Address1;
-        next_expected_data_block = DataBlock1;
+        next_addr_reg            = Address0;
+        next_expected_data_block = DataBlock0;
       end
 
       Test2: begin
@@ -137,7 +137,6 @@ module sd_controller_test_driver (
       end
 
       WaitRead: begin
-        rd_en = 1'b1;
         if (busy) next_state = state;
         else next_state = TestRead;
       end
