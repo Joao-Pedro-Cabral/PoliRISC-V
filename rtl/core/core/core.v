@@ -161,7 +161,7 @@ module core (
       .sret(sret),
 `endif
       .illegal_instruction(illegal_instruction),
-      .ecall(ecall),
+      .ecall(ecall)
   );
 
 endmodule

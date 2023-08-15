@@ -31,7 +31,7 @@ module core_tb ();
   // sinais do DUT
   reg clock;
   reg reset;
-  // Data Memory
+  // BUS
   wire [`DATA_SIZE-1:0] rd_data;
   wire [`DATA_SIZE-1:0] wr_data;
   wire [`DATA_SIZE-1:0] mem_addr;
@@ -43,7 +43,7 @@ module core_tb ();
   wire [6:0] opcode;  // opcode simulado pelo TB
   wire [2:0] funct3;  // funct3 simulado pelo TB
   wire [6:0] funct7;  // funct7 simulado pelo TB
-  reg [`DATA_SIZE-1:0] instruction;  // Instrução executada pelo DUT
+  reg [31:0] instruction;  // Instrução executada pelo DUT
   wire [`DATA_SIZE-1:0] immediate;  // Saída do Extensor de Imediato do TB
   wire [`DATA_SIZE-1:0] A_immediate;  // A + imediato
   reg wr_reg_en;  // write enable do banco de registradores
@@ -76,6 +76,19 @@ module core_tb ();
   wire ram_chip_select;
   wire [`BYTE_NUM-1:0] ram_byte_enable;
   wire ram_busy;
+  // Registradores do CSR mapeados em memória
+  wire csr_mem_rd_en;
+  wire csr_mem_wr_en;
+  wire csr_mem_busy;
+  wire [2:0] csr_mem_addr;
+  wire [`DATA_SIZE-1:0] csr_mem_wr_data;
+  wire [`DATA_SIZE-1:0] csr_mem_rd_data;
+  wire [`DATA_SIZE-1:0] msip;
+  wire [`DATA_SIZE-1:0] ssip;
+  wire [63:0] mtime;
+  wire [63:0] mtimecmp;
+  // Dispositivos
+  wire external_interrupt = 1'b0;
   // flags da ULA (simuladas)
   wire zero_;
   wire negative_;
@@ -98,7 +111,12 @@ module core_tb ();
       .mem_busy(mem_busy),
       .mem_rd_en(mem_rd_en),
       .mem_byte_en(mem_byte_en),
-      .mem_wr_en(mem_wr_en)
+      .mem_wr_en(mem_wr_en),
+      .external_interrupt(external_interrupt),
+      .mem_msip(msip),
+      .mem_ssip(ssip),
+      .mem_mtime(mtime),
+      .mem_mtimecmp(mtimecmp)
   );
 
   // Instruction Memory
@@ -135,6 +153,22 @@ module core_tb ();
       .busy(ram_busy)
   );
 
+  // Registradores em memória do CSR
+  CSR_mem mem_csr (
+      .clock(clock),
+      .reset(reset),
+      .rd_en(csr_mem_rd_en),
+      .wr_en(csr_mem_wr_en),
+      .addr(csr_mem_addr),
+      .wr_data(csr_mem_wr_data),
+      .rd_data(csr_mem_rd_data),
+      .busy(csr_mem_busy),
+      .msip(msip),
+      .ssip(ssip),
+      .mtime(mtime),
+      .mtimecmp(mtimecmp)
+  );
+
   // Instanciação do barramento
   memory_controller #(
       .BYTE_AMNT(`BYTE_NUM)
@@ -161,7 +195,13 @@ module core_tb ();
       .ram_output_enable(ram_output_enable),
       .ram_write_enable(ram_write_enable),
       .ram_chip_select(ram_chip_select),
-      .ram_byte_enable(ram_byte_enable)
+      .ram_byte_enable(ram_byte_enable),
+      .csr_mem_addr(csr_mem_addr),
+      .csr_mem_rd_en(csr_mem_rd_en),
+      .csr_mem_wr_en(csr_mem_wr_en),
+      .csr_mem_wr_data(csr_mem_wr_data),
+      .csr_mem_rd_data(csr_mem_rd_data),
+      .csr_mem_busy(csr_mem_busy)
   );
 
   // Componentes auxiliares para a verificação
@@ -279,12 +319,12 @@ module core_tb ();
     @(negedge clock);
     reset = 1'b1;
     // Confiro se os enables estão em baixo no Idle
-    `ASSERT(mem_en === 0);
+    `ASSERT(db_mem_en === 0);
     wait_1_cycle;
     reset = 1'b0;
     // Ciclo após reset -> Ainda estamos em Idle
     // Confiro se os enables estão em baixo
-    `ASSERT(mem_en === 0);
+    `ASSERT(db_mem_en === 0);
     wait_1_cycle;
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);
@@ -346,7 +386,7 @@ module core_tb ();
           pc_4      = pc + 4;
           pc_imm    = pc + (immediate << 1);
           wr_reg_en = 1'b0;
-          // Confiro se a memória foi ativada
+          // Confiro se a memória está inativada
           `ASSERT(db_mem_en === 0);
           wait_1_cycle;
           // Incremento pc
@@ -404,9 +444,12 @@ module core_tb ();
           else $display("Error pc: pc = %x", pc);
           $stop;
         end
-        default: begin  // Erro: opcode inexistente
-          $display("Error opcode case: opcode = %b", opcode);
-          $stop;
+        default: begin  // Ecall or Illegal Instruction
+          wr_reg_en = 1'b0;
+          // Confiro se a memória está inativada
+          `ASSERT(db_mem_en === 0);
+          wait_1_cycle;
+          pc = pc + 4;
         end
       endcase
     end

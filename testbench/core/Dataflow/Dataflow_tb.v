@@ -450,6 +450,7 @@ module Dataflow_tb ();
       db_df_src = 0;
       // Execute(atribuo aos sinais de controle do DF os valores do sheets)
       @(posedge clock);
+      // Estou atribuindo illegal_instruction 1 ciclo após o que acontece na UC
       db_df_src[DfSrcSize:NotOnlyOp] = {1'b0, df_src[DfSrcSize-1:NotOnlyOp]};
       db_df_src[NotOnlyOp-3:0] = df_src[NotOnlyOp-3:0];
       case (opcode)
@@ -558,7 +559,7 @@ module Dataflow_tb ();
           @(negedge clock);
           $stop;
         end
-        default: begin  // Illegal instruction
+        default: begin  // Illegal instruction or Ecall
           db_df_src[NotOnlyOp-1:NotOnlyOp-2] = 2'b00;
           db_df_src[DfSrcSize+1] = 1'b0;
           @(negedge clock);

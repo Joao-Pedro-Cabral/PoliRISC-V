@@ -87,8 +87,6 @@ module Dataflow #(
   wire [`DATA_SIZE-1:0] cte_4 = 4;
   // Somador PC + Imediato
   wire [`DATA_SIZE-1:0] pc_plus_immediate;
-  // Mux PC
-  wire [`DATA_SIZE-1:0] muxpc_out;
   // PC
   wire [`DATA_SIZE-1:0] pc;
   reg  [`DATA_SIZE-1:0] new_pc;
@@ -231,7 +229,7 @@ module Dataflow #(
       .mem_ssip(|mem_ssip),
       .mem_mtime(mem_mtime),
       .mem_mtimecmp(mem_mtimecmp),
-      .trap(trap),
+      .trap(), // Consertar trap
       .privilege_mode(_privilege_mode),
       .pc(pc),
       // CSR RW interface
@@ -280,6 +278,7 @@ module Dataflow #(
   assign opcode = ir[6:0];
   assign funct3 = ir[14:12];
   assign funct7 = ir[31:25];
+  assign trap = _trap;
   assign _trap = 1'b0;
   assign privilege_mode = _privilege_mode;
 

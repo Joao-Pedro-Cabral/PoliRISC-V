@@ -7,7 +7,9 @@
 `define DATA_SIZE 32
 `endif
 
-module CSR_mem (
+module CSR_mem #(
+    parameter integer ClockCycles = 100
+) (
     input wire clock,
     input wire reset,
     input wire rd_en,
@@ -26,8 +28,11 @@ module CSR_mem (
   wire [`DATA_SIZE-1:0] ssip_;
   wire [63:0] mtime_;
   wire [63:0] mtimecmp_;
+  wire tick;
+  wire [$clog2(ClockCycles)-1:0] cycles;
 
   // Registradores mapeados em memória
+  // MSIP
   register_d #(
       .N(`DATA_SIZE),
       .reset_value(0)
@@ -38,6 +43,7 @@ module CSR_mem (
       .D(wr_data),
       .Q(msip_)
   );
+  // SSIP
   register_d #(
       .N(`DATA_SIZE),
       .reset_value(0)
@@ -48,20 +54,38 @@ module CSR_mem (
       .D(wr_data),
       .Q(ssip_)
   );
-  register_d #(
-      .N(64),
-      .reset_value(0)
-  ) mtime_reg (
+  // MTIMER
+  sync_parallel_counter #(
+      .size(64),
+      .init_value(0)
+  ) mtime_counter (
       .clock(clock),
       .reset(reset),
-      .enable((addr[1:0] == 2'b10) && wr_en),
+      .load((addr[1:0] == 2'b10) && wr_en),
 `ifdef RV64I
-      .D(wr_data),
+      .load_value(wr_data),
 `else
-      .D(addr[2] ? {wr_data, 32'b0} : {32'b0, wr_data}),
+      .load_value(addr[2] ? {wr_data, 32'b0} : {32'b0, wr_data}),
 `endif
-      .Q(mtime_)
+      .inc_enable(tick),
+      .dec_enable(1'b0),
+      .value(mtime_)
   );
+  sync_parallel_counter #(
+      .size($clog2(ClockCycles)),
+      .init_value(0)
+  ) tick_counter (
+      .clock(clock),
+      .reset(reset),
+      .load(tick),
+      .load_value({$clog2(ClockCycles) {1'b0}}),
+      .inc_enable(1'b1),
+      .dec_enable(1'b0),
+      .value(cycles)
+  );
+  // timer roda numa frequência menor -> tick
+  assign tick = (cycles == ClockCycles - 1);
+  //MTIMERCMP
   register_d #(
       .N(64),
       .reset_value(0)

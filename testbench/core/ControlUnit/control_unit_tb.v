@@ -30,12 +30,12 @@
 
 module control_unit_tb ();
   // Parâmetros do Sheets
-  localparam integer NLineI = 49;  // Números de linhas do RV*I
+  localparam integer NLineI = 50;  // Números de linhas do RV*I
   // Número de colunas do RV*I
 `ifdef RV64I
-  localparam integer NColumnI = 41;
+  localparam integer NColumnI = 43;
 `else
-  localparam integer NColumnI = 36;
+  localparam integer NColumnI = 38;
 `endif
   // Parâmetros do df_src
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
@@ -45,6 +45,7 @@ module control_unit_tb ();
 `else
   localparam integer NotOnlyOp = 8;
 `endif
+  localparam integer TrapAddress = 1000;
   // sinais do DUT
   // Common
   reg clock;
@@ -62,6 +63,8 @@ module control_unit_tb ();
   wire negative;
   wire carry_out;
   wire overflow;
+  wire trap;
+  wire [1:0] privilege_mode;
   // To Dataflow
   wire alua_src;
   wire alub_src;
@@ -78,6 +81,8 @@ module control_unit_tb ();
   wire wr_reg_en;
   wire ir_en;
   wire mem_addr_src;
+  wire ecall;
+  wire illegal_instruction;
   // Sinais do Controlador de Memória
   wire [`DATA_SIZE-1:0] mem_addr;
   wire [`DATA_SIZE-1:0] wr_data;
@@ -97,6 +102,19 @@ module control_unit_tb ();
   wire ram_chip_select;
   wire [`BYTE_NUM-1:0] ram_byte_enable;
   wire ram_busy;
+  // Registradores do CSR mapeados em memória
+  wire csr_mem_rd_en;
+  wire csr_mem_wr_en;
+  wire csr_mem_busy;
+  wire [2:0] csr_mem_addr;
+  wire [`DATA_SIZE-1:0] csr_mem_wr_data;
+  wire [`DATA_SIZE-1:0] csr_mem_rd_data;
+  wire [`DATA_SIZE-1:0] msip;
+  wire [`DATA_SIZE-1:0] ssip;
+  wire [63:0] mtime;
+  wire [63:0] mtimecmp;
+  // Dispositivos
+  wire external_interrupt = 1'b0;
   // Sinais intermediários de teste
   reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela
   wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
@@ -111,6 +129,7 @@ module control_unit_tb ();
   control_unit DUT (
       .clock(clock),
       .reset(reset),
+      .ir_en(ir_en),
       .mem_rd_en(mem_rd_en),
       .mem_byte_en(mem_byte_en),
       .mem_busy(mem_busy),
@@ -118,10 +137,13 @@ module control_unit_tb ();
       .funct3(funct3),
       .funct7(funct7),
       .zero(zero),
-      .ir_en(ir_en),
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
+      .trap(trap),
+      .privilege_mode(privilege_mode),
+      .ecall(ecall),
+      .illegal_instruction(illegal_instruction),
       .alua_src(alua_src),
       .alub_src(alub_src),
     `ifdef RV64I
@@ -167,7 +189,16 @@ module control_unit_tb ();
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
-      .mem_addr_src(mem_addr_src)
+      .trap(trap),
+      .privilege_mode(privilege_mode),
+      .mem_addr_src(mem_addr_src),
+      .ecall(ecall),
+      .illegal_instruction(illegal_instruction),
+      .external_interrupt(external_interrupt),
+      .mem_msip(msip),
+      .mem_ssip(ssip),
+      .mem_mtime(mtime),
+      .mem_mtimecmp(mtimecmp)
   );
 
   // Instanciação do barramento
@@ -196,7 +227,13 @@ module control_unit_tb ();
       .ram_output_enable(ram_output_enable),
       .ram_write_enable(ram_write_enable),
       .ram_chip_select(ram_chip_select),
-      .ram_byte_enable(ram_byte_enable)
+      .ram_byte_enable(ram_byte_enable),
+      .csr_mem_addr(csr_mem_addr),
+      .csr_mem_rd_en(csr_mem_rd_en),
+      .csr_mem_wr_en(csr_mem_wr_en),
+      .csr_mem_wr_data(csr_mem_wr_data),
+      .csr_mem_rd_data(csr_mem_rd_data),
+      .csr_mem_busy(csr_mem_busy)
   );
 
   // Instruction Memory
@@ -233,6 +270,22 @@ module control_unit_tb ();
       .busy(ram_busy)
   );
 
+  // Registradores em memória do CSR
+  CSR_mem mem_csr (
+    .clock(clock),
+    .reset(reset),
+    .rd_en(csr_mem_rd_en),
+    .wr_en(csr_mem_wr_en),
+    .addr(csr_mem_addr),
+    .wr_data(csr_mem_wr_data),
+    .rd_data(csr_mem_rd_data),
+    .busy(csr_mem_busy),
+    .msip(msip),
+    .ssip(ssip),
+    .mtime(mtime),
+    .mtimecmp(mtimecmp)
+  );
+
   // geração do clock
   always begin
     clock = 1'b0;
@@ -254,6 +307,7 @@ module control_unit_tb ();
     integer i;
     reg [DfSrcSize-1:0] temp;
     begin
+      temp = 0;
       // U,J : apenas opcode
       if (opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
         for (i = 0; i < 3; i = i + 1)  // Eu coloquei U, J nas linhas 0 a 2 do mif
@@ -262,7 +316,7 @@ module control_unit_tb ();
       end  // I, S, B: opcode e funct3
       else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
               opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
-        for (i = 3; i < 34; i = i + 1) begin  // Eu coloquei I, S, B nas linhas 3 a 33 do mif
+        for (i = 3; i < 35; i = i + 1) begin  // Eu coloquei I, S, B nas linhas 3 a 33 do mif
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
@@ -274,12 +328,13 @@ module control_unit_tb ();
         end
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
-        for (i = 34; i < 49; i = i + 1)  // Eu coloquei I, S, B nas linhas 34 a 48 do mif
+        for (i = 35; i < 50; i = i + 1)  // Eu coloquei I, S, B nas linhas 34 a 48 do mif
           if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
             temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end
+      if(temp == 0) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
       find_instruction = temp;
     end
   endfunction
@@ -297,6 +352,8 @@ module control_unit_tb ();
     // Sinais determinados pelo estado
     pc_en,
     ir_en,
+    // Exceção -> Instrução não existe ou falta privilégio (não está no sheets!)
+    illegal_instruction,
     // Sinais determinados pelo opcode
     alua_src,
     alub_src,
@@ -309,6 +366,7 @@ module control_unit_tb ();
     alupc_src,
     wr_reg_src,
     mem_addr_src,
+    ecall,
     // Sinais que não dependem apenas do opcode
     pc_src,  // Pressuponho que seja NotOnlyOp -1
     wr_reg_en,  // Pressuponho que seja NotOnlyOp -2
@@ -350,7 +408,10 @@ module control_unit_tb ();
       // No ciclo seguinte, obtenho as saídas da UC de acordo com o sheets
       df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
       // Verifico se algum enable está erroneamente habilitado
-      `ASSERT(db_df_src === 0);
+      `ASSERT(db_df_src[DfSrcSize+1:DfSrcSize] === 0);
+      // Illegal instruction já pode ter levantado
+      `ASSERT(db_df_src[DfSrcSize-1] === df_src[DfSrcSize-1]);
+      `ASSERT(db_df_src[DfSrcSize-2:0] === 0);
       wait_1_cycle;
       // Execute
       if (opcode !== 0) begin
@@ -414,9 +475,9 @@ module control_unit_tb ();
           else $display("Error pc: pc = %x", DF.pc);
           $stop;
         end
-        default: begin  // Erro: opcode  inexistente
-          $display("Error opcode case: opcode = %x", opcode);
-          $stop;
+        default: begin  // Illegal instruction or Ecall
+          `ASSERT(pc_en === 1'b0);
+          wait_1_cycle;
         end
       endcase
     end
