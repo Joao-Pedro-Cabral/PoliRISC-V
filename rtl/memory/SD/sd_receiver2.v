@@ -12,7 +12,7 @@ module sd_receiver2 (
     input reset,
 
     // Controlador
-    input [1:0] response_type,  // 00: R1, 01: R3/R7, 10: data_token, 11: Data Block
+    input [2:0] response_type,  // 000: R1, 001: R3/R7, 010: data_token, 011: Data Block, 1XX: R2
     output wire [4095:0] received_data,
     output wire ready,
     input valid,
@@ -65,7 +65,9 @@ module sd_receiver2 (
   assign bits_received_dbg = bits_received;
 `endif
 
-  assign transmission_size = (response_type == 2'b11) ? 13'd4113 : (response_type[0] ? 13'd39 : 13'd7);
+  assign transmission_size =
+    response_type[2] ? 13'd15
+    : ((response_type == 3'b011) ? 13'd4112 : (response_type[0] ? 13'd39 : 13'd7));
 
   // Shift Register
   register_d #(
@@ -75,7 +77,7 @@ module sd_receiver2 (
       .clock(clock),
       .reset(reset),
       // Paro o reg antes dele pegar o CRC16
-      .enable(receiving && !((response_type == 2'b11) && bits_received <= 16)),
+      .enable(receiving && !((response_type == 3'b011) && bits_received <= 16)),
       .D({data_received[4094:0], miso}),
       .Q(data_received)
   );
@@ -102,10 +104,10 @@ module sd_receiver2 (
 
   task reset_signals;
     begin
-    _ready = 1'b0;
-    init_transmission = 1'b0;
-    receiving = 1'b0;
-    end_transmission = 1'b0;
+      _ready = 1'b0;
+      init_transmission = 1'b0;
+      receiving = 1'b0;
+      end_transmission = 1'b0;
     end
   endtask
 
@@ -137,7 +139,7 @@ module sd_receiver2 (
       Receiving: begin
         if (bits_received == 13'b0) begin
           end_transmission = 1'b1;
-          if (response_type == 2'b10) new_state = WaitBusy;
+          if (response_type == 3'b010) new_state = WaitBusy;
           else new_state = Idle;
         end else begin
           receiving = 1'b1;
@@ -158,7 +160,7 @@ module sd_receiver2 (
   end
 
   // Saídas
-  assign crc_error  = end_transmission && ((response_type == 2'b11) && (crc16 != 0));
+  assign crc_error  = end_transmission && ((response_type == 3'b011) && (crc16 != 0));
   assign ready = _ready;
   assign received_data = data_received;
 

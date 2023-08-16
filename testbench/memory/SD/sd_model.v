@@ -285,14 +285,17 @@ module sd_model (
             new_bit_counter = 13'd8;
             new_state = SendErrorToken;
           end else begin
-            new_bit_counter = 13'd4113;
+            new_bit_counter = 13'd4120;
             new_state = SendDataBlock;
           end
         end
       end
 
       SendDataBlock: begin
-        if (bit_counter == 13'd4113) begin
+        if (bit_counter > 13'd4113) begin
+          miso_reg        = 1'b1;
+          new_bit_counter = bit_counter - 6'o01;
+        end else if (bit_counter == 13'd4113) begin
           miso_reg        = 1'b0;
           new_bit_counter = bit_counter - 6'o01;
         end else if (bit_counter > 16) begin

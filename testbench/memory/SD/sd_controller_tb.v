@@ -8,7 +8,7 @@ module sd_controller_tb ();
   localparam integer AmntOfTests = 10;
   localparam integer Clock400KPeriod = 10;
   localparam integer Clock50MPeriod = 4;
-  localparam integer Seed = 420;
+  localparam integer Seed = 77;
 
   // Sinais do DUT
   reg clock_400K;
