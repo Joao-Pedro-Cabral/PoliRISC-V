@@ -127,7 +127,7 @@ module Dataflow #(
   ) int_reg_state (
       .clock(clock),
       .reset(reset),
-      .write_enable(wr_reg_en),
+      .write_enable(wr_reg_en && !_trap),
       .read_address1(rs1_addr),
       .read_address2(ir[24:20]),
       .write_address(ir[11:7]),

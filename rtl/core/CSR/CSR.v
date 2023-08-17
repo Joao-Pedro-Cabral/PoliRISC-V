@@ -234,17 +234,15 @@ module CSR (
   // MEPC
   always @(posedge clock) begin
     if (reset) mepc_ <= 0;
-    else begin
-      if (_trap) mepc_ <= pc;  // All traps go to M-Mode
-      else if (wr_en && (addr == 12'h341)) mepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
-    end
+    else if (_trap) mepc_ <= pc;  // All traps go to M-Mode
+    else if (wr_en && (addr == 12'h341)) mepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
   end
   assign mepc = mepc_;
 
   // SEPC
   always @(posedge clock) begin
     if (reset) sepc_ <= 0;
-    else if (wr_en && (addr == 12'h141)) sepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
+    else if (!_trap && (wr_en && (addr == 12'h141))) sepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
   end
   assign sepc = sepc_;
 
