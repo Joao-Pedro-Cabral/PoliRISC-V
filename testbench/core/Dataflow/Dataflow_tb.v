@@ -29,23 +29,23 @@
 `define ASSERT(condition) if (!(condition)) $stop
 
 module Dataflow_tb ();
+  // Parâmetros determinados pelas extensões
+  `ifdef RV64I
+    localparam integer RV64IExtension = 5;
+    localparam integer HasRV64I = 1;
+  `else
+    localparam integer RV64IExtension = 0;
+    localparam integer HasRV64I = 0;
+  `endif
   // Parâmetros do Sheets
-  localparam integer NLineI = 50;  // Números de linhas do RV*I
-  // Número de colunas do RV*I
-`ifdef RV64I
-  localparam integer NColumnI = 43;
-`else
-  localparam integer NColumnI = 38;
-`endif
+  localparam integer NLineI = 52;
+  localparam integer NColumnI = 40 + RV64IExtension;
   // Parâmetros do df_src
+    // Bits do df_src que não dependem apenas do opcode
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
-  // Bits do df_src que não dependem apenas do opcode
-`ifdef RV64I
-  localparam integer NotOnlyOp = 12;
-`else
-  localparam integer NotOnlyOp = 8;
-`endif
-  localparam integer TrapAddress = 1000; // Trap
+  localparam integer NotOnlyOp = (HasRV64I == 1) ? 12: 8;
+  // Endereço da Trap
+  localparam integer TrapAddress = 1000;
   // sinais do DUT
   // Common
   reg clock;
@@ -75,6 +75,8 @@ module Dataflow_tb ();
   wire ir_en;
   wire mem_addr_src;
   wire ecall;
+  wire mret;
+  wire sret;
   wire illegal_instruction;
   // To Control Unit
   wire [6:0] opcode;
@@ -152,9 +154,9 @@ module Dataflow_tb ();
       .mem_addr(mem_addr),
       .alua_src(alua_src),
       .alub_src(alub_src),
-`ifdef RV64I
+    `ifdef RV64I
       .aluy_src(aluy_src),
-`endif
+    `endif
       .alu_src(alu_src),
       .sub(sub),
       .arithmetic(arithmetic),
@@ -166,6 +168,10 @@ module Dataflow_tb ();
       .ir_en(ir_en),
       .mem_addr_src(mem_addr_src),
       .ecall(ecall),
+    `ifdef TrapReturn
+      .mret(mret),
+      .sret(sret),
+    `endif
       .illegal_instruction(illegal_instruction),
       .external_interrupt(external_interrupt),
       .mem_msip(msip),
@@ -244,11 +250,11 @@ module Dataflow_tb ();
       .mem_addr(mem_addr),
       .rd_data(rd_data),
       .mem_busy(mem_busy),
-`ifdef RV64I
+    `ifdef RV64I
       .inst_cache_data({32'b0, rom_data}),
-`else
+    `else
       .inst_cache_data(rom_data),
-`endif
+    `endif
       .inst_cache_busy(rom_busy),
       .inst_cache_enable(rom_enable),
       .inst_cache_addr(rom_addr),
@@ -312,27 +318,29 @@ module Dataflow_tb ();
     reg [DfSrcSize-1:0] temp;
     begin
       temp = 0;
+      // os valores de i nos for estão ligados a como o mif foi montado com base no sheets
       // U,J : apenas opcode
       if (opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
-        for (i = 0; i < 3; i = i + 1)  // Eu coloquei U, J nas linhas 0 a 2 do mif
+        for (i = 0; i < 3; i = i + 1)
         if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7])
           temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end  // I, S, B: opcode e funct3
       else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
-              opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111) begin
-        for (i = 3; i < 35; i = i + 1) begin  // Eu coloquei I, S, B nas linhas 3 a 33 do mif
+              opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111 ||
+              opcode === 7'b1110011) begin
+        for (i = 3; i < 37; i = i + 1) begin
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
             if (funct3 === 3'b101 && opcode[4] == 1'b1) begin
-              if (funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
+              if (funct7 == LUT_linear[(NColumnI*(i+1)-17)+:7])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
           end
         end
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
-        for (i = 35; i < 50; i = i + 1)  // Eu coloquei I, S, B nas linhas 34 a 48 do mif
+        for (i = 37; i < 52; i = i + 1)
         if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
@@ -395,10 +403,10 @@ module Dataflow_tb ();
       illegal_instruction,
       // Sinais determinados pelo opcode
       alua_src, alub_src,
-  `ifdef RV64I
-    aluy_src,
-  `endif
-      alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src, ecall,
+    `ifdef RV64I
+      aluy_src,
+    `endif
+      alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src, ecall, mret, sret,
       // Sinais que não dependem apenas do opcode
       pc_src,  // Pressuponho que seja NotOnlyOp -1
       wr_reg_en,  // Pressuponho que seja NotOnlyOp -2
@@ -551,20 +559,21 @@ module Dataflow_tb ();
         // Verifico reg_data
         `ASSERT(reg_data === DUT.rd);
       end
-      7'b0000000: begin
-        // Fim do programa -> última instrução 0000000
-        if (pc === `program_size - 4) $display("End of program!");
-        else $display("Error pc: pc = %x", pc);
-        @(negedge clock);
-        $stop;
-      end
-      default: begin  // Ecall
+      // Ecall, MRET, SRET (SYSTEM)
+      7'b1110011: begin  // Ecall
         db_df_src[NotOnlyOp-1:NotOnlyOp-2] = 2'b00;
         db_df_src[DfSrcSize+1] = 1'b0;
         @(negedge clock);
         // Trap
         next_pc = TrapAddress;
         `ASSERT(trap === 1'b1);
+      end
+      default: begin
+        // Fim do programa -> última instrução 0000000
+        if (pc === `program_size - 4) $display("End of program!");
+        else $display("Error pc: pc = %x", pc);
+        @(negedge clock);
+        $stop;
       end
     endcase
     @(posedge clock);
