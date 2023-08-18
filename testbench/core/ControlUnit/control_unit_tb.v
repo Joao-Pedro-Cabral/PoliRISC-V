@@ -45,7 +45,7 @@ module control_unit_tb ();
 `else
   localparam integer NotOnlyOp = 8;
 `endif
-  localparam integer TrapAddress = 1000;
+  localparam integer TrapAddress = 1000; // Trap
   // sinais do DUT
   // Common
   reg clock;
@@ -121,7 +121,9 @@ module control_unit_tb ();
   reg [DfSrcSize-1:0] df_src;
   wire [DfSrcSize+1:0] db_df_src;  // Idem df_src, adicionando pc_en e ir_en
   // variáveis
-  integer limit = 1000;  // evitar loop infinito
+  integer limit = 10000;  // evitar loop infinito
+  localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5; // Estados
+  integer estado = Reset;
   integer i;
   genvar j;
 
@@ -339,14 +341,6 @@ module control_unit_tb ();
     end
   endfunction
 
-  // Esperar a borda de descida do ciclo seguinte
-  task automatic wait_1_cycle;
-    begin
-      @(posedge clock);
-      @(negedge clock);
-    end
-  endtask
-
   // Concatenação dos sinais produzidos pela UC
   assign db_df_src = {
     // Sinais determinados pelo estado
@@ -375,6 +369,123 @@ module control_unit_tb ();
     mem_byte_en
   };
 
+  // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
+  task automatic wait_mem();
+    reg num_edge = 1'b0;
+  begin
+    forever begin
+      @(mem_busy, trap);
+      // num_edge = 1 -> Agora é descida
+      if(trap || (num_edge == 1'b1)) disable wait_mem;
+      else if(mem_busy == 1'b1) num_edge = 1'b1; //Subida
+    end
+  end
+  endtask
+
+  task automatic DoReset();
+  begin
+    reset = 1'b1;
+    `ASSERT(db_df_src === 0); // Idle
+    @(posedge clock);
+    @(negedge clock);
+    reset = 1'b0;
+    `ASSERT(db_df_src === 0); // Pós reset -> Idle
+    @(posedge clock);
+  end
+  endtask
+
+  task automatic DoFetch();
+  begin
+    `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
+    wait_mem();
+    if(trap) disable DoFetch; // Trap -> Recomeçar Fetch
+    @(negedge clock);
+    // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
+    `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
+    @(posedge clock);
+  end
+  endtask
+
+  task automatic DoDecode();
+  begin
+    df_src = find_instruction(opcode, funct3, funct7, LUT_linear); // obter saídas pelo sheets
+    // Verifico se algum enable está erroneamente habilitado
+    `ASSERT(db_df_src[DfSrcSize+1:DfSrcSize] === 0);
+    // Illegal instruction já pode ter levantado
+    `ASSERT(db_df_src[DfSrcSize-1] === df_src[DfSrcSize-1]);
+    `ASSERT(db_df_src[DfSrcSize-2:0] === 0);
+    @(posedge clock);
+  end
+  endtask
+
+  task automatic DoExecute();
+  begin
+    if (opcode !== 0) begin
+      `ASSERT({1'b0, df_src[DfSrcSize-1:NotOnlyOp]} === db_df_src[DfSrcSize:NotOnlyOp]);
+      `ASSERT(df_src[NotOnlyOp-3:0] === db_df_src[NotOnlyOp-3:0]);
+      // Não testo pc_src para instruções do tipo B
+      if (opcode !== 7'b1100011) `ASSERT(df_src[NotOnlyOp-1] === db_df_src[NotOnlyOp-1]);
+      // Não testo wr_reg_en para Load
+      if (opcode !== 7'b0000011) `ASSERT(df_src[NotOnlyOp-2] === db_df_src[NotOnlyOp-2]);
+    end
+    case (opcode)
+      // Store(S*) e Load(L*)
+      7'b0100011, 7'b0000011: begin
+        wait_mem;
+        if(trap) disable DoExecute; // Trap -> Fetch
+        // Espero o busy abaixar para verificar os enables
+        @(negedge clock);
+        `ASSERT(pc_en === 1'b1);
+        `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
+        `ASSERT(mem_rd_en === 1'b0);
+        `ASSERT(mem_wr_en === 1'b0);
+      end
+      // Branch(B*)
+      7'b1100011: begin
+        `ASSERT(pc_en === 1'b1);
+        // testo pc_src de acordo com as flags do DF
+        if (funct3[2:1] === 2'b00) begin
+          if (zero ^ funct3[0] === 1'b1) begin
+            `ASSERT(pc_src === 1'b1);
+          end else begin
+            `ASSERT(pc_src === 1'b0);
+          end
+        end else if (funct3[2:1] === 2'b10) begin
+          if (negative ^ overflow ^ funct3[0] === 1'b1) begin
+            `ASSERT(pc_src === 1'b1);
+          end else begin
+            `ASSERT(pc_src === 1'b0);
+          end
+        end else if (funct3[2:1] === 2'b11) begin
+          if (carry_out ~^ funct3[0] === 1'b1) begin
+            `ASSERT(pc_src === 1'b1);
+          end else begin
+            `ASSERT(pc_src === 1'b0);
+          end
+        end else begin
+          $display("Error B-type: Invalid funct3! Funct3 : %x", funct3);
+          $stop;
+        end
+      end
+      // JAL, JALR, U-type & ULA R/I-type
+      7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011,
+      7'b0110111, 7'b0010111: begin
+        `ASSERT(pc_en === 1'b1);
+      end
+      7'b0000000: begin
+        // Fim do programa -> última instrução 0000000
+        if (DF.pc === `program_size - 4) $display("End of program!");
+        else $display("Error pc: pc = %x", DF.pc);
+        $stop;
+      end
+      default: begin  // Illegal instruction or Ecall
+        `ASSERT(pc_en === 1'b0);
+      end
+    endcase
+    @(posedge clock);
+  end
+  endtask
+
   // testar o DUT
   initial begin : Testbench
     $display("Program  size: %d", `program_size);
@@ -384,102 +495,18 @@ module control_unit_tb ();
     $readmemb("./MIFs/core/core/RV32I.mif", LUT_uc);
   `endif
     $display("SOT!");
-    // Idle
-    @(negedge clock);
-    reset = 1'b1;
-    // Confiro se a UC está em Idle
-    `ASSERT(db_df_src === 0);
-    wait_1_cycle;
-    // No ciclo seguinte, abaixo reset e confiro se a UC ainda está em Idle
-    reset = 1'b0;
-    `ASSERT(db_df_src === 0);
-    wait_1_cycle;
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);
-      // Fetch
-      `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
-      @(posedge mem_busy);
-      @(negedge mem_busy);
       @(negedge clock);
-      // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
-      `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
-      // Decode
-      wait_1_cycle;
-      // No ciclo seguinte, obtenho as saídas da UC de acordo com o sheets
-      df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
-      // Verifico se algum enable está erroneamente habilitado
-      `ASSERT(db_df_src[DfSrcSize+1:DfSrcSize] === 0);
-      // Illegal instruction já pode ter levantado
-      `ASSERT(db_df_src[DfSrcSize-1] === df_src[DfSrcSize-1]);
-      `ASSERT(db_df_src[DfSrcSize-2:0] === 0);
-      wait_1_cycle;
-      // Execute
-      if (opcode !== 0) begin
-        `ASSERT({1'b0, df_src[DfSrcSize-1:NotOnlyOp]} === db_df_src[DfSrcSize:NotOnlyOp]);
-        `ASSERT(df_src[NotOnlyOp-3:0] === db_df_src[NotOnlyOp-3:0]);
-        // Não testo pc_src para instruções do tipo B
-        if (opcode !== 7'b1100011) `ASSERT(df_src[NotOnlyOp-1] === db_df_src[NotOnlyOp-1]);
-        // Não testo wr_reg_en para Load
-        if (opcode !== 7'b0000011) `ASSERT(df_src[NotOnlyOp-2] === db_df_src[NotOnlyOp-2]);
-      end
-      case (opcode)
-        // Store(S*) e Load(L*)
-        7'b0100011, 7'b0000011: begin
-          @(posedge mem_busy);
-          @(negedge mem_busy);
-          // Espero o busy abaixar para verificar os enables
-          @(negedge clock);
-          `ASSERT(pc_en === 1'b1);
-          `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
-          `ASSERT(mem_rd_en === 1'b0);
-          `ASSERT(mem_wr_en === 1'b0);
-          wait_1_cycle;
-        end
-        // Branch(B*)
-        7'b1100011: begin
-          `ASSERT(pc_en === 1'b1);
-          // testo pc_src de acordo com as flags do DF
-          if (funct3[2:1] === 2'b00) begin
-            if (zero ^ funct3[0] === 1'b1) begin
-              `ASSERT(pc_src === 1'b1);
-            end else begin
-              `ASSERT(pc_src === 1'b0);
-            end
-          end else if (funct3[2:1] === 2'b10) begin
-            if (negative ^ overflow ^ funct3[0] === 1'b1) begin
-              `ASSERT(pc_src === 1'b1);
-            end else begin
-              `ASSERT(pc_src === 1'b0);
-            end
-          end else if (funct3[2:1] === 2'b11) begin
-            if (carry_out ~^ funct3[0] === 1'b1) begin
-              `ASSERT(pc_src === 1'b1);
-            end else begin
-              `ASSERT(pc_src === 1'b0);
-            end
-          end else begin
-            $display("Error B-type: Invalid funct3! Funct3 : %x", funct3);
-            $stop;
-          end
-          wait_1_cycle;
-        end
-        // JAL, JALR, U-type & ULA R/I-type
-        7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011,
-        7'b0110111, 7'b0010111: begin
-          `ASSERT(pc_en === 1'b1);
-          wait_1_cycle;
-        end
-        7'b0000000: begin
-          // Fim do programa -> última instrução 0000000
-          if (DF.pc === `program_size - 4) $display("End of program!");
-          else $display("Error pc: pc = %x", DF.pc);
-          $stop;
-        end
-        default: begin  // Illegal instruction or Ecall
-          `ASSERT(pc_en === 1'b0);
-          wait_1_cycle;
-        end
+      case(estado)
+        Fetch: DoFetch;
+        Decode: DoDecode;
+        Execute: DoExecute;
+        default: DoReset;
       endcase
+      // Atualizando estado
+      if(trap) estado = Fetch;
+      else estado = (estado + 1)%3;
     end
   end
 endmodule

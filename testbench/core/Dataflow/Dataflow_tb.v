@@ -137,7 +137,7 @@ module Dataflow_tb ();
   wire [`DATA_SIZE-1:0] xorB;
   wire [`DATA_SIZE-1:0] add_sub;
   // variáveis
-  integer limit = 50000;  // número máximo de iterações a serem feitas(evitar loop infinito)
+  integer limit = 10000;  // número máximo de iterações a serem feitas(evitar loop infinito)
   localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5; // Estados
   integer estado = Reset;
   integer i;
@@ -404,6 +404,7 @@ module Dataflow_tb ();
       wr_reg_en,  // Pressuponho que seja NotOnlyOp -2
       mem_wr_en, mem_rd_en, mem_byte_en} = db_df_src;
 
+  // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
   task automatic wait_mem();
     reg num_edge = 1'b0;
   begin
@@ -583,7 +584,6 @@ module Dataflow_tb ();
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);
       case(estado)
-        Reset: DoReset;
         Fetch: DoFetch;
         Decode: DoDecode;
         Execute: DoExecute;

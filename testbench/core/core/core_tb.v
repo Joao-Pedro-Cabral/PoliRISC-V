@@ -54,6 +54,7 @@ module core_tb ();
   wire [`DATA_SIZE-1:0] A;  // read data 1 do banco de registradores
   wire [`DATA_SIZE-1:0] B;  // read data 2 do banco de registradores
   reg [`DATA_SIZE-1:0] pc = 0;  // pc -> Uso esse pc para acessar a memória de
+  reg [`DATA_SIZE-1:0] next_pc = 0; // próximo valor do pc
   // instrução (para tentar achar mais erros)
   reg pc_src;  // seletor da entrada do registrador PC
   reg [`DATA_SIZE-1:0] pc_imm;  // pc + imediato
@@ -97,9 +98,11 @@ module core_tb ();
   wire [`DATA_SIZE-1:0] xorB;
   wire [`DATA_SIZE-1:0] add_sub;
   // variáveis
-  integer limit = 1000;  // tamanho do programa que será executado
+  localparam integer TrapAddress = 1000; // Trap
+  integer limit = 10000;  // tamanho do programa que será executado
+  localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5; // Estados
+  integer estado = Reset;
   integer i;
-  integer estado = 0;  // sinal de depuração -> 0: Idle, 1: Fetch, 2: Decode, 3: Execute
 
   // DUT
   core DUT (
@@ -218,7 +221,7 @@ module core_tb ();
   ) banco_de_registradores (
       .clock(clock),
       .reset(reset),
-      .write_enable(wr_reg_en),
+      .write_enable(wr_reg_en && !DUT.trap),
       .read_address1(instruction[19:15]),
       .read_address2(instruction[24:20]),
       .write_address(instruction[11:7]),
@@ -226,14 +229,6 @@ module core_tb ();
       .read_data1(A),
       .read_data2(B)
   );
-
-  // Esperar a borda de descida do ciclo seguinte
-  task automatic wait_1_cycle;
-    begin
-      @(posedge clock);
-      @(negedge clock);
-    end
-  endtask
 
   // geração do clock
   always begin
@@ -308,150 +303,179 @@ module core_tb ();
   // geração do A_immediate
   assign A_immediate = A + immediate;
 
-  // testar o DUT
-  initial begin : Testbench
-    $display("Program  size: %d", `program_size);
-    $display("SOT!");
+  // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
+  task automatic wait_mem();
+    reg num_edge = 1'b0;
+  begin
+    forever begin
+      @(mem_busy, DUT.trap);
+      // num_edge = 1 -> Agora é descida
+      if(DUT.trap || (num_edge == 1'b1)) disable wait_mem;
+      else if(mem_busy == 1'b1) num_edge = 1'b1; //Subida
+    end
+  end
+  endtask
+
+  task automatic DoReset();
+  begin
     // desabilito a escrita no banco simulado
     wr_reg_en = 1'b0;
-    // Idle
-    estado = 0;
-    @(negedge clock);
     reset = 1'b1;
-    // Confiro se os enables estão em baixo no Idle
-    `ASSERT(db_mem_en === 0);
-    wait_1_cycle;
+    `ASSERT(db_mem_en === 0); // Enables abaixados: Idle
+    @(posedge clock);
+    @(negedge clock);
     reset = 1'b0;
-    // Ciclo após reset -> Ainda estamos em Idle
-    // Confiro se os enables estão em baixo
-    `ASSERT(db_mem_en === 0);
-    wait_1_cycle;
-    for (i = 0; i < limit; i = i + 1) begin
-      $display("Test: %d", i);
-      // Fetch
-      // Nota: ao final de todos os executes espero até a borda de descida
-      // Não é necessário essa espera, apenas fiz isso para que as atribuições
-      // fiquem mais espaçadas na forma de onda e facilitem a depuração
-      estado = 1;
+    `ASSERT(db_mem_en === 0); // Enables abaixados: Idle
+    @(posedge clock);
+  end
+  endtask
+
+  task automatic DoFetch();
+  begin
       wr_reg_en = 1'b0;
-      // Confiro se há acesso a memória de instrução
       `ASSERT(pc === mem_addr);
       `ASSERT(db_mem_en === {2'b01, {`BYTE_NUM - 4{1'b0}}, 4'hF});
-      @(posedge mem_busy);
-      @(negedge mem_busy);
+      wait_mem;
+      if(DUT.trap) disable DoFetch; // Trap -> Recomeçar Fetch
       @(negedge clock);
       instruction = rd_data;  // leitura da ROM -> instrução
       // Busy abaixado -> instruction mem enable abaixado
       `ASSERT(db_mem_en === 4'hF);
-      wait_1_cycle;
-      // Decode
-      estado = 2;
-      // Enables abaixados
+      @(posedge clock);
+  end
+  endtask
+
+  task automatic DoDecode();
+  begin
       `ASSERT(db_mem_en === 0);
-      wait_1_cycle;
-      // Execute
-      estado = 3;
-      case (opcode)
-        // Store(S*) e Load(L*)
-        7'b0100011, 7'b0000011: begin
-          // Confiro o endereço de acesso
-          `ASSERT(mem_addr === A + immediate);
-          // Caso seja store -> confiro a palavra a ser escrita
-          if (opcode[5]) `ASSERT(wr_data === B);
-          // Confiro se o acesso a memória de dados está correto
-          `ASSERT(db_mem_en === mem_en);
-          @(posedge mem_busy);
-          @(negedge mem_busy);
-          // Load: Após o busy abaixar escrevo no banco simulado
-          if (!opcode[5]) begin
-            wr_reg_en = 1'b1;
-            reg_data  = rd_data;
-          end
-          @(negedge clock);
-          // Na borda de descida, confiro se os sinais de controle abaixaram
-          `ASSERT(db_mem_en === {2'b00, mem_byte_en_});
-          // Caso load -> confiro a leitura
-          if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
-          wait_1_cycle;
-          pc = pc + 4;
-        end
-        // Branch(B*)
-        7'b1100011: begin
-          // Decido o valor de pc_src com base em funct3 e no valor das flags simuladas
-          if (funct3[2:1] === 2'b00) pc_src = zero_ ^ funct3[0];
-          else if (funct3[2:1] === 2'b10) pc_src = negative_ ^ overflow_ ^ funct3[0];
-          else if (funct3[2:1] === 2'b11) pc_src = carry_out_ ~^ funct3[0];
-          else $display("Error B-type: Invalid funct3! Funct3 : %b", funct3);
-          // Habilito o pc
-          pc_4      = pc + 4;
-          pc_imm    = pc + (immediate << 1);
-          wr_reg_en = 1'b0;
-          // Confiro se a memória está inativada
-          `ASSERT(db_mem_en === 0);
-          wait_1_cycle;
-          // Incremento pc
-          if (pc_src) pc = pc_imm;
-          else pc = pc_4;
-        end
-        // LUI e AUIPC
-        7'b0110111, 7'b0010111: begin
-          // Habilito o banco simulado
+      @(posedge clock);
+  end
+  endtask
+
+  task automatic DoExecute();
+  begin
+    case (opcode)
+      // Store(S*) e Load(L*)
+      7'b0100011, 7'b0000011: begin
+        // Confiro o endereço de acesso
+        `ASSERT(mem_addr === A + immediate);
+        // Caso seja store -> confiro a palavra a ser escrita
+        if (opcode[5]) `ASSERT(wr_data === B);
+        // Confiro se o acesso a memória de dados está correto
+        `ASSERT(db_mem_en === mem_en);
+        wait_mem;
+        if(DUT.trap) disable DoExecute; // Trap -> Fetch
+        // Load: Após o busy abaixar escrevo no banco simulado
+        if (!opcode[5]) begin
           wr_reg_en = 1'b1;
-          if (opcode[5]) reg_data = immediate;  // LUI
-          else reg_data = mem_addr + immediate;  // AUIPC
-          // Confiro se reg_data está correto
-          `ASSERT(reg_data === DUT.DF.rd);
-          // Verifico se os enables estão desligados
-          `ASSERT(db_mem_en === 0);
-          wait_1_cycle;
-          pc = pc + 4;
+          reg_data  = rd_data;
         end
-        // JAL e JALR
-        7'b1101111, 7'b1100111: begin
-          // Habilito o banco simulado
-          wr_reg_en = 1'b1;
-          reg_data  = pc + 4;  // escrever pc + 4 no banco -> Link
-          // Decido o novo valor de pc a partir do opcode da instrução (salto incondicional)
-          if (opcode[3]) pc_imm = mem_addr + (immediate << 1);  // JAL
-          else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
-          // Confiro a escrita no banco
-          `ASSERT(DUT.DF.rd === reg_data);
-          // Verifico se os enables estão desligados
-          `ASSERT(db_mem_en === 0);
-          wait_1_cycle;
-          pc = pc_imm;
-        end
-        // ULA R/I-type
-        7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
-          // Habilito o banco simulado
-          wr_reg_en = 1'b1;
-          // A partir do opcode, do funct3 e do funct7 descubro o resultado da operação da ULA com a máscara aplicada
-          if (opcode[5]) reg_data = ULA_function(A, B, {funct7[5], funct3});
-          else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[5], funct3});
-          else reg_data = ULA_function(A, immediate, {1'b0, funct3});
-          // opcode[3] = 1'b1 -> RV64I
-          if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
-          // Verifico reg_data
-          `ASSERT(reg_data === DUT.DF.rd);
-          // Verifico se os enables estão desligados
-          `ASSERT(db_mem_en === 0);
-          wait_1_cycle;
-          pc = pc + 4;
-        end
-        7'b0000000: begin
-          // Fim do programa -> último opcode: 0000000
-          if (pc === `program_size - 4) $display("End  of program!");
-          else $display("Error pc: pc = %x", pc);
-          $stop;
-        end
-        default: begin  // Ecall or Illegal Instruction
-          wr_reg_en = 1'b0;
-          // Confiro se a memória está inativada
-          `ASSERT(db_mem_en === 0);
-          wait_1_cycle;
-          pc = pc + 4;
-        end
+        @(negedge clock);
+        // Na borda de descida, confiro se os sinais de controle abaixaram
+        `ASSERT(db_mem_en === {2'b00, mem_byte_en_});
+        // Caso load -> confiro a leitura
+        if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
+        next_pc = pc + 4;
+      end
+      // Branch(B*)
+      7'b1100011: begin
+        // Decido o valor de pc_src com base em funct3 e no valor das flags simuladas
+        if (funct3[2:1] === 2'b00) pc_src = zero_ ^ funct3[0];
+        else if (funct3[2:1] === 2'b10) pc_src = negative_ ^ overflow_ ^ funct3[0];
+        else if (funct3[2:1] === 2'b11) pc_src = carry_out_ ~^ funct3[0];
+        else $display("Error B-type: Invalid funct3! Funct3 : %b", funct3);
+        // Habilito o pc
+        pc_4      = pc + 4;
+        pc_imm    = pc + (immediate << 1);
+        wr_reg_en = 1'b0;
+        // Confiro se a memória está inativada
+        `ASSERT(db_mem_en === 0);
+        // Incremento pc
+        if (pc_src) next_pc = pc_imm;
+        else next_pc = pc_4;
+      end
+      // LUI e AUIPC
+      7'b0110111, 7'b0010111: begin
+        // Habilito o banco simulado
+        wr_reg_en = 1'b1;
+        if (opcode[5]) reg_data = immediate;  // LUI
+        else reg_data = mem_addr + immediate;  // AUIPC
+        // Confiro se reg_data está correto
+        `ASSERT(reg_data === DUT.DF.rd);
+        // Verifico se os enables estão desligados
+        `ASSERT(db_mem_en === 0);
+        next_pc = pc + 4;
+      end
+      // JAL e JALR
+      7'b1101111, 7'b1100111: begin
+        // Habilito o banco simulado
+        wr_reg_en = 1'b1;
+        reg_data  = pc + 4;  // escrever pc + 4 no banco -> Link
+        // Decido o novo valor de pc a partir do opcode da instrução (salto incondicional)
+        if (opcode[3]) pc_imm = mem_addr + (immediate << 1);  // JAL
+        else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
+        // Confiro a escrita no banco
+        `ASSERT(DUT.DF.rd === reg_data);
+        // Verifico se os enables estão desligados
+        `ASSERT(db_mem_en === 0);
+        next_pc = pc_imm;
+      end
+      // ULA R/I-type
+      7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
+        // Habilito o banco simulado
+        wr_reg_en = 1'b1;
+        // A partir do opcode, do funct3 e do funct7 descubro o resultado da operação da ULA com a máscara aplicada
+        if (opcode[5]) reg_data = ULA_function(A, B, {funct7[5], funct3});
+        else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[5], funct3});
+        else reg_data = ULA_function(A, immediate, {1'b0, funct3});
+        // opcode[3] = 1'b1 -> RV64I
+        if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
+        // Verifico reg_data
+        `ASSERT(reg_data === DUT.DF.rd);
+        // Verifico se os enables estão desligados
+        `ASSERT(db_mem_en === 0);
+        next_pc = pc + 4;
+      end
+      7'b0000000: begin
+        // Fim do programa -> último opcode: 0000000
+        if (pc === `program_size - 4) $display("End  of program!");
+        else $display("Error pc: pc = %x", pc);
+        $stop;
+      end
+      default: begin  // Ecall or Illegal Instruction
+        wr_reg_en = 1'b0;
+        // Confiro se a memória está inativada
+        `ASSERT(db_mem_en === 0);
+        next_pc = pc + 4;
+      end
+    endcase
+    @(posedge clock);
+  end
+  endtask
+
+  // testar o DUT
+  initial begin : Testbench
+    $display("Program  size: %d", `program_size);
+    $display("SOT!");
+    for (i = 0; i < limit; i = i + 1) begin
+      $display("Test: %d", i);
+      @(negedge clock);
+      case(estado)
+        Fetch: DoFetch;
+        Decode: DoDecode;
+        Execute: DoExecute;
+        default: DoReset;
       endcase
+      // Atualizando estado  e pc
+      if(DUT.trap) begin
+        estado = Fetch;
+        pc = TrapAddress;
+      end else begin
+        estado = (estado + 1)%3;
+        pc = next_pc;
+      end
+      next_pc = pc;
     end
+    $stop;
   end
 endmodule
