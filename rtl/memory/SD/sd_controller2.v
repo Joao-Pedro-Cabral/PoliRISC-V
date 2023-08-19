@@ -53,6 +53,9 @@ module sd_controller2 (
   wire clock;
   reg [31:0] addr_reg;
   reg [4095:0] write_data_reg;
+  wire [11:0] wait_counter;
+  reg start_to_wait;
+  reg waiting;
   reg busy_en, new_busy;
 
   reg [5:0] cmd_index;
@@ -95,11 +98,12 @@ module sd_controller2 (
     CheckCmd17 = 5'h11,
     SendCmd24 = 5'h12,
     CheckCmd24 = 5'h13,
-    CheckRead = 5'h14,
-    CheckWrite = 5'h15,
-    SendCmd13 = 5'h16,
-    CheckCmd13 = 5'h17,
-    CheckErrorToken = 5'h18;
+    WaitBeforeWrite = 5'h14,
+    CheckRead = 5'h15,
+    CheckWrite = 5'h16,
+    SendCmd13 = 5'h17,
+    CheckCmd13 = 5'h18,
+    CheckErrorToken = 5'h19;
 
   reg [4:0]
       new_state,
@@ -130,6 +134,20 @@ module sd_controller2 (
       .crc_error(crc_error),
       .miso(miso)
   );
+
+  sync_parallel_counter #(
+      .size(12),
+      .init_value(12'd128)
+  ) write_block_wait (
+      .clock(clock),
+      .load(start_to_wait),
+      .load_value(12'd128),
+      .reset(reset),
+      .inc_enable(1'b0),
+      .dec_enable(waiting),
+      .value(wait_counter)
+  );
+
 
 `ifdef DEBUG
   reg
@@ -219,6 +237,8 @@ module sd_controller2 (
       initializing_en = 1'b0;
       new_busy = 1'b0;
       busy_en = 1'b0;
+      start_to_wait = 1'b0;
+      waiting = 1'b0;
 `ifdef DEBUG
       check_cmd_0_dbg_en = 1'b0;
       check_cmd_8_dbg_en = 1'b0;
@@ -270,7 +290,7 @@ module sd_controller2 (
         new_state_return = CheckCmd0;
         state_return_en = 1'b1;
         sender_valid = 1'b1;
-        new_cs = 1'b0; // TODO: testar com esse cs para fora
+        new_cs = 1'b0;
         if (~sender_ready) begin
           new_state = WaitSendCmd;
         end else new_state = state;
@@ -305,7 +325,7 @@ module sd_controller2 (
         if (received_data[39:32] == 8'h05) new_state = SendCmd55;
         else if (received_data[7:0] != 8'hAA) new_state = SendCmd8;
         else if (received_data[11:8] != 4'h1) new_state = InitBegin;
-        else new_state = SendCmd59;
+        else new_state = SendCmd55;
       end
 
       SendCmd59: begin
@@ -439,6 +459,7 @@ module sd_controller2 (
         new_state_return = CheckCmd24;
         state_return_en = 1'b1;
         sender_valid = 1'b1;
+        start_to_wait = 1'b1;
         new_cs = 1'b0;
         if (~sender_ready) begin
           new_state = WaitSendCmd;
@@ -450,17 +471,22 @@ module sd_controller2 (
         check_cmd_24_dbg_en = 1'b1;
 `endif
         new_cs = 1'b0;
-        sck_en = 1'b0;
+        /* sck_en = 1'b0; */
+        waiting = |wait_counter;
         // R1 sem erros -> Escrita do Data Block
         if (received_data[7:0] == 8'h00) begin
-          cmd_or_data = 1'b1;
-          new_response_type = 3'b010;
-          response_type_en = 1'b1;
-          new_state_return = CheckWrite;
-          state_return_en = 1'b1;
-          sender_valid = 1'b1;
-          if (~sender_ready) new_state = WaitSendCmd;
-          else new_state = state;
+            if (wait_counter == 12'b0) begin
+              cmd_or_data = 1'b1;
+              new_response_type = 3'b010;
+              response_type_en = 1'b1;
+              new_state_return = CheckWrite;
+              state_return_en = 1'b1;
+              sender_valid = 1'b1;
+              if (~sender_ready) new_state = WaitSendCmd;
+              else new_state = state;
+            end else begin
+              new_state = state;
+            end
         end else begin  // R1 com erros -> Tentar novamente
           new_state = SendCmd24;
         end
