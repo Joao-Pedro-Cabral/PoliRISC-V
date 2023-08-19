@@ -103,6 +103,7 @@ module Dataflow #(
   // ZICSR
 `ifdef ZICSR
   wire [`DATA_SIZE-1:0] csr_rd_data;
+  wire [`DATA_SIZE-1:0] csr_mask_rd_data;
   wire [`DATA_SIZE-1:0] csr_wr_data;
   wire [`DATA_SIZE-1:0] csr_aux_wr;
 `endif
@@ -114,11 +115,17 @@ module Dataflow #(
       .size(`DATA_SIZE),
       .N(2)
   ) mux11 (
-      .A({pc_plus_4, rd_data, csr_rd_data, muxaluY_out}),
+      .A({pc_plus_4, rd_data, csr_mask_rd_data, muxaluY_out}),
       .S(wr_reg_src),
       .Y(rd)
   );
-`else  // Sem ZICSR: 3 origens -> Economizar 1 reg
+  // caso seja realizada uma leitura do SEIP é preciso realizar o OR com o external_interrupt
+  assign csr_mask_rd_data[csr_bank.SEIP-1:0] = csr_rd_data[csr_bank.SEIP-1:0];
+  assign csr_mask_rd_data[csr_bank.SEIP] = (ir[31:20] == 12'h344 || ir[31:20] == 12'h144)
+                                            ? (csr_rd_data[csr_bank.SEIP] | external_interrupt)
+                                            : csr_rd_data[csr_bank.SEIP];
+  assign csr_mask_rd_data[`DATA_SIZE-1:csr_bank.SEIP+1] = csr_rd_data[`DATA_SIZE-1:csr_bank.SEIP+1];
+`else  // Sem ZICSR: 3 origens -> Economizar 1 mux
   assign rd = wr_reg_src[1] ? (wr_reg_src[0] ? pc_plus_4 : rd_data) : muxaluY_out;
 `endif
   register_file #(

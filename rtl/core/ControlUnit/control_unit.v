@@ -81,10 +81,13 @@ module control_unit (
         Load2 = 5'h0B,
         Store = 5'h0C,
         Store2 = 5'h0D,
-        System = 5'h0E,
+        Ecall = 5'h0E,
         Idle = 5'h0F;
+`ifdef TrapReturn
+  localparam reg [4:0] Xret = 5'h10; // MRET, SRET
+`endif
 `ifdef ZICSR
-  localparam reg [4:0] Zicsr = 5'h10;
+  localparam reg [4:0] Zicsr = 5'h11;
 `endif
 
   reg [4:0] estado_atual, proximo_estado;
@@ -172,19 +175,18 @@ module control_unit (
               if (opcode[6] == 1'b0) proximo_estado = RegistradorRegistrador;
               else begin
                 if (funct3 == 3'b0) begin
-                  if ((funct7 == 7'b0)
-                  `ifdef TrapReturn
-                  || (funct7 == 7'h18) || (funct7 == 7'h38)
-                  `endif )
-                    proximo_estado = System;  // ECALL, MRET, SRET
+                  if (funct7 == 7'b0) proximo_estado = Ecall;
+                `ifdef TrapReturn
+                  else if (((funct7 == 7'h18) || (funct7 == 7'h38)) &&
+                  (privilege_mode[0] && (privilege_mode[1] ^ funct7[4])))
+                    proximo_estado = Xret;
+                `endif
                   else illegal_instruction = 1'b1;
                 end else if (funct3 == 3'b100) illegal_instruction = 1'b1;
-                else
-`ifdef ZICSR
-                  proximo_estado = Zicsr;
-`else
-                  illegal_instruction = 1'b1;
-`endif
+            `ifdef ZICSR
+              else if(privilege_mode >= funct7[6:5]) proximo_estado = Zicsr;
+            `endif
+                else illegal_instruction = 1'b1;
               end
             end else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = Lui;
             else illegal_instruction = 1'b1;
@@ -208,9 +210,9 @@ module control_unit (
       end
 
       RegistradorRegistrador: begin
-`ifdef RV64I
+      `ifdef RV64I
         aluy_src = opcode[3];
-`endif
+      `endif
         alu_src = funct3;
         sub = funct7[5];
         arithmetic = funct7[5];
@@ -222,9 +224,9 @@ module control_unit (
 
       Lui: begin
         alub_src = 1'b1;
-`ifdef RV64I
+      `ifdef RV64I
         aluy_src = 1'b1;
-`endif
+      `endif
         pc_en = 1'b1;
         wr_reg_en = 1'b1;
 
@@ -233,9 +235,9 @@ module control_unit (
 
       RegistradorImediato: begin
         alub_src = 1'b1;
-`ifdef RV64I
+      `ifdef RV64I
         aluy_src = opcode[3];
-`endif
+      `endif
         alu_src = funct3;
         arithmetic = funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
         pc_en = 1'b1;
@@ -327,31 +329,32 @@ module control_unit (
         end
       end
 
-      System: begin
-        `ifdef TrapReturn
-          if (funct7[4:3] == 2'b00) ecall = 1'b1;
-          else if (privilege_mode[0] && (privilege_mode[1] ^ funct7[4])) begin
-            mret = funct7[4];
-            sret = ~funct7[4];
-          end else illegal_instruction = 1'b1;  // Não existe URET
-        `else
-          ecall = 1'b1;
-        `endif
+      Ecall: begin
+        ecall = 1'b1;
         proximo_estado = Fetch;
       end
 
-`ifdef ZICSR
+    `ifdef TrapReturn
+      Xret: begin
+        mret = funct7[4];
+        sret = ~funct7[4];
+        proximo_estado = Fetch;
+      end
+    `endif
+
+    `ifdef ZICSR
       Zicsr: begin
         // não significa que algum CSR será escrito
         csr_wr_en = 1'b1;
+        csr_imm = funct3[2];
+        csr_op  = funct3[1:0];
+        pc_en = 1'b1;
+        proximo_estado = Fetch;
       end
-`endif
+    `endif
 
       default: proximo_estado = Idle;
     endcase
   end
-
-  assign csr_imm = funct3[2];
-  assign csr_op  = funct3[1:0];
 
 endmodule
