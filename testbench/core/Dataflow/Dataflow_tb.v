@@ -559,8 +559,8 @@ module Dataflow_tb ();
         // Verifico reg_data
         `ASSERT(reg_data === DUT.rd);
       end
-      // Ecall, MRET, SRET (SYSTEM)
-      7'b1110011: begin  // Ecall
+      // ECALL, MRET, SRET (SYSTEM)
+      7'b1110011: begin
         db_df_src[NotOnlyOp-1:NotOnlyOp-2] = 2'b00;
         db_df_src[DfSrcSize+1] = 1'b0;
         @(negedge clock);
