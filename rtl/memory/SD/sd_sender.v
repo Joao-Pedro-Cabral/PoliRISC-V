@@ -6,67 +6,52 @@
 //! @date   2023-07-08
 //
 
-module sd_sender (
+`define DEBUG
+
+module sd_sender2 (
     input clock,
     input reset,
 
     // interface com o controlador
     input [5:0] cmd_index,
     input [31:0] argument,
-    input [4095:0] data,
     input cmd_or_data,  // 0: cmd; 1: data
-    input cmd_valid,
-    output wire sending_cmd,
+    output wire ready,
+    input valid,
+    input [4095:0] data,
 
     // interface com o cartão SD
     output wire mosi
+
+`ifdef DEBUG
+    ,
+    output wire sender_state,
+    output reg [15:0] crc16_dbg
+`endif
+
 );
 
-  reg [5:0] cmd_index_reg;
-  reg [31:0] argument_reg;
-  reg [4095:0] data_reg;
   reg cmd_or_data_reg;
+  reg _ready;
   wire _mosi;
 
-  wire _sending_cmd;
-  wire cmd_valid_pulse;
   wire [12:0] bits_sent;
   wire [4103:0] cmd_reg;
-  wire [6:0] crc7;
-  reg [15:0] crc16;
-  // CRC generate is complete
-  wire crc_complete = cmd_or_data_reg ? (bits_sent <= 16 & _sending_cmd)
-                                      : (bits_sent <= 8 & _sending_cmd);
 
-  always @(posedge clock) begin
-    if (cmd_valid && !_sending_cmd) begin
-      cmd_index_reg   <= cmd_index;
-      argument_reg    <= argument;
-      data_reg        <= data;
-      cmd_or_data_reg <= cmd_or_data;
-    end
-  end
-
-  edge_detector #(
-      .RESET_VALUE(0),
-      .EDGE_MODE  (0)   // borda de subida
-  ) cmd_valid_edge_detector (
-      .clock(clock),
-      .reset(reset),
-      .sinal(cmd_valid),
-      .pulso(cmd_valid_pulse)
-  );
+  localparam reg Idle = 1'b0, Sending = 1'b1;
+  reg state, new_state;
+  reg sending;
 
   sync_parallel_counter #(
       .size(13),
       .init_value(0)
   ) bit_counter (
       .clock(clock),
-      .load(cmd_valid_pulse && !_sending_cmd),
-      .load_value(cmd_or_data_reg ? 13'd4120 : 13'd48),
+      .load(_ready & valid),
+      .load_value(cmd_or_data ? 13'd4120 : 13'd48),
       .reset(reset),
       .inc_enable(1'b0),
-      .dec_enable(_sending_cmd),
+      .dec_enable(sending),
       .value(bits_sent)
   );
 
@@ -76,24 +61,64 @@ module sd_sender (
   ) reg_cmd (
       .clock(clock),
       .reset(reset),
-      .enable(1'b1),
-      .D((cmd_valid_pulse && !_sending_cmd) ?
-            (cmd_or_data_reg ?
-                {8'hFE, data_reg} : {1'b0, 1'b1, cmd_index_reg, argument_reg, {4064{1'b1}}})
+      .enable((_ready & valid) | sending),
+      .D((~sending) ?
+            (cmd_or_data ?
+                {8'hFE, data} : {1'b0, 1'b1, cmd_index, argument, {4064{1'b1}}})
             : {cmd_reg[4102:0], 1'b1}),
       .Q(cmd_reg)
   );
 
-  assign _mosi = crc_complete ? (cmd_or_data_reg ? crc16[15] : crc7[6]) : cmd_reg[4103];
-  assign mosi = _mosi;
-  assign _sending_cmd = bits_sent != 13'b0;
-  // OR: garantir q sending_cmd suba no ciclo seguinte a subida do cmd_valid
-  assign sending_cmd = _sending_cmd | cmd_valid_pulse;
+  always @(posedge clock, posedge reset) begin
+    if (reset) begin
+      state <= Idle;
+      cmd_or_data_reg <= 1'b0;
+    end else begin
+      state <= new_state;
+      cmd_or_data_reg <= (valid & _ready) ? cmd_or_data : cmd_or_data_reg;
+    end
+  end
+
+  task reset_signals;
+    begin
+      _ready = 1'b0;
+      sending = 1'b0;
+    end
+  endtask
+
+  always @* begin
+    reset_signals;
+
+    case (state)
+      Idle: begin
+        _ready = 1'b1;
+        if (valid) begin
+          new_state = Sending;
+        end else new_state = state;
+      end
+
+      Sending: begin
+        sending = |bits_sent;
+        if (bits_sent == 0) new_state = Idle;
+        else new_state = state;
+      end
+
+      default: begin
+        new_state = Idle;
+      end
+    endcase
+  end
+
+  wire [6:0] crc7;
+  reg [15:0] crc16;
+  // CRC generate is complete
+  wire crc_complete =
+    cmd_or_data_reg ? (bits_sent <= 13'd16 && sending) : (bits_sent <= 13'd8 && sending);
 
   // CRC16 com LFSR
   always @(posedge clock) begin
     // Limpa quando enviar o start token
-    if (bits_sent == 13'h1012) begin
+    if (bits_sent == 13'd4113) begin
       crc16 <= 16'b0;
     end else if (!crc_complete) begin  // Calcular CRC
       crc16[0] <= crc16[15] ^ _mosi;
@@ -117,7 +142,7 @@ module sd_sender (
             .reset_value(1'b0)
         ) crc_reg_0 (
             .clock(clock),
-            .reset(cmd_valid_pulse && !_sending_cmd),
+            .reset(_ready & valid),
             .enable(1'b1),
             // Quando o CRC está completo, realiza-se shift
             .D(crc_complete ? 1'b1 : crc7[6] ^ _mosi),
@@ -129,7 +154,7 @@ module sd_sender (
             .reset_value(1'b0)
         ) crc_reg_3 (
             .clock(clock),
-            .reset(cmd_valid_pulse && !_sending_cmd),
+            .reset(_ready & valid),
             .enable(1'b1),
             // Quando o CRC está completo, realiza-se shift
             .D(crc_complete ? crc7[2] : crc7[6] ^ _mosi ^ crc7[2]),
@@ -141,7 +166,7 @@ module sd_sender (
             .reset_value(1'b0)
         ) crc_reg (
             .clock(clock),
-            .reset(cmd_valid_pulse && !_sending_cmd),
+            .reset(_ready & valid),
             .enable(1'b1),
             .D(crc7[i-1]),  // Sempre faz shift
             .Q(crc7[i])
@@ -149,5 +174,23 @@ module sd_sender (
       end
     end
   endgenerate
+
+  assign ready = _ready;
+  assign _mosi = crc_complete ? (cmd_or_data_reg ? crc16[15] : crc7[6]) : cmd_reg[4103];
+  assign mosi  = _mosi;
+`ifdef DEBUG
+  assign sender_state = state;
+  always @(posedge clock, posedge reset) begin
+    if (reset) begin
+      crc16_dbg <= 16'b0;
+    end else begin
+      if (cmd_or_data_reg && crc_complete && (bits_sent == 13'd16)) begin
+        crc16_dbg <= crc16;
+      end else begin
+        crc16_dbg <= crc16_dbg;
+      end
+    end
+  end
+`endif
 
 endmodule
