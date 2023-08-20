@@ -41,7 +41,6 @@ module sd_sender2 (
   localparam reg Idle = 1'b0, Sending = 1'b1;
   reg state, new_state;
   reg sending;
-  reg latch_cmd_or_data_reg;
 
   sync_parallel_counter #(
       .size(13),
@@ -76,7 +75,7 @@ module sd_sender2 (
       cmd_or_data_reg <= 1'b0;
     end else begin
       state <= new_state;
-      cmd_or_data_reg <= latch_cmd_or_data_reg ? cmd_or_data : cmd_or_data_reg;
+      cmd_or_data_reg <= (valid & _ready) ? cmd_or_data : cmd_or_data_reg;
     end
   end
 
@@ -84,7 +83,6 @@ module sd_sender2 (
     begin
       _ready = 1'b0;
       sending = 1'b0;
-      latch_cmd_or_data_reg = 1'b0;
     end
   endtask
 
@@ -95,7 +93,6 @@ module sd_sender2 (
       Idle: begin
         _ready = 1'b1;
         if (valid) begin
-          latch_cmd_or_data_reg = 1'b1;
           new_state = Sending;
         end else new_state = state;
       end

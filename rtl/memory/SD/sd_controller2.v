@@ -70,7 +70,6 @@ module sd_controller2 (
   wire response_received;
   wire crc_error;
   reg new_cs;
-  reg initializing, new_initializing, initializing_en;
   reg new_sck_50M;
   reg sck_50M;
   reg sck_en;
@@ -184,7 +183,6 @@ module sd_controller2 (
       state_return <= InitBegin;
       response_type <= 3'b000;
       busy <= 1'b0;
-      initializing <= 1'b1;
 `ifdef DEBUG
       check_cmd_0_dbg <= 8'h00;
       check_cmd_8_dbg <= 8'd8;
@@ -210,8 +208,6 @@ module sd_controller2 (
       else sck_50M <= sck_50M;
       if (busy_en) busy <= new_busy;
       else busy <= busy;
-      if(initializing_en) initializing <= new_initializing;
-      else initializing <= initializing;
 `ifdef DEBUG
       if (check_cmd_0_dbg_en) check_cmd_0_dbg <= received_data[7:0];
       if (check_cmd_8_dbg_en) check_cmd_8_dbg <= received_data[39:32];
@@ -244,8 +240,6 @@ module sd_controller2 (
       new_state_return = InitBegin;
       state_return_en = 1'b0;
       response_type_en = 1'b0;
-      new_initializing = 1'b0;
-      initializing_en = 1'b0;
       new_busy = 1'b0;
       busy_en = 1'b0;
       start_to_wait = 1'b0;
@@ -271,8 +265,6 @@ module sd_controller2 (
     reset_signals;
     case(state)
       InitBegin: begin
-        new_initializing = 1'b1;
-        initializing_en = 1'b1;
         new_busy = 1'b0;
         busy_en = 1'b1;
         new_state = SendCmd0;
@@ -336,7 +328,7 @@ module sd_controller2 (
         if (received_data[39:32] == 8'h05) new_state = SendCmd55;
         else if (received_data[7:0] != 8'hAA) new_state = SendCmd8;
         else if (received_data[11:8] != 4'h1) new_state = InitBegin;
-        else new_state = SendCmd59;
+        else new_state = SendCmd55;
       end
 
       SendCmd59: begin
@@ -409,8 +401,6 @@ module sd_controller2 (
           new_state = SendCmd16;
 `else
           new_cs = 1'b0;
-          new_initializing = 1'b0;
-          initializing_en = 1'b1;
           new_sck_50M = 1'b1;
           new_state = Idle;
 `endif
@@ -439,8 +429,6 @@ module sd_controller2 (
         if (received_data[7:0] != 8'h00) new_state = SendCmd16;
         else begin
           new_cs = 1'b0;
-          new_initializing = 1'b0;
-          initializing_en = 1'b1;
           new_sck_50M = 1'b1;
           new_state = Idle;
         end
@@ -507,7 +495,7 @@ module sd_controller2 (
 `ifdef DEBUG
         check_write_dbg_en = 1'b1;
 `endif
-        if (received_data[3:1] == 3'b010) begin
+        if ((received_data[5:3] == 3'b101) || (received_data[3:1] == 3'b010)) begin
             new_cs = 1'b0;
             new_busy = 1'b0;
             busy_en = 1'b1;
