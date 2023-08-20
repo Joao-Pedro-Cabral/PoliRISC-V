@@ -6,6 +6,8 @@
 //! @date   2023-07-09
 //
 
+`define DEBUG
+
 module sd_receiver2 (
     // Comum
     input clock,
@@ -23,8 +25,7 @@ module sd_receiver2 (
 
 `ifdef DEBUG
     ,
-    // debug
-    output wire [12:0] bits_received_dbg
+    output wire [1:0] receiver_state
 `endif
 );
 
@@ -60,10 +61,6 @@ module sd_receiver2 (
       .dec_enable(receiving),
       .value(bits_received)
   );
-
-`ifdef DEBUG
-  assign bits_received_dbg = bits_received;
-`endif
 
   assign transmission_size =
     response_type[2] ? 13'd15
@@ -163,5 +160,8 @@ module sd_receiver2 (
   assign crc_error  = end_transmission && ((response_type == 3'b011) && (crc16 != 0));
   assign ready = _ready;
   assign received_data = data_received;
+`ifdef DEBUG
+  assign receiver_state = state;
+`endif
 
 endmodule

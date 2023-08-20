@@ -34,6 +34,8 @@ module sd_controller2 (
 `ifdef DEBUG
     ,
     output wire [4:0] sd_controller_state,
+    output wire [1:0] sd_receiver_state,
+    output wire sd_sender_state,
     output reg  [7:0] check_cmd_0_dbg,
     output reg  [7:0] check_cmd_8_dbg,
     output reg  [7:0] check_cmd_55_dbg,
@@ -46,7 +48,8 @@ module sd_controller2 (
     output reg  [7:0] check_cmd_17_dbg,
     output reg  [7:0] check_read_dbg,
     output reg  [7:0] check_error_token_dbg,
-    output wire crc_error_dbg
+    output wire crc_error_dbg,
+    output wire [15:0] crc16_dbg
 `endif
 );
 
@@ -98,12 +101,11 @@ module sd_controller2 (
     CheckCmd17 = 5'h11,
     SendCmd24 = 5'h12,
     CheckCmd24 = 5'h13,
-    WaitBeforeWrite = 5'h14,
-    CheckRead = 5'h15,
-    CheckWrite = 5'h16,
-    SendCmd13 = 5'h17,
-    CheckCmd13 = 5'h18,
-    CheckErrorToken = 5'h19;
+    CheckRead = 5'h14,
+    CheckWrite = 5'h15,
+    SendCmd13 = 5'h16,
+    CheckCmd13 = 5'h17,
+    CheckErrorToken = 5'h18;
 
   reg [4:0]
       new_state,
@@ -122,6 +124,11 @@ module sd_controller2 (
       .valid(sender_valid),
       .data(write_data_reg),
       .mosi(mosi)
+`ifdef DEBUG
+      ,
+      .sender_state(sd_sender_state),
+      .crc16_dbg(crc16_dbg)
+`endif
   );
 
   sd_receiver2 receiver (
@@ -133,15 +140,19 @@ module sd_controller2 (
       .valid(receiver_valid),
       .crc_error(crc_error),
       .miso(miso)
+`ifdef DEBUG
+      ,
+      .receiver_state(sd_receiver_state)
+`endif
   );
 
   sync_parallel_counter #(
       .size(12),
-      .init_value(12'd128)
+      .init_value(12'd8)
   ) write_block_wait (
       .clock(clock),
       .load(start_to_wait),
-      .load_value(12'd128),
+      .load_value(12'd8),
       .reset(reset),
       .inc_enable(1'b0),
       .dec_enable(waiting),
@@ -325,7 +336,7 @@ module sd_controller2 (
         if (received_data[39:32] == 8'h05) new_state = SendCmd55;
         else if (received_data[7:0] != 8'hAA) new_state = SendCmd8;
         else if (received_data[11:8] != 4'h1) new_state = InitBegin;
-        else new_state = SendCmd55;
+        else new_state = SendCmd59;
       end
 
       SendCmd59: begin
@@ -502,7 +513,7 @@ module sd_controller2 (
             busy_en = 1'b1;
             new_state = SendCmd13;
         end
-        else new_state = SendCmd24;  // Tentar novamente (TODO: talvez não seja a melhor escolha)
+        else new_state = state;  // TODO: decidir o que fazer
       end
 
       SendCmd13: begin

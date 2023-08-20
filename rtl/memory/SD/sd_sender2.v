@@ -6,6 +6,8 @@
 //! @date   2023-07-08
 //
 
+`define DEBUG
+
 module sd_sender2 (
     input clock,
     input reset,
@@ -20,6 +22,13 @@ module sd_sender2 (
 
     // interface com o cartão SD
     output wire mosi
+
+`ifdef DEBUG
+    ,
+    output wire sender_state,
+    output reg [15:0] crc16_dbg
+`endif
+
 );
 
   reg cmd_or_data_reg;
@@ -172,6 +181,19 @@ module sd_sender2 (
   assign ready = _ready;
   assign _mosi = crc_complete ? (cmd_or_data_reg ? crc16[15] : crc7[6]) : cmd_reg[4103];
   assign mosi  = _mosi;
-  /* assign _sending_cmd = bits_sent != 13'b0; */
+`ifdef DEBUG
+  assign sender_state = state;
+  always @(posedge clock, posedge reset) begin
+    if (reset) begin
+      crc16_dbg <= 16'b0;
+    end else begin
+      if (cmd_or_data_reg && crc_complete && (bits_sent == 13'd16)) begin
+        crc16_dbg <= crc16;
+      end else begin
+        crc16_dbg <= crc16_dbg;
+      end
+    end
+  end
+`endif
 
 endmodule

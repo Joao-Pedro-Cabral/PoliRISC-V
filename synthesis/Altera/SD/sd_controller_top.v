@@ -35,6 +35,8 @@ module sd_controller_top (
   wire [31:0] addr;
   wire [15:0] tester_state;
   wire [4:0] sd_controller_state;
+  wire [1:0] sd_receiver_state;
+  wire sd_sender_state;
   reg clock_50M;
   reg clock_400K;
   wire [7:0] clock_400K_cnt;
@@ -54,6 +56,7 @@ module sd_controller_top (
   wire [7:0] check_read_dbg;
   wire [7:0] check_error_token_dbg;
   wire crc_error;
+  wire [15:0] crc16_dbg;
 
   sd_controller_test_driver tester (
       /* .clock(clock_50M), */
@@ -85,6 +88,8 @@ module sd_controller_top (
       .busy(busy),
       /* .bits_received_dbg(bits_received_dbg), */
       .sd_controller_state(sd_controller_state),
+      .sd_receiver_state(sd_receiver_state),
+      .sd_sender_state(sd_sender_state),
       .check_cmd_0_dbg(check_cmd_0_dbg),
       .check_cmd_8_dbg(check_cmd_8_dbg),
       .check_cmd_55_dbg(check_cmd_55_dbg),
@@ -97,7 +102,8 @@ module sd_controller_top (
       .check_cmd_17_dbg(check_cmd_17_dbg),
       .check_read_dbg(check_read_dbg),
       .check_error_token_dbg(check_error_token_dbg),
-      .crc_error_dbg(crc_error)
+      .crc_error_dbg(crc_error),
+      .crc16_dbg(crc16_dbg)
   );
 
   // Gerar clock de 12,5 MHz
@@ -149,7 +155,7 @@ module sd_controller_top (
       5'b00011: led = {check_cmd_16_dbg, check_acmd_41_dbg};
       5'b00100: led = {check_write_dbg, check_cmd_24_dbg};
       5'b00101: led = {check_read_dbg, check_cmd_17_dbg};
-      5'b00110: led = {check_error_token_dbg, };
+      5'b00110: led = {8'b0, check_error_token_dbg};
       5'b00111: led = check_cmd_13_dbg;
       5'b01000: led = read_data[15:0];
       5'b01001: led = read_data[31:16];
@@ -196,8 +202,8 @@ module sd_controller_top (
       5'b01100: led = {2'b00, check_error_token_dbg};
       5'b01101: led = {2'b00, check_cmd_13_dbg[7:0]};
       5'b01110: led = {2'b00, check_cmd_13_dbg[15:8]};
-      5'b01111: led = read_data[3945:3936];
-      5'b10000: led = read_data[3955:3946];
+      5'b01111: led = {2'b00, crc16_dbg[7:0]};
+      5'b10000: led = {2'b00, crc16_dbg[15:8]};
       5'b10001: led = read_data[3965:3956];
       5'b10010: led = read_data[3975:3966];
       5'b10011: led = read_data[3985:3976];
@@ -212,7 +218,7 @@ module sd_controller_top (
       5'b11100: led = read_data[4075:4066];
       5'b11101: led = read_data[4085:4076];
       5'b11110: led = read_data[4095:4086];
-      5'b11111: led = {5'b00000, sd_controller_state};
+      5'b11111: led = {2'b00, sd_sender_state, sd_receiver_state, sd_controller_state};
       default:  led = 0;
     endcase
   end
