@@ -90,6 +90,14 @@ module core_tb ();
   wire [63:0] mtimecmp;
   // Dispositivos
   wire external_interrupt = 1'b0;
+  // CSR
+  wire [`DATA_SIZE-1:0] mepc;
+  wire [`DATA_SIZE-1:0] sepc;
+  wire [`DATA_SIZE-1:0] csr_rd_data;
+  reg [`DATA_SIZE-1:0] csr_wr_data;
+  reg csr_wr_en;
+  wire csr_trap;
+  reg _trap;  // csr_trap antes da borda de subida do clock
   // flags da ULA (simuladas)
   wire zero_;
   wire negative_;
@@ -221,7 +229,7 @@ module core_tb ();
   ) banco_de_registradores (
       .clock(clock),
       .reset(reset),
-      .write_enable(wr_reg_en && !DUT.trap),
+      .write_enable(wr_reg_en && !csr_trap),
       .read_address1(instruction[19:15]),
       .read_address2(instruction[24:20]),
       .write_address(instruction[11:7]),
@@ -229,6 +237,48 @@ module core_tb ();
       .read_data1(A),
       .read_data2(B)
   );
+
+  CSR registradores_de_controle (
+      .clock(clock),
+      .reset(reset),
+      // Interrupt/Exception Signals
+      .ecall(DUT.ecall),
+      .illegal_instruction(illegal_instruction),
+      .external_interrupt(external_interrupt),
+      .mem_msip(|msip),
+      .mem_ssip(|ssip),
+      .mem_mtime(mtime),
+      .mem_mtimecmp(mtimecmp),
+      .trap(),  // Consertar trap
+      .privilege_mode(),  // Não estou usando privilege mode
+      .pc(pc),
+      // CSR RW interface
+`ifdef ZICSR
+      .wr_en(csr_wr_en & (~funct3[1] | (|instruction[19:15]))),
+      .addr(instruction[31:20]),
+      .wr_data(csr_wr_data),
+      .rd_data(csr_rd_data),
+`else
+      .wr_en(1'b0),
+      .addr(12'b0),
+      .wr_data(`DATA_SIZE'b0),
+      .rd_data(),
+`endif
+      // MRET & SRET
+`ifdef TrapReturn
+      .mret(mret),
+      .sret(sret),
+      .mepc(mepc),
+      .sepc(sepc)
+`else
+      .mret(),
+      .sret(),
+      .mepc(),
+      .sepc()
+`endif
+  );
+
+  assign csr_trap = 1'b0; // tirar isso!!!
 
   // geração do clock
   always begin
@@ -241,37 +291,31 @@ module core_tb ();
   // função que simula o comportamento da ULA
   function automatic [`DATA_SIZE-1:0] ULA_function(
       input reg [`DATA_SIZE-1:0] A, input reg [`DATA_SIZE-1:0] B, input reg [3:0] seletor);
-    reg [`DATA_SIZE-1:0] xorB;
-    reg [`DATA_SIZE-1:0] add_sub;
-    reg overflow;
-    reg carry_out;
-    reg negative;
     begin
-      // Funções da ULA
       case (seletor)
-        4'b0000:  // ADD
-        ULA_function = $signed(A) + $signed(B);
-        4'b0001:  // SLL
-        ULA_function = A << (B[5:0]);
-        4'b0010: begin  // SLT
-          ULA_function = ($signed(A) < $signed(B));
-        end
-        4'b0011: begin  // SLTU
-          ULA_function = (A < B);
-        end
-        4'b0100:  // XOR
-        ULA_function = A ^ B;
-        4'b0101:  // SRL
-        ULA_function = A >> (B[5:0]);
-        4'b0110:  // OR
-        ULA_function = A | B;
-        4'b0111:  // AND
-        ULA_function = A & B;
-        4'b1000:  // SUB
-        ULA_function = $signed(A) - $signed(B);
-        4'b1101:  // SRA
-        ULA_function = $signed(A) >>> (B[5:0]);
+        4'b0000: ULA_function = $signed(A) + $signed(B);  // ADD
+        4'b0001: ULA_function = A << (B[5:0]);  // SLL
+        4'b0010: ULA_function = ($signed(A) < $signed(B));  // SLT
+        4'b0011: ULA_function = (A < B);  // SLTU
+        4'b0100: ULA_function = A ^ B;  // XOR
+        4'b0101: ULA_function = A >> (B[5:0]);  // SRL
+        4'b0110: ULA_function = A | B;  // OR
+        4'b0111: ULA_function = A & B;  // AND
+        4'b1000: ULA_function = $signed(A) - $signed(B);  // SUB
+        4'b1101: ULA_function = $signed(A) >>> (B[5:0]);  // SRA
         default: ULA_function = 0;
+      endcase
+    end
+  endfunction
+
+  function automatic [`DATA_SIZE-1:0] CSR_function(
+    input reg [`DATA_SIZE-1:0] rd_data, input reg [`DATA_SIZE-1:0] mask, input reg [1:0] op);
+    begin
+      case(op)
+        2'b01: CSR_function = mask; // W
+        2'b10: CSR_function = rd_data | mask; // S
+        2'b11: CSR_function = rd_data & (~mask); // C
+        default: CSR_function = 0;
       endcase
     end
   endfunction
@@ -308,9 +352,9 @@ module core_tb ();
     reg num_edge = 1'b0;
     begin
       forever begin
-        @(mem_busy, DUT.trap);
+        @(mem_busy, csr_trap);
         // num_edge = 1 -> Agora é descida
-        if (DUT.trap || (num_edge == 1'b1)) disable wait_mem;
+        if (csr_trap || (num_edge == 1'b1)) disable wait_mem;
         else if (mem_busy == 1'b1) num_edge = 1'b1;  //Subida
       end
     end
@@ -320,35 +364,34 @@ module core_tb ();
     begin
       // desabilito a escrita no banco simulado
       wr_reg_en = 1'b0;
+      csr_wr_en = 1'b0;
       reset = 1'b1;
       `ASSERT(db_mem_en === 0);  // Enables abaixados: Idle
       @(posedge clock);
       @(negedge clock);
       reset = 1'b0;
       `ASSERT(db_mem_en === 0);  // Enables abaixados: Idle
-      @(posedge clock);
     end
   endtask
 
   task automatic DoFetch();
     begin
       wr_reg_en = 1'b0;
+      csr_wr_en = 1'b0;
       `ASSERT(pc === mem_addr);
       `ASSERT(db_mem_en === {2'b01, {`BYTE_NUM - 4{1'b0}}, 4'hF});
       wait_mem;
-      if (DUT.trap) disable DoFetch;  // Trap -> Recomeçar Fetch
       @(negedge clock);
+      if (csr_trap) disable DoFetch;  // Trap -> Recomeçar Fetch
       instruction = rd_data;  // leitura da ROM -> instrução
       // Busy abaixado -> instruction mem enable abaixado
       `ASSERT(db_mem_en === 4'hF);
-      @(posedge clock);
     end
   endtask
 
   task automatic DoDecode();
     begin
       `ASSERT(db_mem_en === 0);
-      @(posedge clock);
     end
   endtask
 
@@ -364,13 +407,13 @@ module core_tb ();
           // Confiro se o acesso a memória de dados está correto
           `ASSERT(db_mem_en === mem_en);
           wait_mem;
-          if (DUT.trap) disable DoExecute;  // Trap -> Fetch
           // Load: Após o busy abaixar escrevo no banco simulado
           if (!opcode[5]) begin
             wr_reg_en = 1'b1;
             reg_data  = rd_data;
           end
           @(negedge clock);
+          if (csr_trap) disable DoExecute;  // Trap -> Fetch
           // Na borda de descida, confiro se os sinais de controle abaixaram
           `ASSERT(db_mem_en === {2'b00, mem_byte_en_});
           // Caso load -> confiro a leitura
@@ -439,9 +482,35 @@ module core_tb ();
         // ECALL, MRET, SRET (SYSTEM)
         7'b1110011: begin
           wr_reg_en = 1'b0;
+          if(funct3 == 3'b000) begin
+            if(funct7 === 0) next_pc = TrapAddress; // Ecall
+            else if(funct7 == 7'b0001000) next_pc = mepc; // MRET
+            else if(funct7 == 7'b0011000) next_pc = sepc; // SRET
+            else begin
+              $display("Error SYSTEM: Invalid funct7! funct7 : %x", funct7);
+              $stop;
+            end
+          end
+        `ifdef Zicsr // Apenas aqui há ifdef, pois nem sempre DUT.DF.csr_wr_data existe
+          else if(funct3 != 3'b100) begin // CSRR*
+            wr_reg_en = 1'b1;
+            csr_wr_en = (!funct3[1] || (instruction[19:15] == 0));
+            reg_data = csr_rd_data;
+            if(instruction[31:20] == 12'h344 || instruction[31:20] == 12'h144)
+              reg_data[registradores_de_controle.SEIP] = csr_rd_data | external_interrupt;
+            if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
+            else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
+            // Sempre checo a leitura/escrita até se ela não acontecer
+            `ASSERT(csr_wr_data === DUT.csr_wr_data);
+            `ASSERT(reg_data === DUT.rd);
+          end
+        `endif
+          else begin
+              $display("Error SYSTEM: Invalid funct3! funct3 : %x", funct3);
+              $stop;
+          end
           // Confiro se a memória está inativada
           `ASSERT(db_mem_en === 0);
-          next_pc = TrapAddress;
         end
         default: begin
           // Fim do programa -> último opcode: 0000000
@@ -450,7 +519,6 @@ module core_tb ();
           $stop;
         end
       endcase
-      @(posedge clock);
     end
   endtask
 
@@ -467,8 +535,11 @@ module core_tb ();
         Execute: DoExecute;
         default: DoReset;
       endcase
+      `ASSERT(DUT.trap === csr_trap);
+      _trap = csr_trap;
+      @(posedge clock);
       // Atualizando estado  e pc
-      if (DUT.trap) begin
+      if (_trap) begin
         estado = Fetch;
         pc = TrapAddress;
       end else begin

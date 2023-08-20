@@ -31,15 +31,13 @@
 module control_unit_tb ();
   // Parâmetros determinados pelas extensões
   `ifdef RV64I
-    localparam integer RV64IExtension = 5;
     localparam integer HasRV64I = 1;
   `else
-    localparam integer RV64IExtension = 0;
     localparam integer HasRV64I = 0;
   `endif
   // Parâmetros do Sheets
-  localparam integer NLineI = 52;
-  localparam integer NColumnI = 40 + RV64IExtension;
+  localparam integer NLineI = 58;
+  localparam integer NColumnI = (HasRV64I == 1) ? 49 : 44;
   // Parâmetros do df_src
     // Bits do df_src que não dependem apenas do opcode
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
@@ -84,6 +82,9 @@ module control_unit_tb ();
   wire ecall;
   wire mret;
   wire sret;
+  wire csr_imm;
+  wire [1:0] csr_op;
+  wire csr_wr_en;
   wire illegal_instruction;
   // Sinais do Controlador de Memória
   wire [`DATA_SIZE-1:0] mem_addr;
@@ -122,6 +123,7 @@ module control_unit_tb ();
   wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
   reg [DfSrcSize-1:0] df_src;
   wire [DfSrcSize+1:0] db_df_src;  // Idem df_src, adicionando pc_en e ir_en
+  reg _trap;
   // variáveis
   integer limit = 10000;  // evitar loop infinito
   localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5; // Estados
@@ -151,6 +153,11 @@ module control_unit_tb ();
       .mret(mret),
       .sret(sret),
     `endif
+    `ifdef Zicsr
+      .csr_imm(csr_imm),
+      .csr_op(csr_op),
+      .csr_wr_en(csr_wr_en),
+    `endif
       .illegal_instruction(illegal_instruction),
       .alua_src(alua_src),
       .alub_src(alub_src),
@@ -170,7 +177,9 @@ module control_unit_tb ();
   );
 
   // Dataflow
-  Dataflow DF (
+  Dataflow #(
+    .TrapAddress(1000)
+  ) DF (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),
@@ -181,6 +190,11 @@ module control_unit_tb ();
       .alub_src(alub_src),
     `ifdef RV64I
       .aluy_src(aluy_src),
+    `endif
+    `ifdef Zicsr
+      .csr_imm(csr_imm),
+      .csr_op(csr_op),
+      .csr_wr_en(csr_wr_en),
     `endif
       .alu_src(alu_src),
       .sub(sub),
@@ -302,6 +316,10 @@ module control_unit_tb ();
     assign {mret, sret} = 2'b00;
   `endif
 
+  `ifndef Zicsr
+    assign {csr_imm, csr_op, csr_wr_en} = 4'h0;
+  `endif
+
   // geração do clock
   always begin
     clock = 1'b0;
@@ -318,8 +336,8 @@ module control_unit_tb ();
 
   // função para determinar os seletores(sinais provenientes da UC) a partir do opcode, funct3 e funct7
   function automatic [DfSrcSize-1:0] find_instruction(
-      input reg [6:0] opcode, input reg [2:0] funct3, input reg [6:0] funct7,
-      input reg [NColumnI*NLineI-1:0] LUT_linear);
+    input reg [6:0] opcode, input reg [2:0] funct3, input reg [6:0] funct7,
+    input reg [NColumnI*NLineI-1:0] LUT_linear);
     integer i;
     reg [DfSrcSize-1:0] temp;
     begin
@@ -334,11 +352,11 @@ module control_unit_tb ();
       else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
               opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111 ||
               opcode === 7'b1110011) begin
-        for (i = 3; i < 37; i = i + 1) begin
+        for (i = 3; i < 43; i = i + 1) begin
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
-            if (funct3 === 3'b101 && opcode[4] == 1'b1) begin
+            if (funct3 === 3'b101 && opcode == 7'b0010011) begin
               if (funct7 == LUT_linear[(NColumnI*(i+1)-17)+:7])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
@@ -346,7 +364,7 @@ module control_unit_tb ();
         end
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
-        for (i = 37; i < 52; i = i + 1)
+        for (i = 43; i < 58; i = i + 1)
           if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
@@ -379,6 +397,9 @@ module control_unit_tb ();
     ecall,
     mret,
     sret,
+    csr_imm,
+    csr_op,
+    csr_wr_en,
     // Sinais que não dependem apenas do opcode
     pc_src,  // Pressuponho que seja NotOnlyOp -1
     wr_reg_en,  // Pressuponho que seja NotOnlyOp -2
@@ -390,119 +411,115 @@ module control_unit_tb ();
   // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
   task automatic wait_mem();
     reg num_edge = 1'b0;
-  begin
-    forever begin
-      @(mem_busy, trap);
-      // num_edge = 1 -> Agora é descida
-      if(trap || (num_edge == 1'b1)) disable wait_mem;
-      else if(mem_busy == 1'b1) num_edge = 1'b1; //Subida
+    begin
+      forever begin
+        @(mem_busy, trap);
+        // num_edge = 1 -> Agora é descida
+        if(trap || (num_edge == 1'b1)) disable wait_mem;
+        else if(mem_busy == 1'b1) num_edge = 1'b1; //Subida
+      end
     end
-  end
   endtask
 
   task automatic DoReset();
-  begin
-    reset = 1'b1;
-    `ASSERT(db_df_src === 0); // Idle
-    @(posedge clock);
-    @(negedge clock);
-    reset = 1'b0;
-    `ASSERT(db_df_src === 0); // Pós reset -> Idle
-    @(posedge clock);
-  end
+    begin
+      reset = 1'b1;
+      `ASSERT(db_df_src === 0); // Idle
+      @(posedge clock);
+      @(negedge clock);
+      reset = 1'b0;
+      `ASSERT(db_df_src === 0); // Pós reset -> Idle
+    end
   endtask
 
   task automatic DoFetch();
-  begin
-    `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
-    wait_mem();
-    if(trap) disable DoFetch; // Trap -> Recomeçar Fetch
-    @(negedge clock);
-    // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
-    `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
-    @(posedge clock);
-  end
+    begin
+      `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
+      wait_mem;
+      @(negedge clock);
+      if(trap) disable DoFetch; // Trap -> Recomeçar Fetch
+      // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
+      `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
+    end
   endtask
 
   task automatic DoDecode();
-  begin
-    df_src = find_instruction(opcode, funct3, funct7, LUT_linear); // obter saídas pelo sheets
-    // Verifico se algum enable está erroneamente habilitado
-    `ASSERT(db_df_src[DfSrcSize+1:DfSrcSize] === 0);
-    // Illegal instruction já pode ter levantado
-    `ASSERT(db_df_src[DfSrcSize-1] === df_src[DfSrcSize-1]);
-    `ASSERT(db_df_src[DfSrcSize-2:0] === 0);
-    @(posedge clock);
-  end
+    begin
+      df_src = find_instruction(opcode, funct3, funct7, LUT_linear); // obter saídas pelo sheets
+      // Verifico se algum enable está erroneamente habilitado
+      `ASSERT(db_df_src[DfSrcSize+1:DfSrcSize] === 0);
+      // Illegal instruction já pode ter levantado
+      `ASSERT(db_df_src[DfSrcSize-1] === df_src[DfSrcSize-1]);
+      `ASSERT(db_df_src[DfSrcSize-2:0] === 0);
+    end
   endtask
 
   task automatic DoExecute();
-  begin
-    if (opcode !== 0) begin
-      `ASSERT({1'b0, df_src[DfSrcSize-1:NotOnlyOp]} === db_df_src[DfSrcSize:NotOnlyOp]);
-      `ASSERT(df_src[NotOnlyOp-3:0] === db_df_src[NotOnlyOp-3:0]);
-      // Não testo pc_src para instruções do tipo B
-      if (opcode !== 7'b1100011) `ASSERT(df_src[NotOnlyOp-1] === db_df_src[NotOnlyOp-1]);
-      // Não testo wr_reg_en para Load
-      if (opcode !== 7'b0000011) `ASSERT(df_src[NotOnlyOp-2] === db_df_src[NotOnlyOp-2]);
-    end
-    case (opcode)
-      // Store(S*) e Load(L*)
-      7'b0100011, 7'b0000011: begin
-        wait_mem;
-        if(trap) disable DoExecute; // Trap -> Fetch
-        // Espero o busy abaixar para verificar os enables
-        @(negedge clock);
-        `ASSERT(pc_en === 1'b1);
-        `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
-        `ASSERT(mem_rd_en === 1'b0);
-        `ASSERT(mem_wr_en === 1'b0);
+    begin
+      if (opcode !== 0) begin
+        `ASSERT({1'b0, df_src[DfSrcSize-1:NotOnlyOp]} === db_df_src[DfSrcSize:NotOnlyOp]);
+        `ASSERT(df_src[NotOnlyOp-3:0] === db_df_src[NotOnlyOp-3:0]);
+        // Não testo pc_src para instruções do tipo B
+        if (opcode !== 7'b1100011) `ASSERT(df_src[NotOnlyOp-1] === db_df_src[NotOnlyOp-1]);
+        // Não testo wr_reg_en para Load
+        if (opcode !== 7'b0000011) `ASSERT(df_src[NotOnlyOp-2] === db_df_src[NotOnlyOp-2]);
       end
-      // Branch(B*)
-      7'b1100011: begin
-        `ASSERT(pc_en === 1'b1);
-        // testo pc_src de acordo com as flags do DF
-        if (funct3[2:1] === 2'b00) begin
-          if (zero ^ funct3[0] === 1'b1) begin
-            `ASSERT(pc_src === 1'b1);
+      case (opcode)
+        // Store(S*) e Load(L*)
+        7'b0100011, 7'b0000011: begin
+          wait_mem;
+          // Espero o busy abaixar para verificar os enables
+          @(negedge clock);
+          if(trap) disable DoExecute; // Trap -> Fetch
+          `ASSERT(pc_en === 1'b1);
+          `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
+          `ASSERT(mem_rd_en === 1'b0);
+          `ASSERT(mem_wr_en === 1'b0);
+        end
+        // Branch(B*)
+        7'b1100011: begin
+          `ASSERT(pc_en === 1'b1);
+          // testo pc_src de acordo com as flags do DF
+          if (funct3[2:1] === 2'b00) begin
+            if (zero ^ funct3[0] === 1'b1) begin
+              `ASSERT(pc_src === 1'b1);
+            end else begin
+              `ASSERT(pc_src === 1'b0);
+            end
+          end else if (funct3[2:1] === 2'b10) begin
+            if (negative ^ overflow ^ funct3[0] === 1'b1) begin
+              `ASSERT(pc_src === 1'b1);
+            end else begin
+              `ASSERT(pc_src === 1'b0);
+            end
+          end else if (funct3[2:1] === 2'b11) begin
+            if (carry_out ~^ funct3[0] === 1'b1) begin
+              `ASSERT(pc_src === 1'b1);
+            end else begin
+              `ASSERT(pc_src === 1'b0);
+            end
           end else begin
-            `ASSERT(pc_src === 1'b0);
+            $display("Error B-type: Invalid funct3! Funct3 : %x", funct3);
+            $stop;
           end
-        end else if (funct3[2:1] === 2'b10) begin
-          if (negative ^ overflow ^ funct3[0] === 1'b1) begin
-            `ASSERT(pc_src === 1'b1);
-          end else begin
-            `ASSERT(pc_src === 1'b0);
-          end
-        end else if (funct3[2:1] === 2'b11) begin
-          if (carry_out ~^ funct3[0] === 1'b1) begin
-            `ASSERT(pc_src === 1'b1);
-          end else begin
-            `ASSERT(pc_src === 1'b0);
-          end
-        end else begin
-          $display("Error B-type: Invalid funct3! Funct3 : %x", funct3);
+        end
+        // JAL, JALR, U-type & ULA R/I-type
+        7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011,
+        7'b0110111, 7'b0010111: begin
+          `ASSERT(pc_en === 1'b1);
+        end
+        // ECALL, MRET, SRET, CSRR* (SYSTEM)
+        7'b1110011: begin
+          `ASSERT(pc_en === (|funct3));
+        end
+        default: begin
+          // Fim do programa -> última instrução 0000000
+          if (DF.pc === `program_size - 4) $display("End of program!");
+          else $display("Error pc: pc = %x", DF.pc);
           $stop;
         end
-      end
-      // JAL, JALR, U-type & ULA R/I-type
-      7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011,
-      7'b0110111, 7'b0010111: begin
-        `ASSERT(pc_en === 1'b1);
-      end
-      // ECALL, MRET, SRET (SYSTEM)
-      7'b1110011: begin
-        `ASSERT(pc_en === 1'b0);
-      end
-      default: begin
-        // Fim do programa -> última instrução 0000000
-        if (DF.pc === `program_size - 4) $display("End of program!");
-        else $display("Error pc: pc = %x", DF.pc);
-        $stop;
-      end
-    endcase
-    @(posedge clock);
-  end
+      endcase
+    end
   endtask
 
   // testar o DUT
@@ -523,8 +540,10 @@ module control_unit_tb ();
         Execute: DoExecute;
         default: DoReset;
       endcase
+      _trap = trap;
+      @(posedge clock);
       // Atualizando estado
-      if(trap) estado = Fetch;
+      if(_trap) estado = Fetch;
       else estado = (estado + 1)%3;
     end
   end

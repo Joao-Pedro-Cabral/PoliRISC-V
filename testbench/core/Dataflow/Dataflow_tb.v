@@ -31,15 +31,13 @@
 module Dataflow_tb ();
   // Parâmetros determinados pelas extensões
   `ifdef RV64I
-    localparam integer RV64IExtension = 5;
     localparam integer HasRV64I = 1;
   `else
-    localparam integer RV64IExtension = 0;
     localparam integer HasRV64I = 0;
   `endif
   // Parâmetros do Sheets
-  localparam integer NLineI = 52;
-  localparam integer NColumnI = 40 + RV64IExtension;
+  localparam integer NLineI = 58;
+  localparam integer NColumnI = (HasRV64I == 1) ? 49 : 44;
   // Parâmetros do df_src
     // Bits do df_src que não dependem apenas do opcode
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
@@ -77,6 +75,9 @@ module Dataflow_tb ();
   wire ecall;
   wire mret;
   wire sret;
+  wire csr_imm;
+  wire [1:0] csr_op;
+  wire csr_wr_en;
   wire illegal_instruction;
   // To Control Unit
   wire [6:0] opcode;
@@ -116,6 +117,12 @@ module Dataflow_tb ();
   wire csr_mem_busy;
   // Dispositivos
   wire external_interrupt = 1'b0;
+  // CSR
+  wire [`DATA_SIZE-1:0] mepc;
+  wire [`DATA_SIZE-1:0] sepc;
+  wire [`DATA_SIZE-1:0] csr_rd_data;
+  reg [`DATA_SIZE-1:0] csr_wr_data;
+  wire csr_trap;
   // Sinais intermediários de teste
   reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela(google sheets)
   wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
@@ -131,6 +138,7 @@ module Dataflow_tb ();
   reg [`DATA_SIZE-1:0] next_pc = 0; // próximo valor do pc
   reg [`DATA_SIZE-1:0] pc_imm;  // pc + (imediato << 1) OU {A + immediate[N-1:1], 0}
   reg [`DATA_SIZE-1:0] pc_4;  // pc + 4
+  reg _trap; // csr_trap antes da borda de subida do clock
   // flags da ULA ->  geradas de forma simulada
   wire zero_;
   wire negative_;
@@ -146,7 +154,9 @@ module Dataflow_tb ();
   genvar j;
 
   // DUT
-  Dataflow DUT (
+  Dataflow #(
+    .TrapAddress(1000)
+  ) DUT (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),
@@ -171,6 +181,11 @@ module Dataflow_tb ();
     `ifdef TrapReturn
       .mret(mret),
       .sret(sret),
+    `endif
+    `ifdef Zicsr
+      .csr_imm(csr_imm),
+      .csr_op(csr_op),
+      .csr_wr_en(csr_wr_en),
     `endif
       .illegal_instruction(illegal_instruction),
       .external_interrupt(external_interrupt),
@@ -288,7 +303,7 @@ module Dataflow_tb ();
   ) banco_de_registradores (
       .clock(clock),
       .reset(reset),
-      .write_enable(wr_reg_en && !trap),
+      .write_enable(wr_reg_en && !csr_trap),
       .read_address1(instruction[19:15]),
       .read_address2(instruction[24:20]),
       .write_address(instruction[11:7]),
@@ -296,6 +311,48 @@ module Dataflow_tb ();
       .read_data1(A),
       .read_data2(B)
   );
+
+  CSR registradores_de_controle (
+      .clock(clock),
+      .reset(reset),
+      // Interrupt/Exception Signals
+      .ecall(ecall),
+      .illegal_instruction(illegal_instruction),
+      .external_interrupt(external_interrupt),
+      .mem_msip(|msip),
+      .mem_ssip(|ssip),
+      .mem_mtime(mtime),
+      .mem_mtimecmp(mtimecmp),
+      .trap(), // Consertar trap
+      .privilege_mode(), // Não estou usando privilege mode
+      .pc(pc),
+      // CSR RW interface
+    `ifdef ZICSR
+      .wr_en(csr_wr_en & (~funct3[1] | (|instruction[19:15]))),
+      .addr(instruction[31:20]),
+      .wr_data(csr_wr_data),
+      .rd_data(csr_rd_data),
+    `else
+      .wr_en(1'b0),
+      .addr(12'b0),
+      .wr_data(`DATA_SIZE'b0),
+      .rd_data(),
+    `endif
+      // MRET & SRET
+    `ifdef TrapReturn
+      .mret(mret),
+      .sret(sret),
+      .mepc(mepc),
+      .sepc(sepc)
+    `else
+      .mret(),
+      .sret(),
+      .mepc(),
+      .sepc()
+    `endif
+  );
+
+  assign csr_trap = 1'b0; // Tirar isso!
 
   // geração do clock
   always begin
@@ -328,7 +385,7 @@ module Dataflow_tb ();
       else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
               opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111 ||
               opcode === 7'b1110011) begin
-        for (i = 3; i < 37; i = i + 1) begin
+        for (i = 3; i < 43; i = i + 1) begin
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
@@ -340,7 +397,7 @@ module Dataflow_tb ();
         end
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
-        for (i = 37; i < 52; i = i + 1)
+        for (i = 43; i < 58; i = i + 1)
         if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
@@ -353,33 +410,32 @@ module Dataflow_tb ();
 
   // função que simula o comportamento da ULA
   function automatic [`DATA_SIZE-1:0] ULA_function(
-      input reg [`DATA_SIZE-1:0] A, input reg [`DATA_SIZE-1:0] B, input reg [3:0] seletor);
+    input reg [`DATA_SIZE-1:0] A, input reg [`DATA_SIZE-1:0] B, input reg [3:0] seletor);
     begin
-      // Funções da ULA
       case (seletor)
-        4'b0000:  // ADD
-        ULA_function = $signed(A) + $signed(B);
-        4'b0001:  // SLL
-        ULA_function = A << (B[5:0]);
-        4'b0010: begin  // SLT
-          ULA_function = ($signed(A) < $signed(B));
-        end
-        4'b0011: begin  // SLTU
-          ULA_function = (A < B);
-        end
-        4'b0100:  // XOR
-        ULA_function = A ^ B;
-        4'b0101:  // SRL
-        ULA_function = A >> (B[5:0]);
-        4'b0110:  // OR
-        ULA_function = A | B;
-        4'b0111:  // AND
-        ULA_function = A & B;
-        4'b1000:  // SUB
-        ULA_function = $signed(A) - $signed(B);
-        4'b1101:  // SRA
-        ULA_function = $signed(A) >>> (B[5:0]);
+        4'b0000: ULA_function = $signed(A) + $signed(B);  // ADD
+        4'b0001: ULA_function = A << (B[5:0]);  // SLL
+        4'b0010: ULA_function = ($signed(A) < $signed(B));  // SLT
+        4'b0011: ULA_function = (A < B);  // SLTU
+        4'b0100: ULA_function = A ^ B;  // XOR
+        4'b0101: ULA_function = A >> (B[5:0]); // SRL
+        4'b0110: ULA_function = A | B;  // OR
+        4'b0111: ULA_function = A & B;  // AND
+        4'b1000: ULA_function = $signed(A) - $signed(B);  // SUB
+        4'b1101: ULA_function = $signed(A) >>> (B[5:0]);  // SRA
         default: ULA_function = 0;
+      endcase
+    end
+  endfunction
+
+  function automatic [`DATA_SIZE-1:0] CSR_function(
+    input reg [`DATA_SIZE-1:0] rd_data, input reg [`DATA_SIZE-1:0] mask, input reg [1:0] op);
+    begin
+      case(op)
+        2'b01: CSR_function = mask; // W
+        2'b10: CSR_function = rd_data | mask; // S
+        2'b11: CSR_function = rd_data & (~mask); // C
+        default: CSR_function = 0;
       endcase
     end
   endfunction
@@ -406,7 +462,8 @@ module Dataflow_tb ();
     `ifdef RV64I
       aluy_src,
     `endif
-      alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src, ecall, mret, sret,
+      alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src, ecall, mret, sret, csr_imm,
+      csr_op, csr_wr_en,
       // Sinais que não dependem apenas do opcode
       pc_src,  // Pressuponho que seja NotOnlyOp -1
       wr_reg_en,  // Pressuponho que seja NotOnlyOp -2
@@ -415,169 +472,187 @@ module Dataflow_tb ();
   // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
   task automatic wait_mem();
     reg num_edge = 1'b0;
-  begin
-    forever begin
-      @(mem_busy, trap);
-      // num_edge = 1 -> Agora é descida
-      if(trap || (num_edge == 1'b1)) disable wait_mem;
-      else if(mem_busy == 1'b1) num_edge = 1'b1; //Subida
+    begin
+      forever begin
+        @(mem_busy, csr_trap);
+        // num_edge = 1 -> Agora é descida
+        if(csr_trap || (num_edge == 1'b1)) disable wait_mem;
+        else if(mem_busy == 1'b1) num_edge = 1'b1; //Subida
+      end
     end
-  end
   endtask
 
   task automatic DoReset();
-  begin
-    db_df_src = 0;
-    @(negedge clock);
-    reset = 1'b1;
-    @(posedge clock);
-    @(negedge clock);
-    reset = 1'b0;
-    next_pc = pc;
-    @(posedge clock);
-  end
+    begin
+      db_df_src = 0;
+      @(negedge clock);
+      reset = 1'b1;
+      @(posedge clock);
+      @(negedge clock);
+      reset = 1'b0;
+      next_pc = pc;
+    end
   endtask
 
   task automatic DoFetch();
-  begin
-    db_df_src = {1'b1, {`BYTE_NUM - 4{1'b0}}, 4'hF};
-    @(negedge clock);
-    // Testo o endereço de acesso a Memória de Instrução
-    `ASSERT(pc === mem_addr);
-    wait_mem;
-    if(trap) disable DoFetch; // Trap -> Recomeçar Fetch
-    @(negedge clock);
-    db_df_src   = {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF};
-    instruction = rd_data;
-    @(posedge clock);
-  end
+    begin
+      db_df_src = {1'b1, {`BYTE_NUM - 4{1'b0}}, 4'hF};
+      @(negedge clock);
+      // Testo o endereço de acesso a Memória de Instrução
+      `ASSERT(pc === mem_addr);
+      wait_mem;
+      @(negedge clock);
+      if(csr_trap) disable DoFetch; // Trap -> Recomeçar Fetch
+      db_df_src   = {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF};
+      instruction = rd_data;
+    end
   endtask
 
   task automatic DoDecode();
-  begin
-    @(negedge clock);
-    // Checo opcode, funct3 e funct7
-    `ASSERT(opcode === instruction[6:0]);
-    `ASSERT(funct3 === instruction[14:12]);
-    `ASSERT(funct7 === instruction[31:25]);
-    // Obtenho os sinais da UC -> Sheets
-    df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
-    db_df_src = 0;
-    db_df_src[DfSrcSize-1] = df_src[DfSrcSize-1]; // illegal_instruction
-    @(posedge clock);
-  end
+    begin
+      @(negedge clock);
+      // Checo opcode, funct3 e funct7
+      `ASSERT(opcode === instruction[6:0]);
+      `ASSERT(funct3 === instruction[14:12]);
+      `ASSERT(funct7 === instruction[31:25]);
+      // Obtenho os sinais da UC -> Sheets
+      df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
+      db_df_src = 0;
+      db_df_src[DfSrcSize-1] = df_src[DfSrcSize-1]; // illegal_instruction
+    end
   endtask
 
   task automatic DoExecute();
-  begin
-    // Atribuo ao tb os valores do sheets
-    db_df_src[DfSrcSize:NotOnlyOp] = {1'b0, df_src[DfSrcSize-1:NotOnlyOp]};
-    db_df_src[NotOnlyOp-3:0] = df_src[NotOnlyOp-3:0];
-    case (opcode)
-      // Store(S*) e Load(L*)
-      7'b0100011, 7'b0000011: begin
-        db_df_src[NotOnlyOp-1] = df_src[NotOnlyOp-1];
-        @(negedge clock);
-        // Confiro o endereço de acesso
-        `ASSERT(mem_addr === A + immediate);
-        // Caso seja store -> confiro a palavra a ser escrita
-        if (opcode[5]) `ASSERT(wr_data === B);
-        wait_mem;
-        if(trap) disable DoExecute; // Trap -> Fetch
-        db_df_src[`BYTE_NUM+1:`BYTE_NUM] = 2'b00;
-        // caso necessário escrevo no banco
-        db_df_src[NotOnlyOp-2] = df_src[NotOnlyOp-2];
-        db_df_src[DfSrcSize+1] = 1'b1; // Incremento PC
-        if (!opcode[5]) reg_data = rd_data;
-        @(negedge clock);
-        // Caso load -> confiro a leitura
-        if (!opcode[5]) `ASSERT(DUT.rd === reg_data);
-        next_pc = pc + 4;
-      end
-      // Branch(B*)
-      7'b1100011: begin
-        @(negedge clock);
-        // Decido o valor de pc_src com base em funct3 e no valor das flags simuladas
-        if (funct3[2:1] === 2'b00) db_df_src[NotOnlyOp-1] = zero_ ^ funct3[0];
-        else if (funct3[2:1] === 2'b10) db_df_src[NotOnlyOp-1] = negative_ ^ overflow ^ funct3[0];
-        else if (funct3[2:1] === 2'b11) db_df_src[NotOnlyOp-1] = carry_out_ ~^ funct3[0];
-        else begin
-          $display("Error B-type: Invalid funct3! funct3 : %x", funct3);
+    begin
+      // Atribuo ao tb os valores do sheets
+      db_df_src[DfSrcSize:NotOnlyOp] = {1'b0, df_src[DfSrcSize-1:NotOnlyOp]};
+      db_df_src[NotOnlyOp-3:0] = df_src[NotOnlyOp-3:0];
+      case (opcode)
+        // Store(S*) e Load(L*)
+        7'b0100011, 7'b0000011: begin
+          db_df_src[NotOnlyOp-1] = df_src[NotOnlyOp-1];
+          @(negedge clock);
+          // Confiro o endereço de acesso
+          `ASSERT(mem_addr === A + immediate);
+          // Caso seja store -> confiro a palavra a ser escrita
+          if (opcode[5]) `ASSERT(wr_data === B);
+          wait_mem;
+          db_df_src[`BYTE_NUM+1:`BYTE_NUM] = 2'b00;
+          // caso necessário escrevo no banco
+          db_df_src[NotOnlyOp-2] = df_src[NotOnlyOp-2];
+          db_df_src[DfSrcSize+1] = 1'b1; // Incremento PC
+          if (!opcode[5]) reg_data = rd_data;
+          @(negedge clock);
+          if(csr_trap) disable DoExecute; // Trap -> Fetch
+          // Caso load -> confiro a leitura
+          if (!opcode[5]) `ASSERT(DUT.rd === reg_data);
+          next_pc = pc + 4;
+        end
+        // Branch(B*)
+        7'b1100011: begin
+          @(negedge clock);
+          // Decido o valor de pc_src com base em funct3 e no valor das flags simuladas
+          if (funct3[2:1] === 2'b00) db_df_src[NotOnlyOp-1] = zero_ ^ funct3[0];
+          else if (funct3[2:1] === 2'b10) db_df_src[NotOnlyOp-1] = negative_ ^ overflow ^ funct3[0];
+          else if (funct3[2:1] === 2'b11) db_df_src[NotOnlyOp-1] = carry_out_ ~^ funct3[0];
+          else begin
+            $display("Error B-type: Invalid funct3! funct3 : %x", funct3);
+            $stop;
+          end
+          pc_4                   = pc + 4;
+          pc_imm                 = pc + (immediate << 1);
+          db_df_src[DfSrcSize+1] = 1'b1;
+          db_df_src[NotOnlyOp-2] = 1'b0;
+          // Decido o próximo valor de pc
+          if (db_df_src[NotOnlyOp-1]) next_pc = pc_imm;
+          else next_pc = pc_4;
+          // Confiro as flags da ULA
+          `ASSERT(overflow === overflow_);
+          `ASSERT(carry_out === carry_out_);
+          `ASSERT(negative === negative_);
+          `ASSERT(zero === zero_);
+        end
+        // LUI e AUIPC
+        7'b0110111, 7'b0010111: begin
+          // Habilito o pc e o banco
+          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
+          db_df_src[DfSrcSize+1] = 1'b1;
+          if (opcode[5]) reg_data = immediate;  // LUI
+          else reg_data = pc + immediate;  // AUIPC
+          next_pc = pc + 4;
+          @(negedge clock);
+          // Confiro se reg_data está correto
+          `ASSERT(reg_data === DUT.rd);
+        end
+        // JAL e JALR
+        7'b1101111, 7'b1100111: begin
+          // Habilito pc e o banco
+          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
+          db_df_src[DfSrcSize+1] = 1'b1;
+          reg_data = pc + 4;  // escrever pc + 4 no banco -> Link
+          @(negedge clock);
+          if (opcode[3]) pc_imm = pc + (immediate << 1);  // JAL
+          else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
+          next_pc = pc_imm;
+          // Confiro a escrita no banco
+          `ASSERT(DUT.rd === reg_data);
+        end
+        // ULA R/I-type
+        7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
+          // Habilito pc e o banco
+          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
+          db_df_src[DfSrcSize+1] = 1'b1;
+          @(negedge clock);
+          // Uso ULA_function para calcular o reg_data
+          if (opcode[5]) reg_data = ULA_function(A, B, {funct7[5], funct3});
+          else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[5], funct3});
+          else reg_data = ULA_function(A, immediate, {1'b0, funct3});
+          // opcode[3] = 1'b1 -> RV64I
+          if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
+          next_pc = pc + 4;
+          // Verifico reg_data
+          `ASSERT(reg_data === DUT.rd);
+        end
+        // ECALL, MRET, SRET, CSRR* (SYSTEM)
+        7'b1110011: begin
+          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = df_src[NotOnlyOp-1:NotOnlyOp-2];
+          db_df_src[DfSrcSize+1] = (funct3 != 3'b000);
+          @(negedge clock);
+          if(funct3 == 3'b000) begin
+            if(funct7 === 0) next_pc = TrapAddress; // Ecall
+            else if(funct7 == 7'b0001000) next_pc = mepc; // MRET
+            else if(funct7 == 7'b0011000) next_pc = sepc; // SRET
+            else begin
+              $display("Error SYSTEM: Invalid funct7! funct7 : %x", funct7);
+              $stop;
+            end
+          end
+        `ifdef Zicsr // Apenas aqui há ifdef, pois nem sempre DUT.csr_wr_data existe
+          else if(funct3 != 3'b100) begin // CSRR*
+            reg_data = csr_rd_data;
+            if(instruction[31:20] == 12'h344 || instruction[31:20] == 12'h144)
+              reg_data[registradores_de_controle.SEIP] = csr_rd_data | external_interrupt;
+            if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
+            else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
+            // Sempre checo a leitura/escrita até se ela não acontecer
+            `ASSERT(csr_wr_data === DUT.csr_wr_data);
+            `ASSERT(reg_data === DUT.rd);
+          end
+        `endif
+          else begin
+              $display("Error SYSTEM: Invalid funct3! funct3 : %x", funct3);
+              $stop;
+          end
+        end
+        default: begin
+          // Fim do programa -> última instrução 0000000
+          if (pc === `program_size - 4) $display("End of program!");
+          else $display("Error pc: pc = %x", pc);
+          @(negedge clock);
           $stop;
         end
-        pc_4                   = pc + 4;
-        pc_imm                 = pc + (immediate << 1);
-        db_df_src[DfSrcSize+1] = 1'b1;
-        db_df_src[NotOnlyOp-2] = 1'b0;
-        // Decido o próximo valor de pc
-        if (db_df_src[NotOnlyOp-1]) next_pc = pc_imm;
-        else next_pc = pc_4;
-        // Confiro as flags da ULA
-        `ASSERT(overflow === overflow_);
-        `ASSERT(carry_out === carry_out_);
-        `ASSERT(negative === negative_);
-        `ASSERT(zero === zero_);
-      end
-      // LUI e AUIPC
-      7'b0110111, 7'b0010111: begin
-        // Habilito o pc e o banco
-        db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
-        db_df_src[DfSrcSize+1] = 1'b1;
-        if (opcode[5]) reg_data = immediate;  // LUI
-        else reg_data = pc + immediate;  // AUIPC
-        next_pc = pc + 4;
-        @(negedge clock);
-        // Confiro se reg_data está correto
-        `ASSERT(reg_data === DUT.rd);
-      end
-      // JAL e JALR
-      7'b1101111, 7'b1100111: begin
-        // Habilito pc e o banco
-        db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
-        db_df_src[DfSrcSize+1] = 1'b1;
-        reg_data = pc + 4;  // escrever pc + 4 no banco -> Link
-        @(negedge clock);
-        if (opcode[3]) pc_imm = pc + (immediate << 1);  // JAL
-        else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
-        next_pc = pc_imm;
-        // Confiro a escrita no banco
-        `ASSERT(DUT.rd === reg_data);
-      end
-      // ULA R/I-type
-      7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
-        // Habilito pc e o banco
-        db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
-        db_df_src[DfSrcSize+1] = 1'b1;
-        @(negedge clock);
-        // Uso ULA_function para calcular o reg_data
-        if (opcode[5]) reg_data = ULA_function(A, B, {funct7[5], funct3});
-        else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[5], funct3});
-        else reg_data = ULA_function(A, immediate, {1'b0, funct3});
-        // opcode[3] = 1'b1 -> RV64I
-        if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
-        next_pc = pc + 4;
-        // Verifico reg_data
-        `ASSERT(reg_data === DUT.rd);
-      end
-      // ECALL, MRET, SRET (SYSTEM)
-      7'b1110011: begin
-        db_df_src[NotOnlyOp-1:NotOnlyOp-2] = 2'b00;
-        db_df_src[DfSrcSize+1] = 1'b0;
-        @(negedge clock);
-        // Trap
-        next_pc = TrapAddress;
-        `ASSERT(trap === 1'b1);
-      end
-      default: begin
-        // Fim do programa -> última instrução 0000000
-        if (pc === `program_size - 4) $display("End of program!");
-        else $display("Error pc: pc = %x", pc);
-        @(negedge clock);
-        $stop;
-      end
-    endcase
-    @(posedge clock);
-  end
+      endcase
+    end
   endtask
 
   // testar o DUT
@@ -589,7 +664,6 @@ module Dataflow_tb ();
     $readmemb("./MIFs/core/core/RV32I.mif", LUT_uc);
   `endif
     $display("SOT!");
-    // fim do reset
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);
       case(estado)
@@ -598,8 +672,11 @@ module Dataflow_tb ();
         Execute: DoExecute;
         default: DoReset;
       endcase
+      `ASSERT(trap === csr_trap);
+      _trap = csr_trap;
+      @(posedge clock);
       // Atualizando estado  e pc
-      if(trap) begin
+      if(_trap) begin
         estado = Fetch;
         pc = TrapAddress;
       end else begin
