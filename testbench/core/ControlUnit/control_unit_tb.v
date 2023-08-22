@@ -9,9 +9,9 @@
 // Ideia do testbench: testar ciclo a ciclo o comportamento da UC
 // de acordo com a instrução executada
 // Para isso considero as seguintes hipóteses:
-// RAM, ROM, DF estão corretos.
+// RAM, ROM, CSR_mem e DF estão corretos.
 // Com isso, basta testar se a UC consegue enviar os sinais corretos
-// a partir dos sinais de entrada provenientes da RAM, ROM e DF.
+// a partir dos sinais de entrada provenientes da RAM, ROM, CSR_mem e DF.
 // Para isso irei verificar as saídas da UC
 
 `timescale 1 ns / 1 ns
@@ -356,7 +356,7 @@ module control_unit_tb ();
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
-            if (funct3 === 3'b101 && opcode == 7'b0010011) begin
+            if (opcode == 7'b0010011 && funct3 === 3'b101) begin
               if (funct7 == LUT_linear[(NColumnI*(i+1)-17)+:7])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
@@ -370,6 +370,14 @@ module control_unit_tb ();
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
             temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end
+      // Checar privilégio
+      if(opcode === 7'b1110011 && funct3 !== 3'b100) begin
+        // MRET, SRET
+        if(funct3 === 3'b000 && {funct7[6:5], funct7[3:0]} === 6'b001000 &&
+          !(privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) temp = 0;
+        // Zicsr
+        if(funct3 !== 3'b000 && privilege_mode < funct7[6:5]) temp = 0;
+      end
       if(temp == 0) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
       find_instruction = temp;
     end
@@ -378,10 +386,9 @@ module control_unit_tb ();
   // Concatenação dos sinais produzidos pela UC
   assign db_df_src = {
     // Sinais determinados pelo estado
-    pc_en,
-    ir_en,
-    // Exceção -> Instrução não existe ou falta privilégio (não está no sheets!)
-    illegal_instruction,
+    pc_en, // DfSrcSize + 1
+    ir_en, // DfSrcSize
+    illegal_instruction, // DfSrcSize + 1
     // Sinais determinados pelo opcode
     alua_src,
     alub_src,
@@ -401,8 +408,8 @@ module control_unit_tb ();
     csr_op,
     csr_wr_en,
     // Sinais que não dependem apenas do opcode
-    pc_src,  // Pressuponho que seja NotOnlyOp -1
-    wr_reg_en,  // Pressuponho que seja NotOnlyOp -2
+    pc_src,  // NotOnlyOp -1
+    wr_reg_en,  // NotOnlyOp -2
     mem_wr_en,
     mem_rd_en,
     mem_byte_en
@@ -437,9 +444,10 @@ module control_unit_tb ();
       `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
       wait_mem;
       @(negedge clock);
-      if(trap) disable DoFetch; // Trap -> Recomeçar Fetch
+      // Trap -> UC ainda está no Fetch1
+      if(mem_busy) `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
       // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
-      `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
+      else `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
     end
   endtask
 
@@ -461,8 +469,12 @@ module control_unit_tb ();
         `ASSERT(df_src[NotOnlyOp-3:0] === db_df_src[NotOnlyOp-3:0]);
         // Não testo pc_src para instruções do tipo B
         if (opcode !== 7'b1100011) `ASSERT(df_src[NotOnlyOp-1] === db_df_src[NotOnlyOp-1]);
-        // Não testo wr_reg_en para Load
-        if (opcode !== 7'b0000011) `ASSERT(df_src[NotOnlyOp-2] === db_df_src[NotOnlyOp-2]);
+        // Load -> não posso usar o sheets!(wr_reg_en só habilita depois)
+        if (opcode !== 7'b0000011) begin
+          `ASSERT(db_df_src[NotOnlyOp-2] === df_src[NotOnlyOp-2]);
+        end else begin
+          `ASSERT(db_df_src[NotOnlyOp-2] === 1'b0);
+        end
       end
       case (opcode)
         // Store(S*) e Load(L*)
@@ -470,11 +482,17 @@ module control_unit_tb ();
           wait_mem;
           // Espero o busy abaixar para verificar os enables
           @(negedge clock);
-          if(trap) disable DoExecute; // Trap -> Fetch
-          `ASSERT(pc_en === 1'b1);
-          `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
-          `ASSERT(mem_rd_en === 1'b0);
-          `ASSERT(mem_wr_en === 1'b0);
+          // Trap -> UC ainda está no Store1/Load1
+          if(mem_busy) begin
+            `ASSERT({2'h0, df_src[DfSrcSize-1:NotOnlyOp-1]} === db_df_src[DfSrcSize+1:NotOnlyOp-1]);
+            `ASSERT({1'b0, df_src[NotOnlyOp-3:0]} === db_df_src[NotOnlyOp-2:0]);
+          end
+          else begin
+            `ASSERT(pc_en === 1'b1);
+            `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
+            `ASSERT(mem_rd_en === 1'b0);
+            `ASSERT(mem_wr_en === 1'b0);
+          end
         end
         // Branch(B*)
         7'b1100011: begin

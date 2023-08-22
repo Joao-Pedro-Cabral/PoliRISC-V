@@ -8,7 +8,7 @@
 // Ideia do testbench: testar ciclo a ciclo o comportamento do Dataflow
 // de acordo com a instrução executada
 // Para isso considero as seguintes hipóteses:
-// RAM, ROM, Extensor de Imediato e Banco de Registradores estão corretos.
+// RAM, ROM, Extensor de Imediato, Banco de Registradores, CSR e CSR_mem estão corretos.
 // Com isso, basta testar se o Dataflow consegue interligar os componentes
 // e se os componentes funcionam corretamente.
 // Para isso irei verificar as saídas do DF (principalmente pc e reg_data,
@@ -123,6 +123,7 @@ module Dataflow_tb ();
   wire [`DATA_SIZE-1:0] csr_rd_data;
   reg [`DATA_SIZE-1:0] csr_wr_data;
   wire csr_trap;
+  wire [1:0] csr_privilege_mode;
   // Sinais intermediários de teste
   reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela(google sheets)
   wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
@@ -324,7 +325,7 @@ module Dataflow_tb ();
       .mem_mtime(mtime),
       .mem_mtimecmp(mtimecmp),
       .trap(), // Consertar trap
-      .privilege_mode(), // Não estou usando privilege mode
+      .privilege_mode(csr_privilege_mode),
       .pc(pc),
       // CSR RW interface
     `ifdef ZICSR
@@ -389,7 +390,7 @@ module Dataflow_tb ();
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
-            if (funct3 === 3'b101 && opcode[4] == 1'b1) begin
+            if (opcode == 7'b0010011 && funct3 === 3'b101) begin
               if (funct7 == LUT_linear[(NColumnI*(i+1)-17)+:7])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
@@ -402,6 +403,14 @@ module Dataflow_tb ();
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
           temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
+      end
+      // Checar privilégio
+      if(opcode === 7'b1110011 && funct3 !== 3'b100) begin
+        // MRET, SRET
+        if(funct3 === 3'b000 && {funct7[6:5], funct7[3:0]} === 6'b001000 &&
+          !(privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) temp = 0;
+        // Zicsr
+        if(funct3 !== 3'b000 && privilege_mode < funct7[6:5]) temp = 0;
       end
       if(temp == 0) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
       find_instruction = temp;
@@ -454,9 +463,9 @@ module Dataflow_tb ();
   // sinais do DF vindos da UC
   assign {
       // Sinais determinados pelo estado
-      pc_en, ir_en,
-      // Exceção -> Instrução não existe ou falta privilégio (não está no sheets!)
-      illegal_instruction,
+      pc_en, // DfSrcSize + 1
+      ir_en, // DfSrcSize
+      illegal_instruction, // DfSrcSize - 1
       // Sinais determinados pelo opcode
       alua_src, alub_src,
     `ifdef RV64I
@@ -465,8 +474,8 @@ module Dataflow_tb ();
       alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src, ecall, mret, sret, csr_imm,
       csr_op, csr_wr_en,
       // Sinais que não dependem apenas do opcode
-      pc_src,  // Pressuponho que seja NotOnlyOp -1
-      wr_reg_en,  // Pressuponho que seja NotOnlyOp -2
+      pc_src,  // NotOnlyOp -1
+      wr_reg_en,  // NotOnlyOp -2
       mem_wr_en, mem_rd_en, mem_byte_en} = db_df_src;
 
   // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
@@ -502,9 +511,11 @@ module Dataflow_tb ();
       `ASSERT(pc === mem_addr);
       wait_mem;
       @(negedge clock);
-      if(csr_trap) disable DoFetch; // Trap -> Recomeçar Fetch
-      db_df_src   = {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF};
-      instruction = rd_data;
+      // Sem Trap -> Terminar Fetch
+      if(!mem_busy) begin
+        db_df_src   = {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF};
+        instruction = rd_data;
+      end else db_df_src = {1'b1, {`BYTE_NUM - 4{1'b0}}, 4'hF};
     end
   endtask
 
@@ -543,9 +554,8 @@ module Dataflow_tb ();
           db_df_src[DfSrcSize+1] = 1'b1; // Incremento PC
           if (!opcode[5]) reg_data = rd_data;
           @(negedge clock);
-          if(csr_trap) disable DoExecute; // Trap -> Fetch
           // Caso load -> confiro a leitura
-          if (!opcode[5]) `ASSERT(DUT.rd === reg_data);
+          if (!opcode[5] && !mem_busy) `ASSERT(DUT.rd === reg_data);
           next_pc = pc + 4;
         end
         // Branch(B*)
@@ -631,12 +641,14 @@ module Dataflow_tb ();
           else if(funct3 != 3'b100) begin // CSRR*
             reg_data = csr_rd_data;
             if(instruction[31:20] == 12'h344 || instruction[31:20] == 12'h144)
-              reg_data[registradores_de_controle.SEIP] = csr_rd_data | external_interrupt;
+              reg_data[registradores_de_controle.SEIP] =
+                csr_rd_data[registradores_de_controle.SEIP] | external_interrupt;
             if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
             else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
             // Sempre checo a leitura/escrita até se ela não acontecer
             `ASSERT(csr_wr_data === DUT.csr_wr_data);
             `ASSERT(reg_data === DUT.rd);
+            next_pc = pc + 4;
           end
         `endif
           else begin
@@ -673,6 +685,7 @@ module Dataflow_tb ();
         default: DoReset;
       endcase
       `ASSERT(trap === csr_trap);
+      `ASSERT(privilege_mode === csr_privilege_mode);
       _trap = csr_trap;
       @(posedge clock);
       // Atualizando estado  e pc

@@ -119,6 +119,8 @@ module control_unit (
 `endif
 `ifdef ZICSR
       csr_wr_en = 1'b0;
+      csr_imm = 1'b0;
+      csr_op  = 2'b00;
 `endif
       illegal_instruction = 1'b0;
       proximo_estado = Fetch;

@@ -8,7 +8,7 @@
 // Ideia do testbench: testar ciclo a ciclo o comportamento do toplevel
 // de acordo com a instrução executada
 // Para isso considero as seguintes hipóteses:
-// RAM, ROM, Extensor de Imediato e Banco de Registradores estão corretos.
+// RAM, ROM, Extensor de Imediato, CSR, CSR_mem e Banco de Registradores estão corretos.
 // Com isso, basta testar se o toplevel consegue interligar a UC e o DF
 // corretamente e se o comportamento desses componentes está sincronizado
 // Para isso irei verificar as saídas do toplevel
@@ -55,7 +55,7 @@ module core_tb ();
   wire [`DATA_SIZE-1:0] B;  // read data 2 do banco de registradores
   reg [`DATA_SIZE-1:0] pc = 0;  // pc -> Uso esse pc para acessar a memória de
   reg [`DATA_SIZE-1:0] next_pc = 0;  // próximo valor do pc
-  // instrução (para tentar achar mais erros)
+  // instrução
   reg pc_src;  // seletor da entrada do registrador PC
   reg [`DATA_SIZE-1:0] pc_imm;  // pc + imediato
   reg [`DATA_SIZE-1:0] pc_4;  // pc + 4
@@ -98,6 +98,7 @@ module core_tb ();
   reg csr_wr_en;
   wire csr_trap;
   reg _trap;  // csr_trap antes da borda de subida do clock
+  wire [1:0] csr_privilege_mode;
   // flags da ULA (simuladas)
   wire zero_;
   wire negative_;
@@ -243,14 +244,14 @@ module core_tb ();
       .reset(reset),
       // Interrupt/Exception Signals
       .ecall(DUT.ecall),
-      .illegal_instruction(illegal_instruction),
+      .illegal_instruction(DUT.illegal_instruction),
       .external_interrupt(external_interrupt),
       .mem_msip(|msip),
       .mem_ssip(|ssip),
       .mem_mtime(mtime),
       .mem_mtimecmp(mtimecmp),
       .trap(),  // Consertar trap
-      .privilege_mode(),  // Não estou usando privilege mode
+      .privilege_mode(csr_privilege_mode),
       .pc(pc),
       // CSR RW interface
 `ifdef ZICSR
@@ -382,10 +383,15 @@ module core_tb ();
       `ASSERT(db_mem_en === {2'b01, {`BYTE_NUM - 4{1'b0}}, 4'hF});
       wait_mem;
       @(negedge clock);
-      if (csr_trap) disable DoFetch;  // Trap -> Recomeçar Fetch
-      instruction = rd_data;  // leitura da ROM -> instrução
-      // Busy abaixado -> instruction mem enable abaixado
-      `ASSERT(db_mem_en === 4'hF);
+      // Trap -> Ainda estou em Fetch 1
+      if (mem_busy) begin
+        `ASSERT(pc === mem_addr);
+        `ASSERT(db_mem_en === {2'b01, {`BYTE_NUM - 4{1'b0}}, 4'hF});
+      end else begin
+        instruction = rd_data;  // leitura da ROM -> instrução
+        // Busy abaixado -> instruction mem enable abaixado
+        `ASSERT(db_mem_en === 4'hF);
+      end
     end
   endtask
 
@@ -413,11 +419,16 @@ module core_tb ();
             reg_data  = rd_data;
           end
           @(negedge clock);
-          if (csr_trap) disable DoExecute;  // Trap -> Fetch
-          // Na borda de descida, confiro se os sinais de controle abaixaram
-          `ASSERT(db_mem_en === {2'b00, mem_byte_en_});
-          // Caso load -> confiro a leitura
-          if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
+          // Trap -> Ainda estou em Store1/Load1
+          if (mem_busy) begin
+            `ASSERT(mem_addr === A + immediate);
+            `ASSERT(db_mem_en === mem_en);
+          end else begin
+            // Na borda de descida, confiro se os sinais de controle abaixaram
+            `ASSERT(db_mem_en === {2'b00, mem_byte_en_});
+            // Caso load -> confiro a leitura
+            if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
+          end
           next_pc = pc + 4;
         end
         // Branch(B*)
@@ -467,7 +478,7 @@ module core_tb ();
         7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
           // Habilito o banco simulado
           wr_reg_en = 1'b1;
-          // A partir do opcode, do funct3 e do funct7 descubro o resultado da operação da ULA com a máscara aplicada
+          // A partir do opcode, do funct3 e do funct7 descubro o resultado da operação da ULA
           if (opcode[5]) reg_data = ULA_function(A, B, {funct7[5], funct3});
           else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[5], funct3});
           else reg_data = ULA_function(A, immediate, {1'b0, funct3});
@@ -479,7 +490,7 @@ module core_tb ();
           `ASSERT(db_mem_en === 0);
           next_pc = pc + 4;
         end
-        // ECALL, MRET, SRET (SYSTEM)
+        // ECALL, MRET, SRET (SYSTEM) -> O privilégio já foi checado
         7'b1110011: begin
           wr_reg_en = 1'b0;
           if(funct3 == 3'b000) begin
@@ -497,12 +508,14 @@ module core_tb ();
             csr_wr_en = (!funct3[1] || (instruction[19:15] == 0));
             reg_data = csr_rd_data;
             if(instruction[31:20] == 12'h344 || instruction[31:20] == 12'h144)
-              reg_data[registradores_de_controle.SEIP] = csr_rd_data | external_interrupt;
+              reg_data[registradores_de_controle.SEIP] =
+                csr_rd_data[registradores_de_controle.SEIP] | external_interrupt;
             if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
             else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
             // Sempre checo a leitura/escrita até se ela não acontecer
             `ASSERT(csr_wr_data === DUT.csr_wr_data);
             `ASSERT(reg_data === DUT.rd);
+            next_pc = pc + 4;
           end
         `endif
           else begin
@@ -536,6 +549,7 @@ module core_tb ();
         default: DoReset;
       endcase
       `ASSERT(DUT.trap === csr_trap);
+      `ASSERT(DUT.privilege_mode === csr_privilege_mode);
       _trap = csr_trap;
       @(posedge clock);
       // Atualizando estado  e pc
