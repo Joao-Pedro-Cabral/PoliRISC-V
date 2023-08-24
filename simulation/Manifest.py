@@ -3,8 +3,8 @@ import os
 
 action   = "simulation"
 sim_tool = "modelsim"
-sim_top  = "Dataflow_RV32I" + "_tb"
-use_mif  = True
+sim_top  = "sd_controller" + "_tb"
+use_mif  = False
 mif_name = "power32" + ".mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/" + mif_name

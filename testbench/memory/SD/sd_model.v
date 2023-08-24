@@ -1,4 +1,6 @@
-module sd_model (
+module sd_model #(
+    parameter integer SDSC = 0
+) (
     input sck,
     input cs,
     input mosi,
@@ -47,19 +49,26 @@ module sd_model (
 
   localparam reg [47:0] ExpectedCmd0 = {8'h40, 32'h00000000, 8'h95};
   localparam reg [47:0] ExpectedCmd8 = {8'h48, 32'h000001AA, 8'h87};
+  localparam reg [47:0] ExpectedCmd59 = {8'h7B, 32'h00000001, 8'h83};
   localparam reg [47:0] ExpectedCmd55 = {8'h77, 32'h00000000, 8'h65};
   localparam reg [47:0] ExpectedAcmd41 = {8'h69, 32'h40000000, 8'h77};
+  localparam reg [47:0] ExpectedAcmd41SDSC = {8'h69, 32'h00000000, 8'hE5};
+  localparam reg [47:0] ExpectedCmd16 = {8'h50, 32'h200, 8'h15};
+  localparam reg [47:0] ExpectedCmd13 = {8'h4D, 32'h00000000, 8'h0D};
   reg [47:0] ExpectedCmd17;
   reg [47:0] ExpectedCmd24;
   reg [15:0] crc16_calc;
 
   localparam reg [7:0] Cmd0Response = 8'h01;
   localparam reg [39:0] Cmd8Response = {8'h01, 4'h2, 16'h0000, 4'h1, 8'hAA};
+  localparam reg [7:0] Cmd59Response = 8'h01;
   localparam reg [7:0] Cmd55Response = 8'h01;
   localparam reg [7:0] Acmd41IdleResponse = 8'h01;
   localparam reg [7:0] Acmd41Response = 8'h00;
-  localparam reg [7:0] Cmd17Response = 8'h00;
+  localparam reg [7:0] Cmd16Response = 8'h00;
   localparam reg [7:0] Cmd24Response = 8'h00;
+  localparam reg [7:0] Cmd13Response = 16'h0000;
+  localparam reg [7:0] Cmd17Response = 8'h00;
   localparam reg [7:0] Cmd17ErrorResponse = {1'b0, 7'h74};
   localparam reg [7:0] ErrorTokenResponse = 8'h0F;
   localparam reg [7:0] WriteSuccessfulResponse = {1'b0, 2'b0, 1'b0, 3'b010, 1'b1};
@@ -72,18 +81,21 @@ module sd_model (
     CheckCmd = 5'h3,
     ReturnCmd0 = 5'h4,
     ReturnCmd8 = 5'h5,
-    ReturnCmd55 = 5'h6,
-    ReturnAcmd41Idle = 5'h7,
-    ReturnAcmd41 = 5'h8,
-    ReturnCmd17 = 5'h9,
-    SendDataBlock = 5'hA,
-    SendErrorToken = 5'hB,
-    ReturnCmd24 = 5'hC,
-    ReceiveDataBlock = 5'hD,
-    CheckWrite = 5'hE,
-    WriteError = 5'hF,
-    WriteSuccessful = 5'h10,
-    Busy = 5'h11,
+    ReturnCmd59 = 5'h6,
+    ReturnCmd55 = 5'h7,
+    ReturnAcmd41Idle = 5'h8,
+    ReturnAcmd41 = 5'h9,
+    ReturnCmd16 = 5'hA,
+    ReturnCmd13 = 5'hB,
+    SendDataBlock = 5'hC,
+    SendErrorToken = 5'hD,
+    ReturnCmd17 = 5'hE,
+    ReturnCmd24 = 5'hF,
+    ReceiveDataBlock = 5'h10,
+    CheckWrite = 5'h11,
+    WriteError = 5'h12,
+    WriteSuccessful = 5'h13,
+    Busy = 5'h14,
     CmdError = 5'h1F;
 
   reg [4:0] state = Idle, new_state = Idle, return_state = Idle, new_return_state = Idle;
@@ -145,8 +157,8 @@ module sd_model (
   integer j;
   always @(posedge sck) begin
     if (state == ReturnCmd17 && bit_counter == 0 && random_error_flag == 1'b0) begin
-      for (j = 0; j < 64; j = j + 1) begin
-        data_block[64*j+:64] <= $urandom;
+      for (j = 0; j < 128; j = j + 1) begin
+        data_block[32*j+:32] <= $urandom;
       end
       change_crc <= 1'b1;
     end else begin
@@ -210,14 +222,26 @@ module sd_model (
           new_bit_counter  = 13'd40;
           new_expected_cmd = ExpectedCmd8;
           new_return_state = ReturnCmd8;
+        end else if (index == 6'o73) begin
+          new_bit_counter  = 13'd8;
+          new_expected_cmd = ExpectedCmd59;
+          new_return_state = ReturnCmd59;
         end else if (index == 6'o67) begin
           new_bit_counter  = 13'd8;
           new_expected_cmd = ExpectedCmd55;
           new_return_state = ReturnCmd55;
         end else if (index == 6'o51) begin
           new_bit_counter  = 13'd8;
-          new_expected_cmd = ExpectedAcmd41;
+          new_expected_cmd = SDSC ? ExpectedAcmd41SDSC : ExpectedAcmd41;
           new_return_state = acmd41_idle_flag ? ReturnAcmd41 : ReturnAcmd41Idle;
+        end else if (index == 6'o20) begin
+          new_bit_counter  = 13'd8;
+          new_expected_cmd = ExpectedCmd16;
+          new_return_state = ReturnCmd16;
+        end else if (index == 6'o15) begin
+          new_bit_counter  = 13'd16;
+          new_expected_cmd = ExpectedCmd13;
+          new_return_state = ReturnCmd13;
         end else if (index == 6'o21) begin
           new_bit_counter  = 13'd8;
           new_expected_cmd = ExpectedCmd17;
@@ -248,6 +272,13 @@ module sd_model (
         end else new_state = Idle;
       end
 
+      ReturnCmd59: begin
+        if (bit_counter) begin
+          miso_reg        = Cmd59Response[bit_counter-1];
+          new_bit_counter = bit_counter - 6'o01;
+        end else new_state = Idle;
+      end
+
       ReturnCmd55: begin
         if (bit_counter) begin
           miso_reg        = Cmd55Response[bit_counter-1];
@@ -259,14 +290,26 @@ module sd_model (
         if (bit_counter) begin
           miso_reg        = Acmd41IdleResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else begin
-          new_state = Idle;
-        end
+        end else new_state = Idle;
       end
 
       ReturnAcmd41: begin
         if (bit_counter) begin
           miso_reg        = Acmd41Response[bit_counter-1];
+          new_bit_counter = bit_counter - 6'o01;
+        end else new_state = Idle;
+      end
+
+      ReturnCmd16: begin
+        if (bit_counter) begin
+          miso_reg        = Cmd16Response[bit_counter-1];
+          new_bit_counter = bit_counter - 6'o01;
+        end else new_state = Idle;
+      end
+
+      ReturnCmd13: begin
+        if (bit_counter) begin
+          miso_reg        = Cmd13Response[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
         end else new_state = Idle;
       end
@@ -339,7 +382,7 @@ module sd_model (
       CheckWrite: begin
         new_bit_counter = 13'd8;
         crc16_calc = CRC16(received_data_block);
-        if (crc16_calc == received_crc16 && !random_error_flag) new_state = WriteSuccessful;
+        if (crc16_calc == received_crc16) new_state = WriteSuccessful;
         else new_state = WriteError;
       end
 

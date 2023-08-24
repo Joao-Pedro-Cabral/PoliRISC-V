@@ -6,10 +6,11 @@
 //! @date   2023-07-10
 //
 
-/* `define SDSC */
-`define DEBUG
+// `define DEBUG
 
-module sd_controller2 (
+module sd_controller #(
+  parameter integer SDSC = 0
+)(
     // sinais de sistema
     input clock_400K,
     input clock_50M,
@@ -56,9 +57,6 @@ module sd_controller2 (
   wire clock;
   reg [31:0] addr_reg;
   reg [4095:0] write_data_reg;
-  wire [11:0] wait_counter;
-  reg start_to_wait;
-  reg waiting;
   reg busy_en, new_busy;
 
   reg [5:0] cmd_index;
@@ -91,10 +89,8 @@ module sd_controller2 (
     CheckCmd55 = 5'hA,
     SendAcmd41 = 5'hB,
     CheckAcmd41 = 5'hC,
-`ifdef SDSC
     SendCmd16 = 5'hD,
     CheckCmd16 = 5'hE,
-`endif
     Idle = 5'hF,
     SendCmd17 = 5'h10,
     CheckCmd17 = 5'h11,
@@ -113,7 +109,7 @@ module sd_controller2 (
       new_state_return;
   reg state_return_en, response_type_en;
 
-  sd_sender2 sender (
+  sd_sender sender (
       .clock(clock),
       .reset(reset),
       .cmd_index(cmd_index),
@@ -130,7 +126,7 @@ module sd_controller2 (
 `endif
   );
 
-  sd_receiver2 receiver (
+  sd_receiver receiver (
       .clock(clock),
       .reset(reset),
       .response_type((state != CheckCmd17) ? response_type : new_response_type),
@@ -144,20 +140,6 @@ module sd_controller2 (
       .receiver_state(sd_receiver_state)
 `endif
   );
-
-  sync_parallel_counter #(
-      .size(12),
-      .init_value(12'd8)
-  ) write_block_wait (
-      .clock(clock),
-      .load(start_to_wait),
-      .load_value(12'd8),
-      .reset(reset),
-      .inc_enable(1'b0),
-      .dec_enable(waiting),
-      .value(wait_counter)
-  );
-
 
 `ifdef DEBUG
   reg
@@ -242,8 +224,6 @@ module sd_controller2 (
       response_type_en = 1'b0;
       new_busy = 1'b0;
       busy_en = 1'b0;
-      start_to_wait = 1'b0;
-      waiting = 1'b0;
 `ifdef DEBUG
       check_cmd_0_dbg_en = 1'b0;
       check_cmd_8_dbg_en = 1'b0;
@@ -287,16 +267,14 @@ module sd_controller2 (
 
       SendCmd0: begin  // Enviar CMD0
         cmd_index = 6'h00;
-        argument = 32'b0;
         new_response_type = 3'b000;
         response_type_en = 1'b1;
         new_state_return = CheckCmd0;
         state_return_en = 1'b1;
         sender_valid = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckCmd0: begin  // Checa se cartão SD está InitBegin e sem erros
@@ -316,19 +294,18 @@ module sd_controller2 (
         state_return_en = 1'b1;
         sender_valid = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckCmd8: begin  // Checa check pattern e se a tensão é suportada
 `ifdef DEBUG
         check_cmd_8_dbg_en = 1'b1;
 `endif
-        if (received_data[39:32] == 8'h05) new_state = SendCmd55;
+        if (received_data[39:32] == 8'h05) new_state = SendCmd59;
         else if (received_data[7:0] != 8'hAA) new_state = SendCmd8;
         else if (received_data[11:8] != 4'h1) new_state = InitBegin;
-        else new_state = SendCmd55;
+        else new_state = SendCmd59;
       end
 
       SendCmd59: begin
@@ -340,9 +317,8 @@ module sd_controller2 (
         state_return_en = 1'b1;
         sender_valid = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckCmd59: begin  // Checa se ainda está em Idle
@@ -361,9 +337,8 @@ module sd_controller2 (
         state_return_en = 1'b1;
         sender_valid = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckCmd55: begin  // Checa se ainda está em Idle
@@ -376,20 +351,16 @@ module sd_controller2 (
 
       SendAcmd41: begin  // Envia ACMD41
         cmd_index = 6'd41;
-`ifdef SDSC
-        argument = 32'h00000000;
-`else
-        argument = 32'h40000000;
-`endif
+        if(SDSC) argument = 32'h00000000;
+        else argument = 32'h40000000;
         new_response_type = 3'b000;
         response_type_en = 1'b1;
         new_state_return = CheckAcmd41;
         state_return_en = 1'b1;
         sender_valid = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckAcmd41: begin  // Checa ACMD41 -> Até sair do Idle
@@ -397,17 +368,15 @@ module sd_controller2 (
         check_acmd_41_dbg_en = 1'b1;
 `endif
         if (received_data[7:0] == 8'h00) begin
-`ifdef SDSC
-          new_state = SendCmd16;
-`else
-          new_cs = 1'b0;
-          new_sck_50M = 1'b1;
-          new_state = Idle;
-`endif
+          if(SDSC) new_state = SendCmd16;
+          else begin
+            new_cs = 1'b0;
+            new_sck_50M = 1'b1;
+            new_state = Idle;
+          end
         end else new_state = SendCmd55;
       end
 
-`ifdef SDSC
       SendCmd16: begin
         cmd_index = 6'd16;
         argument = 32'd512;
@@ -417,9 +386,8 @@ module sd_controller2 (
         state_return_en = 1'b1;
         sender_valid = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckCmd16: begin
@@ -433,7 +401,6 @@ module sd_controller2 (
           new_state = Idle;
         end
       end
-`endif
 
       Idle: begin  // Idle: Espera escrita ou leitura
         new_cs = 1'b0;
@@ -458,11 +425,9 @@ module sd_controller2 (
         new_state_return = CheckCmd24;
         state_return_en = 1'b1;
         sender_valid = 1'b1;
-        start_to_wait = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckCmd24: begin  // Checa R1 do CMD24
@@ -470,38 +435,24 @@ module sd_controller2 (
         check_cmd_24_dbg_en = 1'b1;
 `endif
         new_cs = 1'b0;
-        /* sck_en = 1'b0; */
-        waiting = |wait_counter;
-        // R1 sem erros -> Escrita do Data Block
-        if (received_data[7:0] == 8'h00) begin
-            if (wait_counter == 12'b0) begin
-              cmd_or_data = 1'b1;
-              new_response_type = 3'b010;
-              response_type_en = 1'b1;
-              new_state_return = CheckWrite;
-              state_return_en = 1'b1;
-              sender_valid = 1'b1;
-              if (~sender_ready) new_state = WaitSendCmd;
-              else new_state = state;
-            end else begin
-              new_state = state;
-            end
-        end else begin  // R1 com erros -> Tentar novamente
-          new_state = SendCmd24;
-        end
+        cmd_or_data = 1'b1;
+        new_response_type = 3'b010;
+        response_type_en = 1'b1;
+        new_state_return = CheckWrite;
+        state_return_en = 1'b1;
+        sender_valid = 1'b1;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckWrite: begin  // Checa escrita de dado
 `ifdef DEBUG
         check_write_dbg_en = 1'b1;
 `endif
-        if ((received_data[5:3] == 3'b101) || (received_data[3:1] == 3'b010)) begin
-            new_cs = 1'b0;
-            new_busy = 1'b0;
-            busy_en = 1'b1;
-            new_state = SendCmd13;
-        end
-        else new_state = state;  // TODO: decidir o que fazer
+        new_cs = 1'b0;
+        new_busy = 1'b0;
+        busy_en = 1'b1;
+        new_state = SendCmd13;
       end
 
       SendCmd13: begin
@@ -512,12 +463,11 @@ module sd_controller2 (
         state_return_en = 1'b1;
         sender_valid = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
-      CheckCmd13: begin
+      CheckCmd13: begin // Nada a checar -> Apenas depuração
 `ifdef DEBUG
         check_cmd_13_dbg_en = 1'b1;
 `endif
@@ -533,9 +483,8 @@ module sd_controller2 (
         state_return_en = 1'b1;
         sender_valid = 1'b1;
         new_cs = 1'b0;
-        if (~sender_ready) begin
-          new_state = WaitSendCmd;
-        end else new_state = state;
+        if (~sender_ready) new_state = WaitSendCmd;
+        else new_state = state;
       end
 
       CheckCmd17: begin  // Checa R1 do CMD17
@@ -563,26 +512,20 @@ module sd_controller2 (
 `ifdef DEBUG
         check_read_dbg_en = 1'b1;
 `endif
-          if (~crc_error) begin
-              new_cs = 1'b0;
-              new_busy = 1'b0;
-              busy_en = 1'b1;
-              new_state = Idle;
-          end
-        else new_state = SendCmd17;  // Tentar novamente
+        new_cs = 1'b0;
+        new_busy = 1'b0;
+        busy_en = 1'b1;
+        new_state = Idle;
       end
 
       CheckErrorToken: begin
 `ifdef DEBUG
         check_error_token_dbg_en = 1'b1;
 `endif
-        if (received_data[3]) begin
-          new_cs = 1'b0;
-          new_busy = 1'b0;
-          busy_en = 1'b1;
-          new_state = Idle;  // Endereço inválido
-        end
-        else new_state = SendCmd17;
+        new_cs = 1'b0;
+        new_busy = 1'b0;
+        busy_en = 1'b1;
+        new_state = Idle;
       end
 
       default: begin

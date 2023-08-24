@@ -6,9 +6,9 @@
 //! @date   2023-07-09
 //
 
-`define DEBUG
+// `define DEBUG
 
-module sd_receiver2 (
+module sd_receiver (
     // Comum
     input clock,
     input reset,

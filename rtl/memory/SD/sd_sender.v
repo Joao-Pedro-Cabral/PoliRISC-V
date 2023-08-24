@@ -6,9 +6,9 @@
 //! @date   2023-07-08
 //
 
-`define DEBUG
+// `define DEBUG
 
-module sd_sender2 (
+module sd_sender (
     input clock,
     input reset,
 

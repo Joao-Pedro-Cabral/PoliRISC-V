@@ -5,10 +5,12 @@
 
 module sd_controller_tb ();
 
+  // Parâmetros do testbench
   localparam integer AmntOfTests = 10;
   localparam integer Clock400KPeriod = 10;
   localparam integer Clock50MPeriod = 4;
-  localparam integer Seed = 77;
+  localparam integer Seed = 103;
+  localparam integer SDSC = 1;
 
   // Sinais do DUT
   reg clock_400K;
@@ -32,7 +34,9 @@ module sd_controller_tb ();
   integer i;
 
 
-  sd_controller2 DUT (
+  sd_controller #(
+      .SDSC(SDSC)
+  ) DUT (
       .clock_400K(clock_400K),
       .clock_50M(clock_50M),
       .reset(reset),
@@ -48,7 +52,9 @@ module sd_controller_tb ();
       .busy(busy)
   );
 
-  sd_model sd_card (
+  sd_model #(
+      .SDSC(SDSC)
+  ) sd_card (
       .cs(cs),
       .sck(sck),
       .mosi(mosi),
@@ -63,20 +69,21 @@ module sd_controller_tb ();
   task CheckInitialization;
     begin
       // Inicialização do cartão SD
-      while (DUT.state !== DUT.Idle) begin
+      // Checo no clock mais rápido para não perder a mudança de estado do DUT
+      // Pois quando ele muda para Idle, o clock muda
+      while (DUT.state != DUT.Idle) begin
         // Checo na subida, pois o clock do sd_card é invertido
-        @(posedge clock_400K);
+        @(posedge clock_50M);
         // Checar se não há erro de CRC7
         `ASSERT(cmd_error === 1'b0);
-        // Confiro busy na borda de descida
-        @(negedge clock_400K);
+        @(negedge clock_50M);
       end
     end
   endtask
 
   task CheckRead;
     begin
-      // Enquanto estiver lendo
+      if (!busy) @(posedge busy);
       @(negedge clock_50M);
       while (busy == 1'b1) begin
         // Checo na subida, pois o clock do sd_card é invertido
@@ -85,11 +92,15 @@ module sd_controller_tb ();
         `ASSERT(cmd_error === 1'b0);
         // Confiro busy na borda de descida
         @(negedge clock_50M);
+        // Enables não são mais relevantes
+        rd_en = $urandom;
+        wr_en = $urandom;
       end
       rd_en = 1'b0;
+      wr_en = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
       `ASSERT(cmd_error === 1'b0);
-      `ASSERT(read_data === sd_card.data_block);
+      if (!sd_card.random_error_flag) `ASSERT(read_data === sd_card.data_block);
       $display(" Leu: [%0t]", $time);
     end
   endtask
@@ -97,13 +108,14 @@ module sd_controller_tb ();
   event   write_data_event;
   integer j;
   always @(write_data_event) begin
-    for (j = 0; j < 64; j = j + 1) begin
-      write_data[64*j+:64] <= $urandom;
+    for (j = 0; j < 128; j = j + 1) begin
+      write_data[32*j+:32] <= $urandom;
     end
   end
 
   task CheckWrite;
     begin
+      if (!busy) @(posedge busy);
       @(negedge clock_50M);
       while (busy == 1'b1) begin
         @(posedge clock_50M);
@@ -111,11 +123,15 @@ module sd_controller_tb ();
         `ASSERT(cmd_error === 1'b0);
         // Confiro busy na borda de descida
         @(negedge clock_50M);
+        // Enables não são mais relevantes
+        rd_en = $urandom;
+        wr_en = $urandom;
       end
+      rd_en = 1'b0;
       wr_en = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
       `ASSERT(cmd_error === 1'b0);
-      `ASSERT(write_data === sd_card.received_data_block);
+      if (!sd_card.random_error_flag) `ASSERT(write_data === sd_card.received_data_block);
       $display(" Escreveu: [%0t]", $time);
     end
   endtask
