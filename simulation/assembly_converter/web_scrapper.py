@@ -56,12 +56,12 @@ with open(input("digite o nome do arquivo: "), "r") as assembly:
 
 machine = open("program.mif", "w")
 
-driver_path = "/usr/bin/chromedriver"
 brave_path = "/usr/bin/brave-browser"
 
 option = webdriver.ChromeOptions()
+option.add_argument("--port=11000")
 option.binary_location = brave_path
-browser = webdriver.Chrome(executable_path=driver_path, chrome_options=option)
+browser = webdriver.Chrome(options=option)
 
 browser.get("https://luplab.gitlab.io/rvcodecjs/")
 
