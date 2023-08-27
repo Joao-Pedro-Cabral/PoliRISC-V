@@ -14,13 +14,14 @@ module uart_tb ();
 
   localparam integer AmntOfTests = 500;
   localparam integer ClockPeriod = 20;
-  localparam integer Seed = 72;
+  localparam integer Seed = 133;
 
   localparam reg Nstop = 1'b1;
   localparam integer TxClockPeriod = 32 * 20;
   localparam integer RxClockPeriod = TxClockPeriod / 16;
 
   event        init;
+  event        initClocks;
 
   // Sinais do DUT
   reg          clock;
@@ -29,7 +30,7 @@ module uart_tb ();
   reg          reset;
   reg          rd_en;
   reg          wr_en;
-  reg   [ 4:0] addr;
+  reg   [ 2:0] addr;
   reg          rxd;
   reg   [31:0] wr_data;
   wire         txd;
@@ -53,8 +54,6 @@ module uart_tb ();
   wire         rx_empty;
   reg          rx_empty_;
   wire         rx_full;
-  wire         rx_fifo_wr_en;
-  wire         rx_fifo_ed_rst;
   //
   // Tx Operation
   reg   [ 7:0] tx_fifo            [7:0];
@@ -62,9 +61,6 @@ module uart_tb ();
   reg   [ 2:0] tx_write_ptr;
   wire         tx_empty;
   wire         tx_full;
-  wire         tx_fifo_rd_en;
-  wire         tx_fifo_ed_rst;
-  reg          clock_counter;
   //
   ////
   // Rx block
@@ -78,6 +74,7 @@ module uart_tb ();
   reg   [ 2:0] rx_initial;
   reg   [ 1:0] tx_initial;
 
+  // DUT
   uart #(
       .CLOCK_FREQ_HZ(115200 * 32)
   ) DUT (
@@ -93,14 +90,113 @@ module uart_tb ();
       .busy   (busy)
   );
 
+  // Sinais da FIFO/interrupts
+  assign txwm = (tx_watermark_reg < tx_watermark_level);
+  assign rxwm = (rx_watermark_reg > rx_watermark_level);
+
+  assign rx_full = (rx_watermark_reg == 3'b111);
+  assign rx_empty = (rx_watermark_reg == 3'b000);
+
+  assign tx_full = (tx_watermark_reg == 3'b111);
+  assign tx_empty = (tx_watermark_reg == 3'b000);
+
+  // Geração de clocks
+  // Clock Principal
+  always #(ClockPeriod / 2) clock = ~clock;
+
+  // RX Clock (Tick)
+  initial begin
+    rx_clock = 0;
+    @(initClocks);
+    @(posedge DUT.rx_clock);  // Sincronizando
+    forever begin
+      rx_clock = 1;
+      #(RxClockPeriod / 2);
+      rx_clock = 0;
+      #(RxClockPeriod / 2);
+    end
+  end
+
+  // TX Clock (Tick)
+  initial begin
+    tx_clock = 0;
+    @(initClocks);
+    @(posedge DUT.tx_clock);  // Sincronizando
+    forever begin
+      tx_clock = 1;
+      #(TxClockPeriod / 32);
+      tx_clock = 0;
+      #(31 * TxClockPeriod / 32);
+    end
+  end
+
+  // Simular Escrita na RX FIFO:
+  // Após detectar um novo dado válido
+  // Espere a FIFO ter espaço
+  // Então, no ciclo seguinte escreva
+  always @(posedge DUT.rx_data_valid) begin
+    @(negedge clock);
+    wait (rx_full == 1'b0);
+    @(posedge clock);
+    @(posedge clock);
+    rx_fifo[rx_write_ptr] = rx_data;
+    rx_write_ptr = rx_write_ptr + 1'b1;
+    rx_watermark_reg = rx_watermark_reg + 1'b1;
+  end
+
+  // Simular Leitura no RX FIFO:
+  // Caso haja uma leitura no endereço do rxdata
+  // Após 1.5 ciclo, leio da FIFO
+  always @(posedge rd_en) begin
+    if (addr == 3'b001) begin
+      @(posedge clock);
+      @(posedge clock);
+      if (!rx_empty) begin
+        rx_read_ptr = rx_read_ptr + 1'b1;
+        rx_watermark_reg = rx_watermark_reg - 1'b1;
+      end
+    end
+  end
+
+  // Simular Leitura na TX FIFO:
+  // Após detectar um que o Transmissor está pronto
+  // Espere a FIFO ter dado
+  // Então, no ciclo seguinte lê
+  always @(posedge DUT.tx_rdy) begin
+    @(negedge clock);
+    wait (tx_empty == 1'b0);
+    @(posedge clock);
+    @(posedge clock);
+    tx_read_ptr = tx_read_ptr + 1;
+    tx_data = tx_fifo[tx_read_ptr];
+    tx_watermark_reg = tx_watermark_reg - 1;
+  end
+
+  // Simular Escrita na TX FIFO:
+  // Caso haja uma escrita no endereço do txdata
+  // Após 2.5 ciclos, escrevo na FIFO
+  always @(posedge wr_en) begin
+    if (addr == 3'b000) begin
+      @(posedge clock);
+      @(posedge clock);
+      @(posedge clock);
+      if (~tx_full) begin
+        tx_fifo[tx_write_ptr] = wr_data[7:0];
+        tx_write_ptr = tx_write_ptr + 1;
+        tx_watermark_reg = tx_watermark_reg + 1'b1;
+      end
+    end
+  end
+
   // Tasks para checar a interação UART <-> Processador
   task automatic InterruptCheck;
     begin
-      processor_initial = 2'b0;
+      processor_initial = 2'b00;
       // Ler Interrupt Pending Register
-      //  Se houver interrupt de leitura, o serve
-      //  Se houver interrupt de escrita, o serve
-      addr[4:2] = 3'b101;
+      addr = 3'b101;
+      @(posedge busy);
+      @(negedge clock);
+      {rd_en, wr_en, addr} = 5'b00100;
       @(negedge busy);
       @(negedge clock);
 
@@ -116,8 +212,10 @@ module uart_tb ();
       // Operação de leitura:
       //  checa por empty antes
       //  Lê (aleatório)
-      addr[4:2] = 3'b001;
+      addr = 3'b001;
       @(posedge busy);
+      @(negedge clock);
+      {rd_en, wr_en, addr} = 5'b00011;
       @(posedge clock);
       rx_empty_ = (rx_watermark_reg == 3'b000);
       @(negedge busy);
@@ -137,7 +235,10 @@ module uart_tb ();
       // Operação de escrita:
       //  checa por full antes
       //  escreve (aleatório)
-      addr[4:2] = 3'b000;
+      addr = 3'b000;
+      @(posedge busy);
+      @(negedge clock);
+      {rd_en, wr_en, addr} = 5'b00111;
       @(negedge busy);
       @(negedge clock);
 
@@ -148,84 +249,52 @@ module uart_tb ();
     end
   endtask
 
-  assign txwm = (tx_watermark_reg < tx_watermark_level);
-  assign rxwm = (rx_watermark_reg > rx_watermark_level);
-
-  assign rx_full = (rx_watermark_reg == 3'b111);
-  assign rx_empty = (rx_watermark_reg == 3'b000);
-
-  assign tx_full = (tx_watermark_reg == 3'b111);
-  assign tx_empty = (tx_watermark_reg == 3'b000);
-
-  always #(ClockPeriod / 2) clock = ~clock;
-
-  initial begin
-    @(posedge reset)
-    @(posedge clock)  // Sincronizando RxClock com rx_clock do DUT
-    @(posedge clock)
-    while (1) begin
-      rx_clock = 0;
-      #(RxClockPeriod / 2);
-      rx_clock = 1;
-      #(RxClockPeriod / 2);
-    end
-  end
-
-  initial begin
-    @(posedge reset)
-    @(posedge clock)  // Sincronizando TxClock com tx_clock do DUT
-    while (1) begin
-      tx_clock = 0;
-      #(31 * TxClockPeriod / 32);
-      tx_clock = 1;
-      #(TxClockPeriod / 32);
-    end
-  end
-
-
   integer i1, i2, i3;
 
   // Processor's Initial Block
   initial begin
+    // Inicializando
     {clock, reset, rd_en, wr_en, addr, wr_data, tx_watermark_level,
     tx_watermark_reg, rx_watermark_level, rx_watermark_reg, tx_write_ptr} = 0;
-    rx_read_ptr = -3'b001;
+    rx_read_ptr = 3'b111;
 
+    // Reset
     @(negedge clock);
     reset = 1'b1;
     @(negedge clock);
     reset              = 1'b0;
 
-
     // Configurando Receive Control Register
     wr_en              = 1'b1;
-    addr[4:2]          = 3'b011;
+    addr               = 3'b011;
     wr_data[18:16]     = $urandom(Seed);
     rx_watermark_level = wr_data[18:16];
     wr_data[0]         = 1'b1;
     @(negedge busy);
 
     // Configurando Transmit Control Register
-    addr[4:2]          = 3'b010;
+    addr               = 3'b010;
     wr_data[18:16]     = $urandom;
     tx_watermark_level = wr_data[18:16];
     wr_data[1:0]       = {Nstop, 1'b1};
     @(negedge busy);
 
     // Configurando Interrupt Enable Register
-    addr[4:2]    = 3'b100;
+    addr    = 3'b100;
     wr_data[1:0] = 2'b11;
     @(negedge busy);
 
     // Configurando baud rate
-    addr[4:2]     = 3'b110;
+    addr          = 3'b110;
     wr_data[15:0] = $urandom;
     @(negedge busy);
 
     // Configurando baud rate
-    addr[4:2]     = 3'b110;
+    addr          = 3'b110;
     wr_data[15:0] = 16'h001F;
     @(negedge busy);
+
+    ->initClocks;  // iniciar tx(rx) clock
 
     @(negedge tx_clock);  // sincronizar as seriais
     ->init;
@@ -233,7 +302,7 @@ module uart_tb ();
     $display("[%0t] SOT", $time);
 
     @(negedge clock);
-    for (i1 = 0; i1 < 20 * AmntOfTests; i1 = i1 + 1) begin
+    for (i1 = 0; i1 < 25 * AmntOfTests; i1 = i1 + 1) begin
       rd_en   = 1'b1;
       wr_en   = 1'b0;
       wr_data = $urandom;
@@ -245,6 +314,12 @@ module uart_tb ();
 
       if (rd_en) ReadOp();
       else WriteOp();
+      // Atraso a execução do loop
+      @(posedge rx_clock);
+      @(posedge rx_clock);
+      @(posedge rx_clock);
+      @(posedge rx_clock);
+      @(posedge rx_clock);
     end
     $display("[%0t] EOT processor", $time);
   end
@@ -308,48 +383,6 @@ module uart_tb ();
       `ASSERT(rx_watermark_reg === DUT.rx_fifo.watermark_reg);
     end
   endtask
-
-  // Detectar rx_fifo_wr_en do DUT
-  edge_detector #(
-      .RESET_VALUE(0),
-      .EDGE_MODE  (0)   // borda de subida
-  ) rx_fifo_wr_en_ed (
-      .clock(clock),
-      .reset(reset | rx_fifo_ed_rst),
-      .sinal(DUT.rx_data_valid & ~rx_full),
-      .pulso(rx_fifo_wr_en)
-  );
-
-  register_d #(
-      .N(1),
-      .reset_value(0)
-  ) rx_fifo_wr_en_ed_reg (
-      .clock(clock),
-      .reset(reset | ~DUT.rx_data_valid),
-      .enable(rx_fifo_wr_en),
-      .D(DUT.rx_data_valid),
-      .Q(rx_fifo_ed_rst)
-  );
-  // Escreve na Rx FIFO -> Simular comportamento de escrita na FIFO do DUT
-  always @(posedge clock) begin
-    if (rx_fifo_wr_en) begin
-      rx_fifo[rx_write_ptr] = rx_data;
-      rx_write_ptr = rx_write_ptr + 1'b1;
-      rx_watermark_reg = rx_watermark_reg + 1'b1;
-    end
-  end
-
-  // Lê na Rx FIFO -> Simular comportamento de leitura na FIFO do DUT
-  always @(posedge clock) begin
-    if (rd_en & (addr[4:2] == 3'b001)) begin
-      @(posedge clock);
-      if (~rx_empty) begin
-        rx_read_ptr = rx_read_ptr + 1'b1;
-        rx_watermark_reg = rx_watermark_reg - 1'b1;
-      end
-      @(posedge clock);
-    end
-  end
 
   // Rx's Initial Block
   initial begin
@@ -424,50 +457,6 @@ module uart_tb ();
 
     end
   endtask
-
-  // Detectar tx_fifo_rd_en do DUT
-  edge_detector #(
-      .RESET_VALUE(0),
-      .EDGE_MODE  (0)   // borda de subida
-  ) tx_fifo_rd_en_ed (
-      .clock(clock),
-      .reset(reset | tx_fifo_ed_rst),
-      .sinal(DUT.tx_rdy & ~tx_empty),
-      .pulso(tx_fifo_rd_en)
-  );
-
-  register_d #(
-      .N(1),
-      .reset_value(0)
-  ) tx_fifo_rd_en_ed_reg (
-      .clock(clock),
-      .reset(reset | ~DUT.tx_rdy),
-      .enable(tx_fifo_rd_en),
-      .D(DUT.tx_rdy),
-      .Q(tx_fifo_ed_rst)
-  );
-
-  // Lê da Tx FIFO -> Simular comportamento de leitura da FIFO do DUT
-  always @(posedge clock) begin
-    if (tx_fifo_rd_en) begin
-      tx_read_ptr = tx_read_ptr + 1;
-      tx_data = tx_fifo[tx_read_ptr];
-      tx_watermark_reg = tx_watermark_reg - 1;
-    end
-  end
-
-  // Escreve na Tx FIFO -> Simular comportamento de escrita da FIFO do DUT
-  always @(posedge clock) begin
-    if (wr_en) begin
-      @(posedge clock);
-      @(posedge clock);
-      if (~tx_full & (addr[4:2] == 3'b000)) begin
-        tx_fifo[tx_write_ptr] = wr_data[7:0];
-        tx_write_ptr = tx_write_ptr + 1;
-        tx_watermark_reg = tx_watermark_reg + 1'b1;
-      end
-    end
-  end
 
   // Tx's Initial Block
   initial begin
