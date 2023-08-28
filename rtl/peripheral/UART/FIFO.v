@@ -6,6 +6,8 @@
 //! @date   2023-05-20
 //
 
+// `define DEBUG
+
 module FIFO #(
     parameter integer DATA_SIZE = 32,
     parameter integer DEPTH = 8
@@ -16,6 +18,9 @@ module FIFO #(
     input wire rd_en,
     input wire [$clog2(DEPTH)-1:0] watermark_level,
     input wire [DATA_SIZE-1:0] wr_data,
+`ifdef DEBUG
+    output wire [$clog2(DEPTH)-1:0] watermark_reg_,
+`endif
     output wire [DATA_SIZE-1:0] rd_data,
     output wire less_than_watermark,
     output wire greater_than_watermark,
@@ -95,5 +100,9 @@ module FIFO #(
   assign less_than_watermark = (watermark_reg < watermark_level);
   assign empty = _empty;
   assign full = _full;
+
+`ifdef DEBUG
+  assign watermark_reg_ = watermark_reg;
+`endif
 
 endmodule

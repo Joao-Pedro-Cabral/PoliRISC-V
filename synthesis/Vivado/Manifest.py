@@ -6,14 +6,15 @@ syn_family = "Artix 7"
 syn_device = "xc7a100t"
 syn_grade = "-1"
 syn_package = "csg324"
-syn_top = "sd_controller" + "_top"
+syn_top = "uart" + "_top"
 syn_project = syn_top
 syn_tool = "vivado"
 program_fpga = False # False: open Vivado
 
 # generate constraints tcl file
 constrains_file = open("constraints.tcl", 'w')
-constrains_file.write("open_project " + syn_top + ".xpr\nadd_files -fileset constrs_1 -norecurse ./constraints/" + syn_top + ".xdc\nexit")
+constrains_file.write("open_project " + syn_top + ".xpr\nadd_files -fileset constrs_1 -norecurse ./constraints/" + syn_top + ".xdc\n")
+constrains_file.write("set_property target_language Verilog [current_project]\nexit")
 
 # generate program tcl file
 hw_device = syn_device + "_0"
@@ -43,6 +44,6 @@ else:
 
 modules = {
     "local" : [ 
-        "../../toplevel/memory/SD" 
+        "../../toplevel/peripheral/UART" 
     ],
 }

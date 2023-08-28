@@ -67,17 +67,18 @@ module uart_rx (
   // Gerar os registradores dos dados amostrados
   genvar i;
   generate
-    for (i = 0; i < 3; i = i + 1)
-    register_d #(
-        .N(1),
-        .reset_value(0)
-    ) sample_reg_0 (
-        .clock(clock),
-        .reset(1'b0),
-        .enable((sample_cnt == (7 + i))),
-        .D(rxd),
-        .Q(sampled_reg[i])
-    );
+    for (i = 0; i < 3; i = i + 1) begin : g_sample_block
+      register_d #(
+          .N(1),
+          .reset_value(0)
+      ) sample_reg_0 (
+          .clock(clock),
+          .reset(1'b0),
+          .enable((sample_cnt == (7 + i))),
+          .D(rxd),
+          .Q(sampled_reg[i])
+      );
+    end
   endgenerate
 
   // Contador de 16 Ciclos para a Amostragem
@@ -191,7 +192,7 @@ module uart_rx (
     check_parity = 1'b0;
     check_framing = 1'b0;
     transmit_end_en = 1'b0;
-    case (present_state)  // synthesis parallel case
+    case (present_state)
       Idle: begin
         // Caso RX habilitado e um 0 seja detectado -> Start
         sample_cnt_rst = 1'b1;

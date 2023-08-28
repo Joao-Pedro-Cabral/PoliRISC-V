@@ -6,6 +6,8 @@
 //! @date   2023-05-21
 //
 
+// `define DEBUG
+
 module uart #(
     parameter integer CLOCK_FREQ_HZ = 10000000
 ) (
@@ -13,11 +15,35 @@ module uart #(
     input  wire        reset,
     input  wire        rd_en,
     input  wire        wr_en,
-    input  wire [ 2:0] addr,     // 0x00 a 0x18
-    input  wire        rxd,      // dado serial
+    input  wire [ 2:0] addr,               // 0x00 a 0x18
+    input  wire        rxd,                // dado serial
     input  wire [31:0] wr_data,
-    output wire        txd,      // dado de transmissão
+    output wire        txd,                // dado de transmissão
     output wire [31:0] rd_data,
+`ifdef DEBUG
+    output wire [15:0] div_,
+    output wire        p_rxwm_,
+    output wire        p_txwm_,
+    output wire        e_txwm_,
+    output wire        e_rxwm_,
+    output wire [ 2:0] rxcnt_,
+    output wire        rxen_,
+    output wire [ 2:0] txcnt_,
+    output wire        nstop_,
+    output wire        txen_,
+    output wire        _rx_fifo_empty_,
+    output wire [ 7:0] rxdata_,
+    output wire        tx_fifo_full_,
+    output wire [ 7:0] txdata_,
+    output wire [ 1:0] present_state_,
+    output wire [ 2:0] addr_,
+    output wire [31:0] wr_data_,
+    output wire        rx_data_valid_,
+    output wire        tx_data_valid_,
+    output wire        tx_rdy_,
+    output wire [ 2:0] rx_watermark_reg_,
+    output wire [ 2:0] tx_watermark_reg_,
+`endif
     output wire        busy
 );
 
@@ -220,6 +246,9 @@ module uart #(
       .wr_data(txdata),
       .rd_data(tx_fifo_rd_data),
       .less_than_watermark(tx_fifo_less_than_watermark),
+`ifdef DEBUG
+      .watermark_reg_(tx_watermark_reg_),
+`endif
       .empty(tx_fifo_empty),
       .full(tx_fifo_full),
       .greater_than_watermark()
@@ -267,6 +296,9 @@ module uart #(
       .wr_data(rx_fifo_wr_data),
       .rd_data(rx_fifo_rd_data),
       .greater_than_watermark(rx_fifo_greater_than_watermark),
+`ifdef DEBUG
+      .watermark_reg_(rx_watermark_reg_),
+`endif
       .empty(rx_fifo_empty),
       .full(rx_fifo_full),
       .less_than_watermark()
@@ -426,7 +458,8 @@ module uart #(
     _wr_en <= 1'b0;
     end_rd <= 1'b0;
     end_wr <= 1'b0;
-    if (!reset) begin
+    if (reset) begin
+    end else begin
       case (next_state)
         Read: begin
           _busy  <= 1'b1;
@@ -448,5 +481,27 @@ module uart #(
   end
 
   assign busy = _busy;
+`ifdef DEBUG
+  assign div_ = div;
+  assign p_rxwm_ = p_rxwm;
+  assign p_txwm_ = p_txwm;
+  assign e_txwm_ = e_txwm;
+  assign e_rxwm_ = e_rxwm;
+  assign rxcnt_ = rxcnt;
+  assign rxen_ = rxen;
+  assign txcnt_ = txcnt;
+  assign nstop_ = nstop;
+  assign txen_ = txen;
+  assign _rx_fifo_empty_ = rx_fifo_empty_;
+  assign rxdata_ = rxdata;
+  assign tx_fifo_full_ = tx_fifo_full;
+  assign txdata_ = txdata;
+  assign present_state_ = present_state;
+  assign addr_ = _addr;
+  assign wr_data_ = _wr_data;
+  assign rx_data_valid_ = rx_data_valid;
+  assign tx_data_valid_ = tx_data_valid;
+  assign tx_rdy_ = tx_rdy;
+`endif
 
 endmodule

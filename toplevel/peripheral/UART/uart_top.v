@@ -13,21 +13,40 @@ module uart_top (
     input wire rxd,
     output wire txd,
     // Depuração
-    output wire [3:0] state,
-    output wire p_rxwm,
-    output wire [2:0] watermark,
-    output wire [6:0] hexa
+    input wire [2:0] sw,
+    output reg [15:0] leds
 );
 
   // Sinais para controlar o DUT
-  reg rd_en;
-  reg wr_en;
-  reg [2:0] addr;
-  reg [31:0] wr_data;
-  wire rxwm_p;
+  reg         rd_en;
+  reg         wr_en;
+  reg  [ 2:0] addr;
+  reg  [31:0] wr_data;
   wire [31:0] rd_data;
-  wire busy;
-  wire [7:0] data_out;
+  wire        busy;
+  // Depuração
+  wire [15:0] div_;
+  wire        p_rxwm_;
+  wire        p_txwm_;
+  wire        e_rxwm_;
+  wire        e_txwm_;
+  wire [ 2:0] rxcnt_;
+  wire        rxen_;
+  wire [ 2:0] txcnt_;
+  wire        txen_;
+  wire        nstop_;
+  wire        rx_fifo_empty_;
+  wire [ 7:0] rxdata_;
+  wire        tx_fifo_full_;
+  wire [ 7:0] txdata_;
+  wire [ 1:0] present_state_;
+  wire [ 2:0] addr_;
+  wire [31:0] wr_data_;
+  wire        rx_data_valid_;
+  wire        tx_data_valid_;
+  wire        tx_rdy_;
+  wire [ 2:0] rx_watermark_reg_;
+  wire [ 2:0] tx_watermark_reg_;
 
   localparam reg Nstop = 1'b0;  // Numero de stop bits
 
@@ -48,22 +67,38 @@ module uart_top (
   uart #(
       .CLOCK_FREQ_HZ(100000000)  // 100 MHz
   ) DUT (
-      .clock    (clock),
-      .reset    (reset),
-      .rd_en    (rd_en),
-      .wr_en    (wr_en),
-      .addr     ({addr, 2'b00}),
-      .rxd      (rxd),
-      .wr_data  (wr_data),
-      .rxwm_e   (),
-      .rxwm_p   (rxwm_p),
-      .txwm_e   (),
-      .txwm_p   (),
-      .data_out (data_out),
-      .watermark(watermark),
-      .txd      (txd),
-      .rd_data  (rd_data),
-      .busy     (busy)
+      .clock            (clock),
+      .reset            (reset),
+      .rd_en            (rd_en),
+      .wr_en            (wr_en),
+      .addr             (addr),
+      .rxd              (rxd),
+      .wr_data          (wr_data),
+      .txd              (txd),
+      .rd_data          (rd_data),
+      .busy             (busy),
+      .div_             (div_),
+      .p_rxwm_          (p_rxwm_),
+      .p_txwm_          (p_txwm_),
+      .e_txwm_          (e_txwm_),
+      .e_rxwm_          (e_rxwm_),
+      .rxcnt_           (rxcnt_),
+      .rxen_            (rxen_),
+      .txcnt_           (txcnt_),
+      .nstop_           (nstop_),
+      .txen_            (txen_),
+      ._rx_fifo_empty_  (rx_fifo_empty_),
+      .rxdata_          (rxdata_),
+      .tx_fifo_full_    (tx_fifo_full_),
+      .txdata_          (txdata_),
+      .present_state_   (present_state_),
+      .addr_            (addr_),
+      .wr_data_         (wr_data_),
+      .rx_data_valid_   (rx_data_valid_),
+      .tx_data_valid_   (tx_data_valid_),
+      .tx_rdy_          (tx_rdy_),
+      .rx_watermark_reg_(rx_watermark_reg_),
+      .tx_watermark_reg_(tx_watermark_reg_)
   );
 
   // Transição de Estado
@@ -127,10 +162,10 @@ module uart_top (
         else next_state = WaitReceivePending;
       end
       // Estados de Operação da UART
-      // Espera rxwm_p = 1'b1 -> passar rd_data para wr_data
+      // Espera p_rxwm_ = 1'b1 -> passar rd_data para wr_data
       WaitReceivePending: begin
         addr = 3'b001;
-        if (rxwm_p) begin
+        if (p_rxwm_) begin
           rd_en = 1'b1;
           next_state = ReadingData;
         end else next_state = WaitReceivePending;
@@ -165,14 +200,42 @@ module uart_top (
     endcase
   end
 
-  // Depuração
-  display ascii_segment (
-      .ascii(data_out),
-      .hexa (hexa)
-  );
-
-  assign state  = present_state;
-
-  assign p_rxwm = rxwm_p;
+  // Leds de Depuração
+  always @(*) begin
+    case (sw)
+      0: leds = div_;
+      1:
+      leds = {
+        1'b0,
+        p_rxwm_,
+        p_txwm_,
+        e_rxwm_,
+        e_txwm_,
+        rxcnt_,
+        rxen_,
+        txcnt_,
+        txen_,
+        nstop_,
+        rx_fifo_empty_,
+        tx_fifo_full_
+      };
+      2: leds = {rxdata_, txdata_};
+      3:
+      leds = {
+        2'b0,
+        present_state_,
+        addr_,
+        rx_data_valid_,
+        tx_data_valid_,
+        tx_rdy_,
+        rx_watermark_reg_,
+        tx_watermark_reg_
+      };
+      4: leds = wr_data_[15:0];
+      5: leds = wr_data_[31:16];
+      6: leds = {7'b0, rd_en, wr_en, addr, present_state};
+      default: leds = wr_data_[15:0];
+    endcase
+  end
 
 endmodule
