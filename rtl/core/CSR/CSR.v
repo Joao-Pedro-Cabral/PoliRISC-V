@@ -103,7 +103,7 @@ module CSR (
   // WARL fields
   assign mstatus[MIE] = mie;
   assign mstatus[MPIE] = mpie;
-  assign mstatus[MPP] = mpp;
+  assign mstatus[MPP+1:MPP] = mpp;
   always @(posedge clock) begin
     if (reset) {mie, mpie, mpp} = 0;
     // All traps go to M-Mode
@@ -165,7 +165,7 @@ module CSR (
   // Read-only 0 fields
   assign mip[`DATA_SIZE-1:MEIE+1] = 0;
   assign {mip[MEIE-1], mip[SEIE-1], mip[MTIE-1], mip[STIE-1], mip[MSIE-1], mip[SSIE-1]} = 0;
-  // Read-only (memory mapped) fields
+  // Read-only (memory-mapped) fields
   assign mip[SSIP] = mem_ssip;
   assign mip[MSIP] = mem_msip;
   assign mip[MTIP] = mem_mtime >= mem_mtimecmp;
@@ -268,7 +268,7 @@ module CSR (
   assign trap = _trap;
   assign _trap = async_trap | sync_trap;
   // Async Traps
-  assign async_trap = |mcause_async;
+  assign async_trap = |(mcause_async[`DATA_SIZE-2:0]);
   genvar i;
   generate
     for (i = 0; i < `DATA_SIZE; i = i + 1) begin : gen_async_mcause
