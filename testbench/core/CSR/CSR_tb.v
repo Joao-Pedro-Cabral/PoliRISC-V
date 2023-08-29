@@ -12,6 +12,10 @@
 
 module CSR_tb (
 `ifdef SYNTH
+    input clock,
+    input reset,
+
+    output reg [15:0] state
 `endif
 );
 
@@ -40,37 +44,52 @@ module CSR_tb (
   wire [1:0] privilege_mode;
 
   localparam reg [15:0]
-    ResetCSR          = 16'h0000,
-    WriteMie          = 16'h0001,
-    ReadMie           = 16'h0002,
-    WriteSie          = 16'h0003,
-    ReadSie           = 16'h0004,
-    WriteMstatusTrap  = 16'h0005,
-    ReadMstatusTrap   = 16'h0006,
-    WriteMstatusMret  = 16'h0007,
-    ReadMstatusMret   = 16'h0008,
-    WriteMstatus      = 16'h0009,
-    ReadMstatus       = 16'h000A,
-    WriteSstatusSret  = 16'h000B,
-    ReadSstatusSret   = 16'h000C,
-    WriteSstatus      = 16'h000D,
-    ReadSstatus       = 16'h000E,
-    Mret              = 16'h000F,
-    WriteMip          = 16'h0010,
-    ReadMip           = 16'h0011,
-    WriteSip          = 16'h0012,
-    ReadSip           = 16'h0013,
-    WriteMepcTrap     = 16'h0014,
-    ReadMepcTrap      = 16'h0015,
-    WriteMepc         = 16'h0016,
-    ReadMepc          = 16'h0017,
-    WriteSepc         = 16'h0018,
-    ReadSepc          = 16'h0019,
-    WriteMcause       = 16'h001A;
-    ReadMcause        = 16'h001B;
-    WriteScause       = 16'h001C;
-    ReadScause        = 16'h001D;
-  reg [15:0] state, next_state;
+    ResetCSR                       = 16'h0000,
+    WriteMie                       = 16'h0001,
+    ReadMie                        = 16'h0002,
+    WriteSie                       = 16'h0003,
+    ReadSie                        = 16'h0004,
+    WriteMstatusTrap               = 16'h0005,
+    ReadMstatusTrap                = 16'h0006,
+    WriteMstatusMret               = 16'h0007,
+    ReadMstatusMret                = 16'h0008,
+    WriteMstatus                   = 16'h0009,
+    ReadMstatus                    = 16'h000A,
+    WriteSstatusSret               = 16'h000B,
+    ReadSstatusSret                = 16'h000C,
+    WriteSstatus                   = 16'h000D,
+    ReadSstatus                    = 16'h000E,
+    Mret                           = 16'h000F,
+    WriteMip                       = 16'h0010,
+    ReadMip                        = 16'h0011,
+    WriteSip                       = 16'h0012,
+    ReadSip                        = 16'h0013,
+    WriteMepcTrap                  = 16'h0014,
+    ReadMepcTrap                   = 16'h0015,
+    WriteMepc                      = 16'h0016,
+    ReadMepc                       = 16'h0017,
+    WriteSepc                      = 16'h0018,
+    ReadSepc                       = 16'h0019,
+    WriteMcauseAsyncTrap           = 16'h001A,
+    ReadMcauseAsyncTrap            = 16'h001B,
+    ReadScauseAsyncTrap            = 16'h001C,
+    WriteMcauseSyncTrap            = 16'h001D,
+    ReadMcauseSyncTrap             = 16'h001E,
+    ReadScauseSyncTrap             = 16'h001F,
+    WriteMcauseIllegalInstruction  = 16'h0020,
+    ReadMcauseIllegalInstruction   = 16'h0021,
+    ReadScauseIllegalInstruction   = 16'h0022,
+    WriteMcauseEcall               = 16'h0023,
+    ReadMcauseEcall                = 16'h0024,
+    ReadScauseEcall                = 16'h0025,
+    WriteMcause                    = 16'h0026,
+    ReadMcause                     = 16'h0027,
+    ReadScause                     = 16'h0028,
+    TestEnd                        = 16'h0029;
+`ifndef SYNTH
+  reg [15:0] state;
+`endif
+  reg [15:0] next_state;
 
   CSR csr (
       .clock(clock),
@@ -356,19 +375,105 @@ module CSR_tb (
         next_state = WriteSepc;
       end
 
+      WriteMcauseAsyncTrap: begin
+        external_interrupt = 1'b1;
+        next_state         = ReadMcauseAsyncTrap;
+      end
+
+      ReadMcauseAsyncTrap: begin
+        addr = 12'h342;
+`ifndef SYNTH
+        `ASSERT(rd_data == `DATA_SIZE'd11,
+                ("[%t] ReadMcauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data));
+`endif
+        next_state = ReadScauseAsyncTrap;
+      end
+
+      ReadScauseAsyncTrap: begin
+        addr = 12'h142;
+`ifndef SYNTH
+        // TODO: verify correctness of behavior
+        `ASSERT(rd_data == `DATA_SIZE'd0,
+                ("[%t] ReadScauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data));
+`endif
+        next_state = WriteMcauseSyncTrap;
+      end
+
+      WriteMcauseSyncTrap: begin
+        illegal_instruction = 1'b1;
+        next_state = ReadMcauseSyncTrap;
+      end
+
+      ReadMcauseSyncTrap: begin
+        addr = 12'h342;
+`ifndef SYNTH
+        `ASSERT(rd_data == `DATA_SIZE'd2,
+                ("[%t] ReadMcauseSyncTrap: rd_data = 0x%x", $realtime, rd_data));
+`endif
+        next_state = ReadScauseSyncTrap;
+      end
+
+      ReadScauseSyncTrap: begin
+        addr = 12'h142;
+`ifndef SYNTH
+        `ASSERT(rd_data == `DATA_SIZE'd2,
+                ("[%t] ReadScauseSyncTrap: rd_data = 0x%x", $realtime, rd_data));
+`endif
+        next_state = WriteMcauseEcall;
+      end
+
+      WriteMcauseEcall: begin
+        ecall = 1'b1;
+        next_state = ReadMcauseEcall;
+      end
+
+      ReadMcauseEcall: begin
+        addr = 12'h342;
+`ifndef SYNTH
+        `ASSERT(rd_data == `DATA_SIZE'd11,
+                ("[%t] ReadMcauseEcall: rd_data = 0x%x", $realtime, rd_data));
+`endif
+        next_state = ReadScauseSyncTrap;
+      end
+
+      ReadScauseEcall: begin
+        addr = 12'h142;
+`ifndef SYNTH
+        `ASSERT(rd_data == `DATA_SIZE'd3,
+                ("[%t] ReadScauseEcall: rd_data = 0x%x", $realtime, rd_data));
+`endif
+        next_state = WriteMcause;
+      end
+
       WriteMcause: begin
+        addr = 12'h342;
+        wr_en = 1'b1;
+        wr_data = 64'd5;
+        next_state = ReadMcause;
       end
 
       ReadMcause: begin
-      end
-
-      WriteScause: begin
+        addr = 12'h342;
+`ifndef SYNTH
+        `ASSERT(rd_data == `DATA_SIZE'd5, ("[%t] ReadMcause: rd_data = 0x%x", $realtime, rd_data));
+`endif
+        next_state = ReadScause;
       end
 
       ReadScause: begin
+        addr = 12'h142;
+`ifndef SYNTH
+        `ASSERT(rd_data == `DATA_SIZE'd5, ("[%t] ReadScause: rd_data = 0x%x", $realtime, rd_data));
+`endif
+        next_state = TestEnd;
+      end
+
+      TestEnd: begin
+        next_state = state;
       end
 
       default: begin
+        next_state = state;
       end
     endcase
   end
