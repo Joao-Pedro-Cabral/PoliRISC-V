@@ -1,4 +1,5 @@
-`define NEXYS4
+
+`include "macros.vh"
 
 module sd_controller_top (
     /* sistema */
@@ -79,7 +80,7 @@ module sd_controller_top (
       .test_driver_state(tester_state)
   );
 
-  sd_controller2 DUT (
+  sd_controller DUT (
       .clock_400K(clock_400K),
       /* .clock_50M(clock_50M), */
       .clock_50M(clock_400K),

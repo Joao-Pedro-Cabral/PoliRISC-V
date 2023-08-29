@@ -6,7 +6,7 @@
 //! @date   2023-07-08
 //
 
-// `define DEBUG
+`include "macros.vh"
 
 module sd_sender (
     input clock,

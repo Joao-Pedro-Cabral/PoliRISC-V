@@ -6,7 +6,7 @@
 //! @date   2023-07-10
 //
 
-// `define DEBUG
+`include "macros.vh"
 
 module sd_controller #(
   parameter integer SDSC = 0

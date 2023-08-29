@@ -6,7 +6,7 @@
 //! @date   2023-07-09
 //
 
-// `define DEBUG
+`include "macros.vh"
 
 module sd_receiver (
     // Comum

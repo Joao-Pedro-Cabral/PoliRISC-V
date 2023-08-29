@@ -1,1 +1,1 @@
-open_project sd_controller_top.xpr
+open_project uart_top.xpr

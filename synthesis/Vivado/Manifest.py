@@ -10,6 +10,13 @@ syn_top = "uart" + "_top"
 syn_project = syn_top
 syn_tool = "vivado"
 program_fpga = False # False: open Vivado
+lista_de_macros = ["DEBUG", "NEXYS4"]
+
+#gerar arquivo de macros
+macros_file = open("macros.vh", 'w')
+for macro in lista_de_macros:
+    macros_file.write("`define " + macro + ' \n')
+macros_file.close()
 
 # generate constraints tcl file
 constrains_file = open("constraints.tcl", 'w')

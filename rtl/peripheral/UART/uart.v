@@ -6,7 +6,7 @@
 //! @date   2023-05-21
 //
 
-// `define DEBUG
+`include "macros.vh"
 
 module uart #(
     parameter integer CLOCK_FREQ_HZ = 10000000

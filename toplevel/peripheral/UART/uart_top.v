@@ -5,6 +5,8 @@
 //! @date   2023-05-21
 //
 
+`include "macros.vh"
+
 module uart_top (
     // Comum
     input wire clock,
@@ -13,8 +15,12 @@ module uart_top (
     input wire rxd,
     output wire txd,
     // Depuração
-    input wire [2:0] sw,
+    input wire [3:0] sw,
+`ifdef NEXYS4
     output reg [15:0] leds
+`else
+    output reg [9:0] leds
+`endif
 );
 
   // Sinais para controlar o DUT
@@ -201,6 +207,7 @@ module uart_top (
   end
 
   // Leds de Depuração
+`ifdef NEXYS4
   always @(*) begin
     case (sw)
       0: leds = div_;
@@ -237,5 +244,26 @@ module uart_top (
       default: leds = wr_data_[15:0];
     endcase
   end
+`else
+  always @(*) begin
+    case (sw)
+      0: leds = {2'b00, div_[7:0]};
+      1: leds = {2'b00, div_[15:8]};
+      2: leds = {p_rxwm_, p_txwm_, e_rxwm_, e_txwm_, rxcnt_, rxen_};
+      3: leds = {1'b0, txcnt_, txen_, nstop_, rx_fifo_empty_, tx_fifo_full_};
+      4: leds = {2'b00, rxdata_};
+      5: leds = {2'b00, txdata_};
+      6: leds = {present_state_, addr_, rx_data_valid_, tx_data_valid_, tx_rdy_};
+      7: leds = {2'b00, rx_watermark_reg_, tx_watermark_reg_};
+      8: leds = {2'b00, wr_data_[7:0]};
+      9: leds = {2'b00, wr_data_[15:8]};
+      10: leds = {2'b00, wr_data_[23:16]};
+      11: leds = {2'b00, wr_data_[31:24]};
+      12: leds = {3'b000, rd_en, wr_en, addr};
+      13: leds = {4'b0000, present_state};
+      default: leds = {2'b00, div_[7:0]};
+    endcase
+  end
+`endif
 
 endmodule

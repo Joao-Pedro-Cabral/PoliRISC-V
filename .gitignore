@@ -24,5 +24,3 @@ simulation/assembly_converter/program.mif
 synthesis/Vivado/*
 !synthesis/Vivado/constraints
 !synthesis/Vivado/Manifest.py
-!synthesis/Vivado/constraints.tcl
-!synthesis/Vivado/program.tcl

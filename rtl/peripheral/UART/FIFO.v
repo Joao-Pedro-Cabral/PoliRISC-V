@@ -6,7 +6,7 @@
 //! @date   2023-05-20
 //
 
-// `define DEBUG
+`include "macros.vh"
 
 module FIFO #(
     parameter integer DATA_SIZE = 32,
