@@ -235,16 +235,18 @@ module CSR_tb (
         wr_en          = 1'b1;
         wr_data[3]     = 1'b1;  // MIE
         wr_data[7]     = 1'b1;  // MPIE
-        wr_data[12:11] = 2'b11;  // MPP
+        wr_data[8]     = 1'b0;  // SPP
+        wr_data[12:11] = 2'b01;  // MPP
         next_state     = ReadMstatus;
       end
 
       ReadMstatus: begin
         addr = 12'h300;
 `ifndef SYNTH
-        `ASSERT(rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b11),
+        `ASSERT(rd_data[3] && rd_data[7] && ~rd_data[8] && (rd_data[12:11] == 2'b11),
                 ("[%t] ReadMstatus: rd_data = 0x%x", $realtime, rd_data));
 `endif
+        mret = 1'b1;
         next_state = WriteSstatusSret;
       end
 
@@ -265,9 +267,9 @@ module CSR_tb (
       WriteSstatus: begin
         addr       = 12'h100;
         wr_en      = 1'b1;
-        wr_data[1] = 1'b1;  // MIE
-        wr_data[5] = 1'b1;  // MPIE
-        wr_data[8] = 1'b0;  // MPP
+        wr_data[1] = 1'b1;  // SIE
+        wr_data[5] = 1'b1;  // SPIE
+        wr_data[8] = 1'b0;  // SPP
         next_state = ReadSstatus;
       end
 
@@ -390,9 +392,9 @@ module CSR_tb (
       end
 
       ReadScauseAsyncTrap: begin
+        sret = 1'b1;
         addr = 12'h142;
 `ifndef SYNTH
-        // TODO: verify correctness of behavior
         `ASSERT(rd_data == `DATA_SIZE'd0,
                 ("[%t] ReadScauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data));
 `endif
