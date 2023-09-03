@@ -67,7 +67,7 @@ module CSR (
   localparam integer II = 2, ECU = 8, ECS = 9, ECM = 11;  // Exceptions (without ECALL)
   reg [`DATA_SIZE-1:0] mcause;
   wire [`DATA_SIZE-1:0] mcause_async;
-  wire [5:0] interrupt_vector;  // If bit i is high, so interrupt 2*i + 1 happened
+  wire [5:0] m_interrupt_vector;  // If bit i is high, so interrupt 2*i + 1 happened
   wire legal_write;  // 1: wr_data[`DATA_SIZE-2:0] has 1 or 0 high bit
   // Trap signals
   wire _trap, sync_trap, async_trap;
@@ -79,22 +79,6 @@ module CSR (
   reg [1:0] priv;
 
   // Functions
-  // gets the previous priority interrupt bit in mcause
-  function automatic [3:0] prev_prior_bit(input reg [3:0] mcause_bit);
-    reg [3:0] previous_bit;
-    begin
-      case (mcause_bit)
-        1: previous_bit = 5;  // SSI -> STI
-        3: previous_bit = 7;  // MSI -> MTI
-        5: previous_bit = 9;  // STI -> SEI
-        7: previous_bit = 11;  // MTI -> MEI
-        9: previous_bit = 3;  // SEI -> MSI
-        default: previous_bit = 0;  // Others 1'b1
-      endcase
-      prev_prior_bit = previous_bit;
-    end
-  endfunction
-
   // Checks if write to mcause is legal
   function automatic check_mcause_write(input reg interrupt, input reg [`DATA_SIZE-2:0] code);
     begin
@@ -121,16 +105,16 @@ module CSR (
   endfunction
 
   // Generate exception code for highest priority interrupt
-  function automatic [`DATA_SIZE-2:0] gen_mcause_async(input reg [5:0] interrupt_vector);
+  function automatic [`DATA_SIZE-2:0] gen_cause_async(input reg [5:0] interrupt_vector);
     begin
       // Priority mux
-      if (interrupt_vector[5]) gen_mcause_async = MEI;
-      else if (interrupt_vector[3]) gen_mcause_async = MTI;
-      else if (interrupt_vector[1]) gen_mcause_async = MSI;
-      else if (interrupt_vector[4]) gen_mcause_async = SEI;
-      else if (interrupt_vector[2]) gen_mcause_async = STI;
-      else if (interrupt_vector[0]) gen_mcause_async = SSI;
-      else gen_mcause_async = 0;
+      if (interrupt_vector[5]) gen_cause_async = MEI;
+      else if (interrupt_vector[3]) gen_cause_async = MTI;
+      else if (interrupt_vector[1]) gen_cause_async = MSI;
+      else if (interrupt_vector[4]) gen_cause_async = SEI;
+      else if (interrupt_vector[2]) gen_cause_async = STI;
+      else if (interrupt_vector[0]) gen_cause_async = SSI;
+      else gen_cause_async = 0;
     end
   endfunction
 
@@ -291,7 +275,7 @@ module CSR (
   // MCAUSE
   always @(posedge clock) begin
     if (reset) mcause <= 0;
-    else if (async_trap) mcause <= mcause_async;
+    else if (async_trap) mcause <= mcause_async;  // All traps are taken in M-Mode
     else if (sync_trap) begin
       if (illegal_instruction) mcause <= II;
       else if (ecall) mcause <= {2'b10, priv};  // ECU, ECS or ECM
@@ -307,16 +291,16 @@ module CSR (
   generate
     // Maps interrupt code 2*i + 1 to interrupt vector bit i
     for (i = 0; i < 6; i = i + 1) begin : gen_interrupt_vector
-      if (i % 2 == 1) assign interrupt_vector[i] = mie_[i] & mip[i] & (!priv[1] | mstatus[MIE]);
-      else assign interrupt_vector[i] = mie_[i] & mip[i] & !priv[1] & (!priv[0] | mstatus[SIE]);
+      if (i % 2 == 1) assign m_interrupt_vector[i] = mie_[i] & mip[i] & (!priv[1] | mstatus[MIE]);
+      else assign m_interrupt_vector[i] = mie_[i] & mip[i] & !priv[1] & (!priv[0] | mstatus[SIE]);
     end
   endgenerate
-  assign mcause_async = {1'b1, gen_mcause_async(interrupt_vector)};
+  assign mcause_async = {1'b1, gen_cause_async(m_interrupt_vector)};
   // Sync Traps
   assign sync_trap = illegal_instruction | ecall;
 
   // SCAUSE
-  assign scause = (mcause == MSI || mcause == MTI || mcause == MEI) ? 0 : mcause;
+  assign scause = 0;  // All traps are taken in M-Mode
 
   // PRIV
   assign privilege_mode = priv;
