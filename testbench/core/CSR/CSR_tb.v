@@ -91,7 +91,7 @@ module CSR_tb (
 `endif
   reg [15:0] next_state;
 
-  CSR csr (
+  CSR DUT (
       .clock(clock),
       .reset(csr_reset),
       .wr_en(wr_en),
