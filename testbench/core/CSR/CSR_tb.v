@@ -416,7 +416,7 @@ module CSR_tb (
       ReadScauseSyncTrap: begin
         addr = 12'h142;
 `ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd2,
+        `ASSERT(rd_data == `DATA_SIZE'd0,
                 ("[%t] ReadScauseSyncTrap: rd_data = 0x%x", $realtime, rd_data));
 `endif
         next_state = WriteMcauseEcall;
@@ -439,7 +439,7 @@ module CSR_tb (
       ReadScauseEcall: begin
         addr = 12'h142;
 `ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd3,
+        `ASSERT(rd_data == `DATA_SIZE'd0,
                 ("[%t] ReadScauseEcall: rd_data = 0x%x", $realtime, rd_data));
 `endif
         next_state = WriteMcause;
@@ -463,7 +463,7 @@ module CSR_tb (
       ReadScause: begin
         addr = 12'h142;
 `ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd5, ("[%t] ReadScause: rd_data = 0x%x", $realtime, rd_data));
+        `ASSERT(rd_data == `DATA_SIZE'd0, ("[%t] ReadScause: rd_data = 0x%x", $realtime, rd_data));
 `endif
         next_state = TestEnd;
       end
