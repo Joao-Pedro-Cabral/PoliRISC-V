@@ -3,6 +3,7 @@ modules = {
         "Adder",
         "ControlUnit",
         "core",
+        "CSR",
         "Dataflow",
         "ImmediateExtender",
         "RegisterFile",

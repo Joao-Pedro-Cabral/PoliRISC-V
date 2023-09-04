@@ -73,7 +73,7 @@ module CSR (
   wire _trap, sync_trap, async_trap;
 
   // SCAUSE
-  wire [`DATA_SIZE-1:0] scause;
+  reg [`DATA_SIZE-1:0] scause;
 
   // PRIV
   reg [1:0] priv;
@@ -300,7 +300,10 @@ module CSR (
   assign sync_trap = illegal_instruction | ecall;
 
   // SCAUSE
-  assign scause = 0;  // All traps are taken in M-Mode
+  always @(posedge clock) begin
+    if (reset) scause <= 0;
+    else if (legal_write && wr_en && (addr == 12'h142)) scause <= wr_data;  // WLRL
+  end
 
   // PRIV
   assign privilege_mode = priv;
