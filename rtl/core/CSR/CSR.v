@@ -130,7 +130,7 @@ module CSR (
   assign mstatus[MIE] = mie;
   assign mstatus[MPIE] = mpie;
   assign mstatus[MPP+1:MPP] = mpp;
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) {mie, mpie, mpp} = 0;
     // All traps go to M-Mode
     else if (_trap) begin
@@ -151,7 +151,7 @@ module CSR (
   assign mstatus[SIE]  = sie;
   assign mstatus[SPIE] = spie;
   assign mstatus[SPP]  = spp;
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) {sie, spie, spp} = 0;
     // No traps go to S-Mode
     else if (!_trap) begin
@@ -169,7 +169,7 @@ module CSR (
   end
 
   assign mstatus[MPRV] = mprv;
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) mprv <= 1'b0;
     else if (!_trap) begin
       if ((mret && mpp != 2'b11) || sret) mprv <= 1'b0;
@@ -258,7 +258,7 @@ module CSR (
   endgenerate
 
   // MEPC
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) mepc_ <= 0;
     else if (_trap) mepc_ <= pc;  // All traps go to M-Mode
     else if (wr_en && (addr == 12'h341)) mepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
@@ -266,14 +266,14 @@ module CSR (
   assign mepc = mepc_;
 
   // SEPC
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) sepc_ <= 0;
     else if (!_trap && (wr_en && (addr == 12'h141))) sepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
   end
   assign sepc = sepc_;
 
   // MCAUSE
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) mcause <= 0;
     else if (async_trap) mcause <= mcause_async;  // All traps are taken in M-Mode
     else if (sync_trap) begin
@@ -291,8 +291,10 @@ module CSR (
   generate
     // Maps interrupt code 2*i + 1 to interrupt vector bit i
     for (i = 0; i < 6; i = i + 1) begin : gen_interrupt_vector
-      if (i % 2 == 1) assign m_interrupt_vector[i] = mie_[i] & mip[i] & (!priv[1] | mstatus[MIE]);
-      else assign m_interrupt_vector[i] = mie_[i] & mip[i] & !priv[1] & (!priv[0] | mstatus[SIE]);
+      if (i % 2 == 1)
+        assign m_interrupt_vector[i] = mie_[2*i+1] & mip[2*i+1] & (!priv[1] | mstatus[MIE]);
+      else
+        assign m_interrupt_vector[i] = mie_[2*i+1] & mip[2*i+1] & ((!priv[1] & !priv[0]) | mstatus[SIE]);
     end
   endgenerate
   assign mcause_async = {1'b1, gen_cause_async(m_interrupt_vector)};
@@ -300,14 +302,14 @@ module CSR (
   assign sync_trap = illegal_instruction | ecall;
 
   // SCAUSE
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) scause <= 0;
     else if (legal_write && wr_en && (addr == 12'h142)) scause <= wr_data;  // WLRL
   end
 
   // PRIV
   assign privilege_mode = priv;
-  always @(posedge clock) begin
+  always @(posedge clock, posedge reset) begin
     if (reset) priv <= 2'b11;  // M-Mode
     else begin
       if (_trap) priv <= 2'b11;  // No support to mideleg/medeleg

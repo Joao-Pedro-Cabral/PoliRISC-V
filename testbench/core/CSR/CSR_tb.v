@@ -7,7 +7,7 @@
 `endif
 
 `ifndef SYNTH
-`define ASSERT(cond, message) if (!(cond)) begin $display message ; $stop end
+`define ASSERT(cond, message) if (!(cond)) begin $display message ; $stop ; end
 `endif
 
 module CSR_tb (
@@ -86,13 +86,11 @@ module CSR_tb (
     ReadMcause                     = 16'h0027,
     ReadScause                     = 16'h0028,
     TestEnd                        = 16'h0029;
-`ifndef SYNTH
   reg [15:0] state;
-`endif
   reg [15:0] next_state;
 
   CSR DUT (
-      .clock(clock),
+      .clock(~clock),
       .reset(csr_reset),
       .wr_en(wr_en),
       .addr(addr),
@@ -126,7 +124,7 @@ module CSR_tb (
       mem_ssip            = 1'b0;
       pc                  = {`DATA_SIZE{1'b0}};
       mem_mtime           = 64'h0;
-      mem_mtimecmp        = 64'h0;
+      mem_mtimecmp        = 64'h1;
       illegal_instruction = 1'b0;
       ecall               = 1'b0;
       mret                = 1'b0;
@@ -179,9 +177,9 @@ module CSR_tb (
         addr = 12'h304;
 `ifndef SYNTH
         `ASSERT(rd_data[3] & rd_data[7] & rd_data[11],
-                ("[%t] ReadMie: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadMie: rd_data = 0x%x", $realtime, rd_data))
 `endif
-        next_state = ReadMie;
+        next_state = WriteSie;
       end
 
       WriteSie: begin
@@ -197,35 +195,7 @@ module CSR_tb (
         addr = 12'h104;
 `ifndef SYNTH
         `ASSERT(rd_data[1] & ~rd_data[3] & rd_data[5] & ~rd_data[7] & rd_data[9] & ~rd_data[11],
-                ("[%t] ReadSie: rd_data = 0x%x", $realtime, rd_data));
-`endif
-        next_state = WriteMstatusTrap;
-      end
-
-      WriteMstatusTrap: begin
-        external_interrupt = 1'b1;
-        next_state         = ReadMstatusTrap;
-      end
-
-      ReadMstatusTrap: begin
-        addr = 12'h300;
-`ifndef SYNTH
-        `ASSERT(!rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b11),
-                ("[%t] ReadMstatusTrap: rd_data = 0x%x", $realtime, rd_data));
-`endif
-        next_state = WriteMstatusTrap;
-      end
-
-      WriteMstatusMret: begin
-        mret       = 1'b1;
-        next_state = ReadMstatusMret;
-      end
-
-      ReadMstatusMret: begin
-        addr = 12'h300;
-`ifndef SYNTH
-        `ASSERT(rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b11),
-                ("[%t] ReadMstatusMret: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadSie: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteMstatus;
       end
@@ -243,23 +213,37 @@ module CSR_tb (
       ReadMstatus: begin
         addr = 12'h300;
 `ifndef SYNTH
-        `ASSERT(rd_data[3] && rd_data[7] && ~rd_data[8] && (rd_data[12:11] == 2'b11),
-                ("[%t] ReadMstatus: rd_data = 0x%x", $realtime, rd_data));
+        `ASSERT(rd_data[3] && rd_data[7] && ~rd_data[8] && (rd_data[12:11] == 2'b01),
+                ("[%t] ReadMstatus: rd_data = 0x%x", $realtime, rd_data))
 `endif
-        mret = 1'b1;
-        next_state = WriteSstatusSret;
+        next_state = WriteMstatusTrap;
       end
 
-      WriteSstatusSret: begin
-        sret       = 1'b1;
-        next_state = ReadSstatusMret;
+      WriteMstatusTrap: begin
+        addr               = 12'h300;
+        external_interrupt = 1'b1;
+        next_state         = ReadMstatusTrap;
       end
 
-      ReadSstatusSret: begin
-        addr = 12'h100;
+      ReadMstatusTrap: begin
+        addr = 12'h300;
 `ifndef SYNTH
-        `ASSERT(rd_data[1] & rd_data[5] & rd_data[8],
-                ("[%t] ReadSstatusSret: rd_data = 0x%x", $realtime, rd_data));
+        `ASSERT(!rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b11),
+                ("[%t] ReadMstatusTrap: rd_data = 0x%x", $realtime, rd_data))
+`endif
+        next_state = WriteMstatusMret;
+      end
+
+      WriteMstatusMret: begin
+        mret       = 1'b1;
+        next_state = ReadMstatusMret;
+      end
+
+      ReadMstatusMret: begin
+        addr = 12'h300;
+`ifndef SYNTH
+        `ASSERT(rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b11),
+                ("[%t] ReadMstatusMret: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteSstatus;
       end
@@ -277,7 +261,21 @@ module CSR_tb (
         addr = 12'h100;
 `ifndef SYNTH
         `ASSERT(rd_data[1] & rd_data[5] & ~rd_data[8],
-                ("[%t] ReadSstatus: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadSstatus: rd_data = 0x%x", $realtime, rd_data))
+`endif
+        next_state = WriteSstatusSret;
+      end
+
+      WriteSstatusSret: begin
+        sret       = 1'b1;
+        next_state = ReadSstatusSret;
+      end
+
+      ReadSstatusSret: begin
+        addr = 12'h100;
+`ifndef SYNTH
+        `ASSERT(rd_data[1] & rd_data[5] & rd_data[8],
+                ("[%t] ReadSstatusSret: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = Mret;
       end
@@ -304,7 +302,7 @@ module CSR_tb (
         external_interrupt = 1'b1;
 `ifndef SYNTH
         `ASSERT(rd_data[1] & rd_data[3] & ~rd_data[5] & rd_data[7] & ~rd_data[9] & rd_data[11],
-                ("[%t] ReadMip: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadMip: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteSip;
       end
@@ -325,7 +323,7 @@ module CSR_tb (
         external_interrupt = 1'b1;
 `ifndef SYNTH
         `ASSERT(rd_data[1] & ~rd_data[3] & rd_data[5] & ~rd_data[7] & rd_data[9] & ~rd_data[11],
-                ("[%t] ReadSip: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadSip: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteMepcTrap;
       end
@@ -340,7 +338,7 @@ module CSR_tb (
         addr = 12'h341;
 `ifndef SYNTH
         `ASSERT(rd_data == `DATA_SIZE'b10101010,
-                ("[%t] ReadMepcTrap: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadMepcTrap: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteMepc;
       end
@@ -356,7 +354,7 @@ module CSR_tb (
         addr = 12'h341;
 `ifndef SYNTH
         `ASSERT(rd_data == {{`DATA_SIZE - 2{1'b1}}, 2'b00},
-                ("[%t] ReadMepc: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadMepc: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteSepc;
       end
@@ -372,7 +370,7 @@ module CSR_tb (
         addr = 12'h141;
 `ifndef SYNTH
         `ASSERT(rd_data == {{`DATA_SIZE - 2{1'b1}}, 2'b00},
-                ("[%t] ReadSepc: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadSepc: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteSepc;
       end
@@ -386,7 +384,7 @@ module CSR_tb (
         addr = 12'h342;
 `ifndef SYNTH
         `ASSERT(rd_data == `DATA_SIZE'd11,
-                ("[%t] ReadMcauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadMcauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = ReadScauseAsyncTrap;
       end
@@ -396,7 +394,7 @@ module CSR_tb (
         addr = 12'h142;
 `ifndef SYNTH
         `ASSERT(rd_data == `DATA_SIZE'd0,
-                ("[%t] ReadScauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadScauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteMcauseSyncTrap;
       end
@@ -410,7 +408,7 @@ module CSR_tb (
         addr = 12'h342;
 `ifndef SYNTH
         `ASSERT(rd_data == `DATA_SIZE'd2,
-                ("[%t] ReadMcauseSyncTrap: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadMcauseSyncTrap: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = ReadScauseSyncTrap;
       end
@@ -419,7 +417,7 @@ module CSR_tb (
         addr = 12'h142;
 `ifndef SYNTH
         `ASSERT(rd_data == `DATA_SIZE'd0,
-                ("[%t] ReadScauseSyncTrap: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadScauseSyncTrap: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteMcauseEcall;
       end
@@ -433,7 +431,7 @@ module CSR_tb (
         addr = 12'h342;
 `ifndef SYNTH
         `ASSERT(rd_data == `DATA_SIZE'd11,
-                ("[%t] ReadMcauseEcall: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadMcauseEcall: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = ReadScauseSyncTrap;
       end
@@ -442,7 +440,7 @@ module CSR_tb (
         addr = 12'h142;
 `ifndef SYNTH
         `ASSERT(rd_data == `DATA_SIZE'd0,
-                ("[%t] ReadScauseEcall: rd_data = 0x%x", $realtime, rd_data));
+                ("[%t] ReadScauseEcall: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteMcause;
       end
@@ -457,7 +455,7 @@ module CSR_tb (
       ReadMcause: begin
         addr = 12'h342;
 `ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd5, ("[%t] ReadMcause: rd_data = 0x%x", $realtime, rd_data));
+        `ASSERT(rd_data == `DATA_SIZE'd5, ("[%t] ReadMcause: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = ReadScause;
       end
@@ -465,12 +463,15 @@ module CSR_tb (
       ReadScause: begin
         addr = 12'h142;
 `ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd0, ("[%t] ReadScause: rd_data = 0x%x", $realtime, rd_data));
+        `ASSERT(rd_data == `DATA_SIZE'd0, ("[%t] ReadScause: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = TestEnd;
       end
 
       TestEnd: begin
+`ifndef SYNTH
+        $stop;
+`endif
         next_state = state;
       end
 
