@@ -155,16 +155,18 @@ module CSR (
     if (reset) {sie, spie, spp} = 0;
     // No traps go to S-Mode
     else if (!_trap) begin
-      if (sret) begin
-        sie  <= spie;
-        spie <= 1'b1;
-        spp  <= 1'b1;
-        // Common with S-Mode
-      end else if (wr_en && (addr == 12'h300 || addr == 12'h100)) begin
-        sie  <= wr_data[SIE];
-        spie <= wr_data[SPIE];
-        spp  <= wr_data[SPP];
-      end
+      sie  <= 1'b0;
+      spie <= sie;
+      spp  <= 1'b0;
+    end else if (sret) begin
+      sie  <= spie;
+      spie <= 1'b1;
+      spp  <= 1'b1;
+      // Common with S-Mode
+    end else if (wr_en && (addr == 12'h300 || addr == 12'h100)) begin
+      sie  <= wr_data[SIE];
+      spie <= wr_data[SPIE];
+      spp  <= wr_data[SPP];
     end
   end
 

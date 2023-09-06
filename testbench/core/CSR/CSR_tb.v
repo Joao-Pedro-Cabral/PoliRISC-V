@@ -235,6 +235,7 @@ module CSR_tb (
       end
 
       WriteMstatusMret: begin
+        addr       = 12'h300;
         mret       = 1'b1;
         next_state = ReadMstatusMret;
       end
@@ -267,6 +268,7 @@ module CSR_tb (
       end
 
       WriteSstatusSret: begin
+        addr       = 12'h100;
         sret       = 1'b1;
         next_state = ReadSstatusSret;
       end
@@ -298,9 +300,10 @@ module CSR_tb (
         addr               = 12'h344;
         mem_ssip           = 1'b1;
         mem_msip           = 1'b1;
-        mem_mtime          = 64'h1;
+        mem_mtime          = 64'h2;
         external_interrupt = 1'b1;
 `ifndef SYNTH
+        @(posedge clock);
         `ASSERT(rd_data[1] & rd_data[3] & ~rd_data[5] & rd_data[7] & ~rd_data[9] & rd_data[11],
                 ("[%t] ReadMip: rd_data = 0x%x", $realtime, rd_data))
 `endif
@@ -319,9 +322,10 @@ module CSR_tb (
         addr               = 12'h144;
         mem_ssip           = 1'b1;
         mem_msip           = 1'b1;
-        mem_mtime          = 64'h1;
+        mem_mtime          = 64'h2;
         external_interrupt = 1'b1;
 `ifndef SYNTH
+        @(posedge clock);
         `ASSERT(rd_data[1] & ~rd_data[3] & rd_data[5] & ~rd_data[7] & rd_data[9] & ~rd_data[11],
                 ("[%t] ReadSip: rd_data = 0x%x", $realtime, rd_data))
 `endif
@@ -329,6 +333,7 @@ module CSR_tb (
       end
 
       WriteMepcTrap: begin
+        addr       = 12'h341;
         ecall      = 1'b1;
         pc         = `DATA_SIZE'b10101010;
         next_state = ReadMepcTrap;
@@ -372,10 +377,11 @@ module CSR_tb (
         `ASSERT(rd_data == {{`DATA_SIZE - 2{1'b1}}, 2'b00},
                 ("[%t] ReadSepc: rd_data = 0x%x", $realtime, rd_data))
 `endif
-        next_state = WriteSepc;
+        next_state = WriteMcauseAsyncTrap;
       end
 
       WriteMcauseAsyncTrap: begin
+        addr               = 12'h342;
         external_interrupt = 1'b1;
         next_state         = ReadMcauseAsyncTrap;
       end
@@ -390,9 +396,10 @@ module CSR_tb (
       end
 
       ReadScauseAsyncTrap: begin
-        sret = 1'b1;
         addr = 12'h142;
+        sret = 1'b1;
 `ifndef SYNTH
+        @(posedge clock);
         `ASSERT(rd_data == `DATA_SIZE'd0,
                 ("[%t] ReadScauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data))
 `endif
@@ -400,6 +407,7 @@ module CSR_tb (
       end
 
       WriteMcauseSyncTrap: begin
+        addr = 12'h342;
         illegal_instruction = 1'b1;
         next_state = ReadMcauseSyncTrap;
       end
@@ -416,6 +424,7 @@ module CSR_tb (
       ReadScauseSyncTrap: begin
         addr = 12'h142;
 `ifndef SYNTH
+        @(posedge clock);
         `ASSERT(rd_data == `DATA_SIZE'd0,
                 ("[%t] ReadScauseSyncTrap: rd_data = 0x%x", $realtime, rd_data))
 `endif
@@ -423,6 +432,7 @@ module CSR_tb (
       end
 
       WriteMcauseEcall: begin
+        addr = 12'h342;
         ecall = 1'b1;
         next_state = ReadMcauseEcall;
       end
@@ -433,12 +443,13 @@ module CSR_tb (
         `ASSERT(rd_data == `DATA_SIZE'd11,
                 ("[%t] ReadMcauseEcall: rd_data = 0x%x", $realtime, rd_data))
 `endif
-        next_state = ReadScauseSyncTrap;
+        next_state = ReadScauseEcall;
       end
 
       ReadScauseEcall: begin
         addr = 12'h142;
 `ifndef SYNTH
+        @(posedge clock);
         `ASSERT(rd_data == `DATA_SIZE'd0,
                 ("[%t] ReadScauseEcall: rd_data = 0x%x", $realtime, rd_data))
 `endif
@@ -463,6 +474,7 @@ module CSR_tb (
       ReadScause: begin
         addr = 12'h142;
 `ifndef SYNTH
+        @(posedge clock);
         `ASSERT(rd_data == `DATA_SIZE'd0, ("[%t] ReadScause: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = TestEnd;
