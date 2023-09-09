@@ -13,9 +13,7 @@
 `define DATA_SIZE 32
 `endif
 
-module Dataflow #(
-    parameter integer TrapAddress = 1000
-) (
+module Dataflow (
     // Common
     input wire clock,
     input wire reset,
@@ -93,6 +91,7 @@ module Dataflow #(
   // Instruction Register(IR)
   wire [          31:0] ir;
   // CSR
+  wire [`DATA_SIZE-1:0] trap_addr;
   wire                  _trap;
   wire [           1:0] _privilege_mode;
   // Trap Return
@@ -196,7 +195,7 @@ module Dataflow #(
       .Q(pc)
   );
   always @(*) begin
-    if (_trap) new_pc = TrapAddress;
+    if (_trap) new_pc = trap_addr;
     `ifdef TrapReturn
     else if (mret) new_pc = mepc;
     else if (sret) new_pc = sepc;
@@ -236,9 +235,11 @@ module Dataflow #(
       .mem_ssip(|mem_ssip),
       .mem_mtime(mem_mtime),
       .mem_mtimecmp(mem_mtimecmp),
+      .trap_addr(trap_addr),
       .trap(), // Consertar trap
       .privilege_mode(_privilege_mode),
       .pc(pc),
+      .instruction(ir),
       // CSR RW interface
 `ifdef ZICSR
       .wr_en(csr_wr_en & (~csr_op[1] | (|ir[19:15]))),

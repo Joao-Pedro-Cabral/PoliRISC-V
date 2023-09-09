@@ -31,6 +31,7 @@ module CSR_tb (
   reg mem_msip;
   reg mem_ssip;
   reg [`DATA_SIZE-1:0] pc;
+  reg [31:0] instruction;
   reg [63:0] mem_mtime;
   reg [63:0] mem_mtimecmp;
   reg illegal_instruction;
@@ -40,6 +41,7 @@ module CSR_tb (
   wire [`DATA_SIZE-1:0] rd_data;
   wire [`DATA_SIZE-1:0] mepc;
   wire [`DATA_SIZE-1:0] sepc;
+  wire [`DATA_SIZE-1:0] trap_addr;
   wire trap;
   wire [1:0] privilege_mode;
 
@@ -99,6 +101,7 @@ module CSR_tb (
       .mem_msip(mem_msip),
       .mem_ssip(mem_ssip),
       .pc(pc),
+      .instruction(instruction),
       .mem_mtime(mem_mtime),
       .mem_mtimecmp(mem_mtimecmp),
       .illegal_instruction(illegal_instruction),
@@ -110,6 +113,7 @@ module CSR_tb (
       .mepc(mepc),
       .sepc(sepc),
       .trap(trap),
+      .trap_addr(trap_addr),
       .privilege_mode(privilege_mode)
   );
 
@@ -122,6 +126,7 @@ module CSR_tb (
       external_interrupt  = 1'b0;
       mem_msip            = 1'b0;
       mem_ssip            = 1'b0;
+      instruction         = 0;
       pc                  = {`DATA_SIZE{1'b0}};
       mem_mtime           = 64'h0;
       mem_mtimecmp        = 64'h1;

@@ -42,8 +42,6 @@ module Dataflow_tb ();
     // Bits do df_src que não dependem apenas do opcode
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
   localparam integer NotOnlyOp = (HasRV64I == 1) ? 12: 8;
-  // Endereço da Trap
-  localparam integer TrapAddress = 1000;
   // sinais do DUT
   // Common
   reg clock;
@@ -123,6 +121,7 @@ module Dataflow_tb ();
   wire [`DATA_SIZE-1:0] csr_rd_data;
   reg [`DATA_SIZE-1:0] csr_wr_data;
   wire csr_trap;
+  wire [`DATA_SIZE-1:0] trap_addr;
   wire [1:0] csr_privilege_mode;
   // Sinais intermediários de teste
   reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela(google sheets)
@@ -155,9 +154,7 @@ module Dataflow_tb ();
   genvar j;
 
   // DUT
-  Dataflow #(
-    .TrapAddress(1000)
-  ) DUT (
+  Dataflow DUT (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),
@@ -324,9 +321,11 @@ module Dataflow_tb ();
       .mem_ssip(|ssip),
       .mem_mtime(mtime),
       .mem_mtimecmp(mtimecmp),
+      .trap_addr(trap_addr),
       .trap(), // Consertar trap
       .privilege_mode(csr_privilege_mode),
       .pc(pc),
+      .instruction(instruction),
       // CSR RW interface
     `ifdef ZICSR
       .wr_en(csr_wr_en & (~funct3[1] | (|instruction[19:15]))),
@@ -629,7 +628,7 @@ module Dataflow_tb ();
           db_df_src[DfSrcSize+1] = (funct3 != 3'b000);
           @(negedge clock);
           if(funct3 == 3'b000) begin
-            if(funct7 === 0) next_pc = TrapAddress; // Ecall
+            if(funct7 === 0) next_pc = trap_addr; // Ecall
             else if(funct7 == 7'b0001000) next_pc = mepc; // MRET
             else if(funct7 == 7'b0011000) next_pc = sepc; // SRET
             else begin
@@ -691,7 +690,7 @@ module Dataflow_tb ();
       // Atualizando estado  e pc
       if(_trap) begin
         estado = Fetch;
-        pc = TrapAddress;
+        pc = trap_addr;
       end else begin
         estado = (estado + 1)%3;
         pc = next_pc;

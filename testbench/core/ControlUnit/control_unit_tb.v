@@ -42,8 +42,6 @@ module control_unit_tb ();
     // Bits do df_src que não dependem apenas do opcode
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
   localparam integer NotOnlyOp = (HasRV64I == 1) ? 12: 8;
-  // Endereço da Trap
-  localparam integer TrapAddress = 1000;
   // sinais do DUT
   // Common
   reg clock;
@@ -177,9 +175,7 @@ module control_unit_tb ();
   );
 
   // Dataflow
-  Dataflow #(
-    .TrapAddress(1000)
-  ) DF (
+  Dataflow DF (
       .clock(clock),
       .reset(reset),
       .rd_data(rd_data),

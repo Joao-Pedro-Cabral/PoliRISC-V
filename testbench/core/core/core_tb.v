@@ -97,6 +97,7 @@ module core_tb ();
   reg [`DATA_SIZE-1:0] csr_wr_data;
   reg csr_wr_en;
   wire csr_trap;
+  wire [`DATA_SIZE-1:0] trap_addr;
   reg _trap;  // csr_trap antes da borda de subida do clock
   wire [1:0] csr_privilege_mode;
   // flags da ULA (simuladas)
@@ -107,7 +108,6 @@ module core_tb ();
   wire [`DATA_SIZE-1:0] xorB;
   wire [`DATA_SIZE-1:0] add_sub;
   // variáveis
-  localparam integer TrapAddress = 1000;  // Trap
   integer limit = 10000;  // tamanho do programa que será executado
   localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5;  // Estados
   integer estado = Reset;
@@ -250,6 +250,8 @@ module core_tb ();
       .mem_ssip(|ssip),
       .mem_mtime(mtime),
       .mem_mtimecmp(mtimecmp),
+      .instruction(instruction),
+      .trap_addr(trap_addr),
       .trap(),  // Consertar trap
       .privilege_mode(csr_privilege_mode),
       .pc(pc),
@@ -494,7 +496,7 @@ module core_tb ();
         7'b1110011: begin
           wr_reg_en = 1'b0;
           if(funct3 == 3'b000) begin
-            if(funct7 === 0) next_pc = TrapAddress; // Ecall
+            if(funct7 === 0) next_pc = trap_addr; // Ecall
             else if(funct7 == 7'b0001000) next_pc = mepc; // MRET
             else if(funct7 == 7'b0011000) next_pc = sepc; // SRET
             else begin
@@ -555,7 +557,7 @@ module core_tb ();
       // Atualizando estado  e pc
       if (_trap) begin
         estado = Fetch;
-        pc = TrapAddress;
+        pc = trap_addr;
       end else begin
         estado = (estado + 1) % 3;
         pc = next_pc;
