@@ -34,6 +34,11 @@ pseudoinstructions= {
 
 with open(input("digite o nome do arquivo: "), "r") as assembly:
     for line in assembly:
+        if len(line.strip()) == 0:
+            continue
+
+        if line[len(line) - len(line.lstrip())] == ';':
+            continue
 
         # apaga espaços no começo da linha
         l = re.sub("^\s+", "", line)
