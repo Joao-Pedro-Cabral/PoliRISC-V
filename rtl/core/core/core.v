@@ -5,6 +5,22 @@
 //! @date   2023-03-04
 //
 
+/*
+module core (
+*    input wire CLK_I,
+*    input wire RST_I,
+*
+*    // Bus Interface
+*    input wire [`DATA_SIZE-1:0] DAT_I,
+*    output wire [`DATA_SIZE-1:0] DAT_O,
+*    output wire [`DATA_SIZE-1:0] ADR_O,
+*    input wire ACK_O, -- LEMBRAR QUE A LÓGICA É INVERSA
+*    output wire WE_O,
+*    output wire [`DATA_SIZE/8-1:0] SEL_O
+*);
+*/
+
+
 `include "macros.vh"
 
 `ifdef RV64I
@@ -14,8 +30,8 @@
 `endif
 
 module core (
-    input wire clock,
-    input wire reset,
+    input wire CLK_I,
+    input wire RST_I,
 
     // Bus Interface
     input wire [`DATA_SIZE-1:0] rd_data,
@@ -47,7 +63,7 @@ module core (
   wire [1:0] wr_reg_src;
   wire wr_reg_en;
   wire ir_en;
-  wire mem_addr_src;
+  wire ADR_O_src;
   wire [6:0] opcode;
   wire [2:0] funct3;
   wire [6:0] funct7;
@@ -72,11 +88,11 @@ module core (
 
   // Dataflow
   Dataflow DF (
-      .clock(clock),
-      .reset(reset),
-      .rd_data(rd_data),
-      .wr_data(wr_data),
-      .mem_addr(mem_addr),
+      .CLK_I(CLK_I),
+      .RST_I(RST_I),
+      .DAT_I(DAT_I),
+      .DAT_O(DAT_O),
+      .ADR_O(ADR_O),
       .alua_src(alua_src),
       .alub_src(alub_src),
       .alu_src(alu_src),
