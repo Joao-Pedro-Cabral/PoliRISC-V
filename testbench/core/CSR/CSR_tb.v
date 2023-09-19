@@ -51,16 +51,16 @@ module CSR_tb (
     ReadMie                        = 16'h0002,
     WriteSie                       = 16'h0003,
     ReadSie                        = 16'h0004,
-    WriteMstatusTrap               = 16'h0005,
-    ReadMstatusTrap                = 16'h0006,
-    WriteMstatusMret               = 16'h0007,
-    ReadMstatusMret                = 16'h0008,
-    WriteMstatus                   = 16'h0009,
-    ReadMstatus                    = 16'h000A,
-    WriteSstatusSret               = 16'h000B,
-    ReadSstatusSret                = 16'h000C,
-    WriteSstatus                   = 16'h000D,
-    ReadSstatus                    = 16'h000E,
+    WriteMstatus                   = 16'h0005,
+    ReadMstatus                    = 16'h0006,
+    WriteMstatusTrap               = 16'h0007,
+    ReadMstatusTrap                = 16'h0008,
+    WriteMstatusMret               = 16'h0009,
+    ReadMstatusMret                = 16'h000A,
+    WriteSstatus                   = 16'h000B,
+    ReadSstatus                    = 16'h000C,
+    WriteSstatusSret               = 16'h000D,
+    ReadSstatusSret                = 16'h000E,
     Mret                           = 16'h000F,
     WriteMip                       = 16'h0010,
     ReadMip                        = 16'h0011,
@@ -248,7 +248,7 @@ module CSR_tb (
       ReadMstatusMret: begin
         addr = 12'h300;
 `ifndef SYNTH
-        `ASSERT(rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b11),
+        `ASSERT(rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b00),
                 ("[%t] ReadMstatusMret: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteSstatus;
@@ -259,14 +259,14 @@ module CSR_tb (
         wr_en      = 1'b1;
         wr_data[1] = 1'b1;  // SIE
         wr_data[5] = 1'b1;  // SPIE
-        wr_data[8] = 1'b0;  // SPP
+        wr_data[8] = 1'b1;  // SPP
         next_state = ReadSstatus;
       end
 
       ReadSstatus: begin
         addr = 12'h100;
 `ifndef SYNTH
-        `ASSERT(rd_data[1] & rd_data[5] & ~rd_data[8],
+        `ASSERT(rd_data[1] & rd_data[5] & rd_data[8],
                 ("[%t] ReadSstatus: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = WriteSstatusSret;
@@ -281,7 +281,7 @@ module CSR_tb (
       ReadSstatusSret: begin
         addr = 12'h100;
 `ifndef SYNTH
-        `ASSERT(rd_data[1] & rd_data[5] & rd_data[8],
+        `ASSERT(rd_data[1] & rd_data[5] & ~rd_data[8],
                 ("[%t] ReadSstatusSret: rd_data = 0x%x", $realtime, rd_data))
 `endif
         next_state = Mret;

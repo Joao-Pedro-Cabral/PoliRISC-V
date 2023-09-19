@@ -1,6 +1,7 @@
 
 // Note: Privilege checks is made in UC
-// Nota: Never writes in CSR if a trap happened
+// Note: Never writes in CSR if a trap happened
+// Note: mret/sret + wr_en is a invalid input
 
 `include "macros.vh"
 
@@ -38,9 +39,9 @@ module CSR (
   // Defines
 
   // MSTATUS
-  localparam integer SIE = 1, MIE = 3, SPIE = 5, MPIE = 7, SPP = 8, MPP = 11, MPRV = 17;
+  localparam integer SIE = 1, MIE = 3, SPIE = 5, MPIE = 7, SPP = 8, MPP = 11;
   wire [`DATA_SIZE-1:0] mstatus;
-  reg sie, mie, spie, mpie, spp, mprv;
+  reg sie, mie, spie, mpie, spp;
   reg [1:0] mpp;
 
   // SSTATUS
@@ -65,7 +66,8 @@ module CSR (
 
   // MIP
   localparam integer SSIP = 1, MSIP = 3, STIP = 5, MTIP = 7, SEIP = 9, MEIP = 11;
-  wire [`DATA_SIZE-1:0] mip;
+  wire [`DATA_SIZE-1:0] mip; // read mip
+  wire [`DATA_SIZE-1:0] mip_; // interrupt mip (!= SEIP)
 
   // SIP
   wire [`DATA_SIZE-1:0] sip;
@@ -154,8 +156,7 @@ module CSR (
 
   // MSTATUS
   // Read-only 0 fields
-  assign mstatus[`DATA_SIZE-1:MPRV+1] = 0;
-  assign mstatus[MPRV-1:MPP+2] = 0;  // MPP is two bits
+  assign mstatus[`DATA_SIZE-1:MPP+2] = 0; // MPP is two bits
   assign mstatus[MPP-1:SPP+1] = 0;
   assign {mstatus[SPIE+1], mstatus[MIE+1], mstatus[SIE+1], mstatus[SIE-1]} = 0;
   // WARL fields
@@ -200,22 +201,13 @@ module CSR (
     end
   end
 
-  assign mstatus[MPRV] = mprv;
-  always @(posedge clock, posedge reset) begin
-    if (reset) mprv <= 1'b0;
-    else if (!_trap) begin
-      if (mpp != 2'b11 && (mret || sret)) mprv <= 1'b0;
-      else if (wr_en && (addr == 12'h300)) mprv <= wr_data[MPRV];
-    end
-  end
-
   // SSTATUS
   genvar l;
   generate
     for (l = 0; l < `DATA_SIZE; l = l + 1) begin : gen_sstatus
       // hide M-Mode bits for S-Mode
-      if (l == MIE || l == MPIE || l == MPP || l == MPP + 1 || l == MPRV) assign sip[l] = 1'b0;
-      else assign sip[l] = mip[l];
+      if (l == MIE || l == MPIE || l == MPP || l == MPP + 1) assign sstatus[l] = 1'b0;
+      else assign sstatus[l] = mstatus[l];
     end
   endgenerate
 
@@ -297,10 +289,13 @@ module CSR (
   ) mip_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && (addr == 12'h344 || addr == 12'h144)),
+      .enable(!_trap && wr_en && addr == 12'h344), // only writes in M-Mode
       .D({wr_data[STIP], wr_data[SEIP]}),
       .Q({mip[STIP], mip[SEIP]})
   );
+  assign mip_[`DATA_SIZE-1:SEIP+1] = mip[`DATA_SIZE-1:SEIP+1];
+  assign mip_[SEIP] = mip[SEIP] | external_interrupt;
+  assign mip_[SEIP-1:0] = mip[SEIP-1:0];
 
   // SIP
   genvar k;
@@ -468,9 +463,9 @@ module CSR (
     for (i = 0; i < 6; i = i + 1) begin : gen_interrupt_vector
       if (i % 2 == 1)
         // U,S: Always Enabled, M: MIE
-        assign interrupt_vector[i] = mie_[2*i+1] & mip[2*i+1] & (!priv[1] | mstatus[MIE]);
+        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & (!priv[1] | mstatus[MIE]);
       else
-        assign interrupt_vector[i] = mie_[2*i+1] & mip[2*i+1] & enable_interrupt;
+        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & enable_interrupt;
     end
   endgenerate
     // Exception Vector
@@ -531,7 +526,8 @@ module CSR (
     else if (exception_vector[1]) cause_sync = ecall_exception;
   end
   assign cause = async_trap ? cause_async : cause_sync; // Interrupt > Exception
-  assign trap = m_trap | s_trap;
+  assign _trap = m_trap | s_trap;
+  assign trap = _trap;
 
   // Trap Address
     // M-Trap Address
@@ -548,6 +544,7 @@ module CSR (
       .S(m_trap_addr_vet)
   );
     // S-Trap Address
+  assign s_trap_addr = 2'b00;
   assign s_trap_addr[`DATA_SIZE-1:2] = (stvec[0] && async_trap) ? stvec[`DATA_SIZE-1:2]
                                                                 : s_trap_addr_vet;
   sklansky_adder #(
