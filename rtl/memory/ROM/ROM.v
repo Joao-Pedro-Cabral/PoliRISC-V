@@ -6,23 +6,23 @@
 //
 
 module ROM (
-    clock,
-    enable,
-    addr,
-    data,
-    busy
+    CLK_I,
+    CYC_I,
+    ADR_I,
+    DAT_O,
+    ACK_O
 );
 
   parameter rom_init_file = "rom_init_file.mif";
   parameter word_size = 8;
   parameter addr_size = 8;
   parameter offset = 2;
-  parameter busy_cycles = 3;  // numero de ciclos que busy está ativo
-  input wire clock;
-  input wire enable;
-  input wire [addr_size - 1:0] addr;
-  output wire [word_size*(2**offset) - 1 : 0] data;
-  output reg busy;
+  parameter busy_cycles = 3;  // numero de ciclos que ACK_O está ativo
+  input wire CLK_I;
+  input wire CYC_I;
+  input wire [addr_size - 1:0] ADR_I;
+  output wire [word_size*(2**offset) - 1 : 0] DAT_O;
+  output reg ACK_O;
 
   reg [addr_size - 1:0] synch_addr;
   reg busy_flag;
@@ -36,7 +36,7 @@ module ROM (
   // inicializando a memória
   initial begin
     $readmemb(rom_init_file, memory);
-    busy = 1'b0;
+    ACK_O = 1'b1;
   end
 
   // Particionando a memória de acordo com os offsets
@@ -46,8 +46,8 @@ module ROM (
     end
   endgenerate
 
-  always @(posedge clock) begin : leitura_sincrona
-    if (busy === 1'b1) synch_addr <= addr;
+  always @(posedge CLK_I) begin : leitura_sincrona
+    if (ACK_O === 1'b0) synch_addr <= ADR_I;
   end
 
   // Leitura da ROM
@@ -57,21 +57,21 @@ module ROM (
   ) addr_mux (
       .A(linear_memory),
       .S(synch_addr[addr_size-1:offset]),
-      .Y(data)
+      .Y(DAT_O)
   );
 
   always @* begin
-    if (enable === 1'b1) busy_flag <= 1'b1;
+    if (CYC_I === 1'b1) busy_flag <= 1'b1;
   end
 
-  always @(posedge clock) begin : busy_enable
+  always @(posedge CLK_I) begin : busy_enable
     if (busy_flag === 1'b1) begin
-      busy = 1'b1;
+      ACK_O = 1'b0;
       for (j = 0; j < busy_cycles; j = j + 1) begin
-        wait (clock == 1'b0);
-        wait (clock == 1'b1);
+        wait (CLK_I == 1'b0);
+        wait (CLK_I == 1'b1);
       end
-      busy = 1'b0;
+      ACK_O = 1'b1;
       busy_flag = 1'b0;
     end
   end

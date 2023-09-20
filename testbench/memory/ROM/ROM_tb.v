@@ -10,11 +10,11 @@
 module ROM_tb ();
 
   // sinais do DUT
-  reg clock;
-  reg enable;
-  reg [5:0] addr;
-  wire [31:0] data;
-  wire busy;
+  reg CLK_I;
+  reg CYC_I;
+  reg [5:0] ADR_I;
+  wire [31:0] DAT_O;
+  wire ACK_O;
   // sinais intermediários
   reg [31:0] memory[15:0];
   integer i;
@@ -27,18 +27,18 @@ module ROM_tb ();
       .offset(2),
       .busy_cycles(2)
   ) DUT (
-      .clock (clock),
-      .enable(enable),
-      .addr  (addr),
-      .data  (data),
-      .busy  (busy)
+      .CLK_I (CLK_I),
+      .CYC_I (CYC_I),
+      .ADR_I (ADR_I),
+      .DAT_O (DAT_O),
+      .ACK_O (ACK_O)
   );
 
-  // geração do clock
+  // geração do CLK_I
   always begin
-    clock = 1'b0;
+    CLK_I = 1'b0;
     #3;
-    clock = 1'b1;
+    CLK_I = 1'b1;
     #3;
   end
 
@@ -49,16 +49,16 @@ module ROM_tb ();
     #8;
     for (i = 0; i < 128; i = i + 1) begin
       $display("Test: %d", i);
-      enable = i % 2;
-      addr   = i / 2;
+      CYC_I = i % 2;
+      ADR_I   = i / 2;
       /* #2; */
-      if (enable === 1) begin
-        @(posedge busy) enable = 0;
-        if (busy !== 1) $display("Error busy !== 1: enable = %b, busy = %b", enable, busy);
-        @(negedge busy)
-        if (busy !== 0 || data !== memory[addr/4])
-          $display("Error: enable = %b, addr = %b, data = %b, busy = %b", enable, addr, data, busy);
-      end else if (busy !== 0) $display("Error busy !== 0: enable = %b, busy = %b", enable, busy);
+      if (CYC_I === 1) begin
+        @(negedge ACK_O) CYC_I = 0;
+        if (ACK_O !== 0) $display("Error ACK_O !== 0: CYC_I = %b, ACK_O = %b", CYC_I, ACK_O);
+        @(posedge ACK_O)
+        if (ACK_O !== 1 || DAT_O !== memory[ADR_I/4])
+          $display("Error: CYC_I = %b, ADR_I = %b, DAT_O = %b, ACK_O = %b", CYC_I, ADR_I, DAT_O, ACK_O);
+      end else if (ACK_O !== 1) $display("Error ACK_O !== 1: CYC_I = %b, ACK_O = %b", CYC_I, ACK_O);
       #4;
     end
     $display("EOT!");
