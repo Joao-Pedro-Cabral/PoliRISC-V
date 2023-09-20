@@ -15,15 +15,15 @@ module memory_controller #(
     parameter [63:0] MTIMECMP_ADDR = 32'hFFFFFFF0 // Alinhado em 8 bytes
 ) (
     /* Interface com o cache de instruções */
-    input [8*BYTE_AMNT-1:0] inst_cache_DAT_I,
-    input inst_cache_ACK_I,
+    input  [8*BYTE_AMNT-1:0] inst_cache_DAT_I,
+    input  inst_cache_ACK_I,
     output inst_cache_enable,
     output [8*BYTE_AMNT-1:0] inst_cache_addr,
     /* //// */
 
     /* Interface com a memória RAM */
-    input [8*BYTE_AMNT-1:0] ram_DAT_I,
-    input ram_ACK_I,
+    input  [8*BYTE_AMNT-1:0] ram_DAT_I,
+    input  ram_ACK_I,
     output [8*BYTE_AMNT-1:0] ram_ADR_O,
     output [8*BYTE_AMNT-1:0] ram_DAT_O,
     output ram_output_enable,

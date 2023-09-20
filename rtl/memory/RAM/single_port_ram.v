@@ -12,15 +12,15 @@ module single_port_ram #(
     parameter DATA_SIZE = 4,
     parameter BUSY_CYCLES = 3
 ) (
-    input clk,
-    input [DATA_SIZE-1:0] address,
-    input [DATA_SIZE-1:0] write_data,
-    input output_enable,
-    input write_enable,
-    input chip_select,
-    input [DATA_SIZE/BYTE_SIZE-1:0] byte_enable,
-    output reg [DATA_SIZE-1:0] read_data,
-    output reg busy
+    input CLK_I,
+    input [DATA_SIZE-1:0] ADR_I,
+    input [DATA_SIZE-1:0] DAT_I,
+    input TAG_I,
+    input WE_I,
+    input STB_I,
+    input [DATA_SIZE/BYTE_SIZE-1:0] SEL_I,
+    output reg [DATA_SIZE-1:0] DAT_O,
+    output reg ACK_O
 
 );
   reg busy_flag;
@@ -34,46 +34,46 @@ module single_port_ram #(
 
   initial begin
     $readmemb(RAM_INIT_FILE, ram);
-    busy = 1'b0;
+    ACK_O = 1'b1;
   end
 
   integer i;
-  always @(posedge clk) begin
+  always @(posedge CLK_I) begin
     for (i = 0; i < DATA_SIZE / BYTE_SIZE; i = i + 1) begin
-      if (chip_select && byte_enable[i] && write_enable) begin
-        ram[offset_and_truncate_address(address, i)] <= write_data[(i+1)*BYTE_SIZE-1-:BYTE_SIZE];
+      if (STB_I && SEL_I[i] && WE_I) begin
+        ram[offset_and_truncate_address(ADR_I, i)] <= DAT_I[(i+1)*BYTE_SIZE-1-:BYTE_SIZE];
       end
     end
   end
 
   integer j;
-  always @(posedge clk) begin
+  always @(posedge CLK_I) begin
     for (j = 0; j < DATA_SIZE / BYTE_SIZE; j = j + 1) begin
-      if (chip_select && output_enable && byte_enable[j]) begin
-        read_data[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= ram[offset_and_truncate_address(address, j)];
+      if (STB_I && TAG_I && SEL_I[j]) begin
+        DAT_O[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= ram[offset_and_truncate_address(ADR_I, j)];
       end else begin
-        if (chip_select && byte_enable[j] && write_enable) begin
-          read_data[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= write_data[(i+1)*BYTE_SIZE-1-:BYTE_SIZE];
+        if (STB_I && SEL_I[j] && WE_I) begin
+          DAT_O[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= DAT_I[(i+1)*BYTE_SIZE-1-:BYTE_SIZE];
         end else begin
-          read_data[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= 0;
+          DAT_O[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= 0;
         end
       end
     end
   end
 
   always @* begin
-    if (chip_select === 1'b1) if (output_enable === 1'b1 || write_enable !== 0) busy_flag <= 1'b1;
+    if (STB_I === 1'b1) if (TAG_I === 1'b1 || WE_I !== 0) busy_flag <= 1'b1;
   end
 
   integer k;
-  always @(posedge clk) begin
+  always @(posedge CLK_I) begin
     if (busy_flag === 1'b1) begin
-      busy = 1'b1;
+      ACK_O = 1'b0;
       for (k = 0; k < BUSY_CYCLES; k = k + 1) begin
-        wait (clk == 1'b0);
-        wait (clk == 1'b1);
+        wait (CLK_I == 1'b0);
+        wait (CLK_I == 1'b1);
       end
-      busy = 1'b0;
+      ACK_O = 1'b1;
       busy_flag = 1'b0;
     end
   end
