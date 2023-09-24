@@ -19,6 +19,7 @@ simulation/transcript
 simulation/*.wlf
 simulation/Makefile
 simulation/assembly_converter/program.mif
+!simulation/MIFs/*
 
 # arquivos de sintese do Vivado (manter apenas arquivos do usuario)
 synthesis/Vivado/*
