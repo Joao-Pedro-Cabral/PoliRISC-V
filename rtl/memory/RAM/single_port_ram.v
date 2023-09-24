@@ -15,7 +15,7 @@ module single_port_ram #(
     input CLK_I,
     input [DATA_SIZE-1:0] ADR_I,
     input [DATA_SIZE-1:0] DAT_I,
-    input TAG_I,
+    input TGC_I,
     input WE_I,
     input STB_I,
     input [DATA_SIZE/BYTE_SIZE-1:0] SEL_I,
@@ -49,7 +49,7 @@ module single_port_ram #(
   integer j;
   always @(posedge CLK_I) begin
     for (j = 0; j < DATA_SIZE / BYTE_SIZE; j = j + 1) begin
-      if (STB_I && TAG_I && SEL_I[j]) begin
+      if (STB_I && TGC_I && SEL_I[j]) begin
         DAT_O[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= ram[offset_and_truncate_address(ADR_I, j)];
       end else begin
         if (STB_I && SEL_I[j] && WE_I) begin
@@ -62,7 +62,7 @@ module single_port_ram #(
   end
 
   always @* begin
-    if (STB_I === 1'b1) if (TAG_I === 1'b1 || WE_I !== 0) busy_flag <= 1'b1;
+    if (STB_I === 1'b1) if (TGC_I === 1'b1 || WE_I !== 0) busy_flag <= 1'b1;
   end
 
   integer k;

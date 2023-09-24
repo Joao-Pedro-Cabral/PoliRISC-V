@@ -12,37 +12,37 @@ module instruction_cache #(
     parameter integer L2_DATA_SIZE  = 2   // log2(bytes de dados)
 ) (
     /* Sinais do sistema */
-    input clock,
-    input reset,
+    input CLK_I,
+    input RST_I,
     /* //// */
 
     /* Interface com a memória de instruções */
-    input [2**(L2_BLOCK_SIZE+3)-1:0] inst_data,
-    input inst_busy,
-    output inst_enable,
-    output [2**L2_ADDR_SIZE-1:0] inst_addr,
+    input [2**(L2_BLOCK_SIZE+3)-1:0] inst_DAT_I,
+    input inst_ACK_I,
+    output inst_CYC_O,
+    output [2**L2_ADDR_SIZE-1:0] inst_ADR_O,
     /* //// */
 
     /* Interface com o controlador de memória */
-    input inst_cache_enable,
-    input [2**L2_ADDR_SIZE-1:0] inst_cache_addr,
-    output [2**(L2_DATA_SIZE+3)-1:0] inst_cache_data,
-    output inst_cache_busy
+    input inst_cache_CYC_I,
+    input [2**L2_ADDR_SIZE-1:0] inst_cache_ADR_I,
+    output [2**(L2_DATA_SIZE+3)-1:0] inst_cache_DAT_O,
+    output inst_cache_ACK_O
     /* //// */
 
 );
 
-  wire hit, cache_write_enable;
+  wire TGC_I, TGC_O, cache_WE_I, cache_WE_O;
 
   instruction_cache_control control (
-      .clock(clock),
-      .reset(reset),
-      .inst_busy(inst_busy),
-      .inst_enable(inst_enable),
-      .inst_cache_enable(inst_cache_enable),
-      .inst_cache_busy(inst_cache_busy),
-      .hit(hit),
-      .cache_write_enable(cache_write_enable)
+      .CLK_I(CLK_I),
+      .RST_I(RST_I),
+      .inst_ACK_I(inst_ACK_I),
+      .inst_CYC_O(inst_CYC_O),
+      .inst_cache_CYC_I(inst_cache_CYC_I),
+      .inst_cache_ACK_O(inst_cache_ACK_O),
+      .TGC_I(TGC_I),
+      .cache_WE_O(cache_WE_O)
   );
 
   instruction_cache_path #(
@@ -51,13 +51,16 @@ module instruction_cache #(
       .L2_ADDR_SIZE (L2_ADDR_SIZE),
       .L2_DATA_SIZE (L2_DATA_SIZE)
   ) path (
-      .reset(reset),
-      .inst_data(inst_data),
-      .inst_addr(inst_addr),
-      .inst_cache_addr(inst_cache_addr),
-      .inst_cache_data(inst_cache_data),
-      .cache_write_enable(cache_write_enable),
-      .hit(hit)
+      .RST_I(RST_I),
+      .inst_DAT_I(inst_DAT_I),
+      .inst_ADR_O(inst_ADR_O),
+      .inst_cache_ADR_I(inst_cache_ADR_I),
+      .inst_cache_DAT_O(inst_cache_DAT_O),
+      .cache_WE_I(cache_WE_I),
+      .TGC_O(TGC_O)
   );
+
+  assign TGC_I = TGC_O;
+  assign cache_WE_I = cache_WE_O;
 
 endmodule
