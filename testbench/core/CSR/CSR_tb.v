@@ -6,23 +6,16 @@
 `define DATA_SIZE 32
 `endif
 
-`ifndef SYNTH
-`define ASSERT(cond, message) if (!(cond)) begin $display message ; $stop ; end
-`endif
+`define ASSERT(cond) if (!(cond)) $stop
 
-module CSR_tb (
-`ifdef SYNTH
-    input clock,
-    input reset,
+module CSR_tb ();
 
-    output reg [15:0] state
-`endif
-);
+  // Simulation Parameters
+  localparam integer Line = 98;
 
-`ifndef SYNTH
+  // DUT
   reg clock;
   reg reset;
-`endif
   reg csr_reset;
   reg wr_en;
   reg [11:0] addr;
@@ -45,54 +38,28 @@ module CSR_tb (
   wire trap;
   wire [1:0] privilege_mode;
 
-  localparam reg [15:0]
-    ResetCSR                       = 16'h0000,
-    WriteMie                       = 16'h0001,
-    ReadMie                        = 16'h0002,
-    WriteSie                       = 16'h0003,
-    ReadSie                        = 16'h0004,
-    WriteMstatus                   = 16'h0005,
-    ReadMstatus                    = 16'h0006,
-    WriteMstatusTrap               = 16'h0007,
-    ReadMstatusTrap                = 16'h0008,
-    WriteMstatusMret               = 16'h0009,
-    ReadMstatusMret                = 16'h000A,
-    WriteSstatus                   = 16'h000B,
-    ReadSstatus                    = 16'h000C,
-    WriteSstatusSret               = 16'h000D,
-    ReadSstatusSret                = 16'h000E,
-    Mret                           = 16'h000F,
-    WriteMip                       = 16'h0010,
-    ReadMip                        = 16'h0011,
-    WriteSip                       = 16'h0012,
-    ReadSip                        = 16'h0013,
-    WriteMepcTrap                  = 16'h0014,
-    ReadMepcTrap                   = 16'h0015,
-    WriteMepc                      = 16'h0016,
-    ReadMepc                       = 16'h0017,
-    WriteSepc                      = 16'h0018,
-    ReadSepc                       = 16'h0019,
-    WriteMcauseAsyncTrap           = 16'h001A,
-    ReadMcauseAsyncTrap            = 16'h001B,
-    ReadScauseAsyncTrap            = 16'h001C,
-    WriteMcauseSyncTrap            = 16'h001D,
-    ReadMcauseSyncTrap             = 16'h001E,
-    ReadScauseSyncTrap             = 16'h001F,
-    WriteMcauseIllegalInstruction  = 16'h0020,
-    ReadMcauseIllegalInstruction   = 16'h0021,
-    ReadScauseIllegalInstruction   = 16'h0022,
-    WriteMcauseEcall               = 16'h0023,
-    ReadMcauseEcall                = 16'h0024,
-    ReadScauseEcall                = 16'h0025,
-    WriteMcause                    = 16'h0026,
-    ReadMcause                     = 16'h0027,
-    ReadScause                     = 16'h0028,
-    TestEnd                        = 16'h0029;
-  reg [15:0] state;
-  reg [15:0] next_state;
+  // Others table's columns
+  reg [`DATA_SIZE-1:0] rd_data_;
+  reg msb;  // rd_data's msb
+  reg dont_ret;  // 1: don't active RET task and lock wr_en = 1'b0 for 1 cycle
+  reg [1:0] trap_type;  // [1:0] -> 00: no trap, 01: s-trap, 11: m-trap, 10: Reserved
+  reg [`DATA_SIZE-1:0] mepc_;
+  reg [`DATA_SIZE-1:0] sepc_;
+  reg trap_;
+  reg [`DATA_SIZE-1:0] trap_addr_;
+  reg [1:0] privilege_mode_;
 
+  // Auxiliaries
+  reg [95:0] CSR_test[Line-1:0];
+  integer i;
+  reg [`DATA_SIZE-1:0] xtvec, cause_async;  // Compute trap_addr
+  reg [1:0] mpp;
+  reg spp;
+  // event unlock_wr_en;
+
+  // DUT
   CSR DUT (
-      .clock(~clock),
+      .clock(clock),
       .reset(csr_reset),
       .wr_en(wr_en),
       .addr(addr),
@@ -108,7 +75,6 @@ module CSR_tb (
       .ecall(ecall),
       .mret(mret),
       .sret(sret),
-
       .rd_data(rd_data),
       .mepc(mepc),
       .sepc(sepc),
@@ -117,389 +83,144 @@ module CSR_tb (
       .privilege_mode(privilege_mode)
   );
 
-  task assign_defaults;
+  // Tasks
+  task automatic HandleTrap(input reg [1:0] trap_type);
     begin
-      csr_reset           = 1'b0;
-      wr_en               = 1'h0;
-      addr                = 12'h0;
-      wr_data             = {`DATA_SIZE{1'b0}};
-      external_interrupt  = 1'b0;
-      mem_msip            = 1'b0;
-      mem_ssip            = 1'b0;
-      instruction         = 0;
-      pc                  = {`DATA_SIZE{1'b0}};
-      mem_mtime           = 64'h0;
-      mem_mtimecmp        = 64'h1;
-      illegal_instruction = 1'b0;
-      ecall               = 1'b0;
-      mret                = 1'b0;
-      sret                = 1'b0;
+      `ASSERT(trap_type === 2'b11 || trap_type === 2'b01);  // Others values are impossible
+      mpp = DUT.mpp;
+      spp = DUT.spp;
+      mret = trap_type[1];
+      sret = ~trap_type[1];
+      // Clear all traps sources (except SEI/STI)
+      {mem_mtime[1:0], mem_mtimecmp[1:0]} = 4'h1;
+      ecall = 1'b0;
+      {external_interrupt, mem_msip, mem_ssip, illegal_instruction} = 4'h0;
+      wr_en = 1'b0;
+      @(negedge clock);
+      `ASSERT(mepc === mepc_);  // No changes
+      `ASSERT(sepc === sepc_);  // No changes
+      `ASSERT(trap === 1'b0);  // Clear trap
+      // Back to previous privilege
+      if (trap_type[1]) begin
+        `ASSERT(privilege_mode === mpp);
+      end else begin
+        `ASSERT(privilege_mode === {1'b0, spp});
+      end
     end
   endtask
 
-`ifndef SYNTH
-  initial begin
-    force clock = 1'b0;
-    reset = 1'b0;
-    repeat (2) #1 reset = ~reset;
-    release clock;
-  end
-`endif
+  // Functions
+  // function automatic [`DATA_SIZE-1:0] gen_new_xepc(
+  //     input reg [`DATA_SIZE-1:0] xepc, input reg [`DATA_SIZE-1:0] pc, input reg [1:0] trap_type,
+  //     input reg [`DATA_SIZE-1:0] data, input reg wr_en, input reg [11:0] addr, input reg is_m_mode);
+  //   begin
+  //     test = 0;
+  //     if (trap_type === {is_m_mode, 1'b1}) gen_new_xepc = pc;
+  //     else if (trap_type == 2'b00) begin
+  //       test = 1;
+  //       if (wr_en) begin
+  //         test = 2;
+  //         if (addr == {is_m_mode, 11'h141}) begin
+  //           test = 3;
+  //           gen_new_xepc = data;
+  //         end else gen_new_xepc = xepc;
+  //       end else gen_new_xepc = xepc;
+  //     end else gen_new_xepc = xepc;
+  //   end
+  // endfunction
 
-  /*
-  * ideia: use temporary variables to store
-  * randomly generated values for memory-mapped
-  * CSRs
-  */
-
-  always @(posedge clock, posedge reset) begin
-    if (reset) begin
-      state <= ResetCSR;
-    end else begin
-      state <= next_state;
+  function automatic [`DATA_SIZE-1:0] gen_new_mepc(
+      input reg [`DATA_SIZE-1:0] xepc, input reg [`DATA_SIZE-1:0] pc, input reg [1:0] trap_type,
+      input reg [`DATA_SIZE-1:0] data, input reg wr_en, input reg [11:0] addr);
+    begin
+      if (trap_type === 2'b11) gen_new_mepc = pc;
+      else if (trap_type == 2'b00 && wr_en && addr == 12'h341)
+        gen_new_mepc = {data[`DATA_SIZE-1:2], 2'b00};
+      else gen_new_mepc = xepc;
     end
+  endfunction
+
+  function automatic [`DATA_SIZE-1:0] gen_new_sepc(
+      input reg [`DATA_SIZE-1:0] xepc, input reg [`DATA_SIZE-1:0] pc, input reg [1:0] trap_type,
+      input reg [`DATA_SIZE-1:0] data, input reg wr_en, input reg [11:0] addr);
+    begin
+      if (trap_type === 2'b01) gen_new_sepc = pc;
+      else if (trap_type == 2'b00 && wr_en && addr == 12'h141)
+        gen_new_sepc = {data[`DATA_SIZE-1:2], 2'b00};
+      else gen_new_sepc = xepc;
+    end
+  endfunction
+
+  function automatic [`DATA_SIZE-1:0] gen_new_trap_addr(
+      input reg [`DATA_SIZE-1:0] xtvec, input reg [`DATA_SIZE-1:0] cause, input reg has_async_trap);
+    begin
+      gen_new_trap_addr = (xtvec[0] && has_async_trap) ? {xtvec[`DATA_SIZE-1:2], 2'b00} :
+                                                    {xtvec[`DATA_SIZE-1:2], 2'b00} + (cause << 2);
+    end
+  endfunction
+
+  always #3 clock = ~clock;
+
+  // Lock wr_en to enable 2 differents readings in the same context
+  // always @(unlock_wr_en) begin
+  //   @(posedge clock);
+  //   release wr_en;
+  // end
+
+  initial begin
+    // Reset
+    $readmemh("./MIFs/core/CSR/CSR_test.mif", CSR_test);
+    {clock, csr_reset, wr_en, addr, wr_data, external_interrupt, mem_msip, mem_ssip, instruction,
+    pc, mem_mtime, mem_mtimecmp, illegal_instruction, ecall, mret, sret, rd_data_, privilege_mode_,
+    msb, dont_ret, mepc_, sepc_, trap_, trap_addr_, trap_type} = 0;
+    $display("SOT: %0t", $time);
+    @(negedge clock);
+    csr_reset = 1'b1;
+    @(negedge clock);
+    csr_reset = 1'b0;
+    $display("Reset Complete : %0t", $time);
+    // For each line of the table, the DUT is tested
+    for (i = 0; i < Line; i = i + 1) begin
+      // Simplification: Only use the first 16 bits of the vectors
+      // Reason: Except mcause's msb and misa, after the 16th bit, all the others are read-only zero, WARL or don't care
+      // Then, mcause will use msb reg and misa will have a special treatment
+      // Set inputs/expected outputs
+      $display("Test %d: %0t", i, $time);
+      rd_data_ = 0;
+      rd_data_[15:0] = CSR_test[i][15:0];
+      trap_type = CSR_test[i][19:16];  // truncat
+      {dont_ret, msb, privilege_mode_} = CSR_test[i][23:20];
+      instruction[15:0] = CSR_test[i][39:24];
+      pc[15:0] = CSR_test[i][55:40];
+      {mem_mtime[1:0], mem_mtimecmp[1:0]} = CSR_test[i][59:56];  // We only use 2 bits
+      {ecall, mret, sret, trap_} = CSR_test[i][63:60];
+      {external_interrupt, mem_msip, mem_ssip, illegal_instruction} = CSR_test[i][67:64];
+      wr_data[15:0] = CSR_test[i][83:68];
+      addr = CSR_test[i][95:84];
+      wr_en = !mret && !sret;  // Enable wr_en only if mret and sret are disable
+      // Generate new expected outputs
+      mepc_ = gen_new_mepc(mepc_, pc, trap_type, wr_data, wr_en, addr);
+      sepc_ = gen_new_sepc(sepc_, pc, trap_type, wr_data, wr_en, addr);
+      xtvec = trap_type == 2'b11 ? DUT.mtvec : DUT.stvec;
+      // special treatment for MISA
+      if (addr === 12'h301) begin
+        rd_data_ = `DATA_SIZE'h1400100;
+        rd_data_[`DATA_SIZE-1:`DATA_SIZE-2] = `DATA_SIZE == 64 ? 2'b11 : 2'b01;
+      end
+      #1;
+      trap_addr_ = gen_new_trap_addr(xtvec, DUT.cause_async, DUT.async_trap);
+      `ASSERT(trap_addr === trap_addr_);
+      `ASSERT(trap === trap_);
+      @(negedge clock);
+      // Check DUT's outputs
+      `ASSERT(rd_data === {msb, rd_data_[`DATA_SIZE-2:0]});
+      `ASSERT(mepc === mepc_);
+      `ASSERT(sepc === sepc_);
+      `ASSERT(privilege_mode === privilege_mode_);
+      if (trap_ && !dont_ret) HandleTrap(trap_type);
+    end
+    $display("EOT: %0t", $time);
+    $stop;
   end
-
-  always @* begin
-    assign_defaults;
-
-    case (state)
-      ResetCSR: begin
-        csr_reset  = 1'b1;
-        next_state = WriteMie;
-      end
-
-      WriteMie: begin
-        addr        = 12'h304;
-        wr_en       = 1'b1;
-        wr_data[3]  = 1'b1;  // MSIE
-        wr_data[7]  = 1'b1;  // MTIE
-        wr_data[11] = 1'b1;  // MEIE
-        next_state  = ReadMie;
-      end
-
-      ReadMie: begin
-        addr = 12'h304;
-`ifndef SYNTH
-        `ASSERT(rd_data[3] & rd_data[7] & rd_data[11],
-                ("[%t] ReadMie: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteSie;
-      end
-
-      WriteSie: begin
-        addr       = 12'h104;
-        wr_en      = 1'b1;
-        wr_data[1] = 1'b1;  // SSIE
-        wr_data[5] = 1'b1;  // STIE
-        wr_data[9] = 1'b1;  // SEIE
-        next_state = ReadSie;
-      end
-
-      ReadSie: begin
-        addr = 12'h104;
-`ifndef SYNTH
-        `ASSERT(rd_data[1] & ~rd_data[3] & rd_data[5] & ~rd_data[7] & rd_data[9] & ~rd_data[11],
-                ("[%t] ReadSie: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMstatus;
-      end
-
-      WriteMstatus: begin
-        addr           = 12'h300;
-        wr_en          = 1'b1;
-        wr_data[3]     = 1'b1;  // MIE
-        wr_data[7]     = 1'b1;  // MPIE
-        wr_data[8]     = 1'b0;  // SPP
-        wr_data[12:11] = 2'b01;  // MPP
-        next_state     = ReadMstatus;
-      end
-
-      ReadMstatus: begin
-        addr = 12'h300;
-`ifndef SYNTH
-        `ASSERT(rd_data[3] && rd_data[7] && ~rd_data[8] && (rd_data[12:11] == 2'b01),
-                ("[%t] ReadMstatus: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMstatusTrap;
-      end
-
-      WriteMstatusTrap: begin
-        addr               = 12'h300;
-        external_interrupt = 1'b1;
-        next_state         = ReadMstatusTrap;
-      end
-
-      ReadMstatusTrap: begin
-        addr = 12'h300;
-`ifndef SYNTH
-        `ASSERT(!rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b11),
-                ("[%t] ReadMstatusTrap: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMstatusMret;
-      end
-
-      WriteMstatusMret: begin
-        addr       = 12'h300;
-        mret       = 1'b1;
-        next_state = ReadMstatusMret;
-      end
-
-      ReadMstatusMret: begin
-        addr = 12'h300;
-`ifndef SYNTH
-        `ASSERT(rd_data[3] && rd_data[7] && (rd_data[12:11] == 2'b00),
-                ("[%t] ReadMstatusMret: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteSstatus;
-      end
-
-      WriteSstatus: begin
-        addr       = 12'h100;
-        wr_en      = 1'b1;
-        wr_data[1] = 1'b1;  // SIE
-        wr_data[5] = 1'b1;  // SPIE
-        wr_data[8] = 1'b1;  // SPP
-        next_state = ReadSstatus;
-      end
-
-      ReadSstatus: begin
-        addr = 12'h100;
-`ifndef SYNTH
-        `ASSERT(rd_data[1] & rd_data[5] & rd_data[8],
-                ("[%t] ReadSstatus: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteSstatusSret;
-      end
-
-      WriteSstatusSret: begin
-        addr       = 12'h100;
-        sret       = 1'b1;
-        next_state = ReadSstatusSret;
-      end
-
-      ReadSstatusSret: begin
-        addr = 12'h100;
-`ifndef SYNTH
-        `ASSERT(rd_data[1] & rd_data[5] & ~rd_data[8],
-                ("[%t] ReadSstatusSret: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = Mret;
-      end
-
-      Mret: begin
-        // to make sure DUT.priv == 2'b11
-        mret       = 1'b1;
-        next_state = WriteMip;
-      end
-
-      WriteMip: begin
-        addr       = 12'h344;
-        wr_en      = 1'b1;
-        wr_data[5] = 1'b0;  // STIP
-        wr_data[9] = 1'b0;  // SEIP
-        next_state = ReadMip;
-      end
-
-      ReadMip: begin
-        addr               = 12'h344;
-        mem_ssip           = 1'b1;
-        mem_msip           = 1'b1;
-        mem_mtime          = 64'h2;
-        external_interrupt = 1'b1;
-`ifndef SYNTH
-        @(posedge clock);
-        `ASSERT(rd_data[1] & rd_data[3] & ~rd_data[5] & rd_data[7] & ~rd_data[9] & rd_data[11],
-                ("[%t] ReadMip: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteSip;
-      end
-
-      WriteSip: begin
-        addr       = 12'h144;
-        wr_en      = 1'b1;
-        wr_data[5] = 1'b1;  // STIP
-        wr_data[9] = 1'b1;  // SEIP
-        next_state = ReadSip;
-      end
-
-      ReadSip: begin
-        addr               = 12'h144;
-        mem_ssip           = 1'b1;
-        mem_msip           = 1'b1;
-        mem_mtime          = 64'h2;
-        external_interrupt = 1'b1;
-`ifndef SYNTH
-        @(posedge clock);
-        `ASSERT(rd_data[1] & ~rd_data[3] & rd_data[5] & ~rd_data[7] & rd_data[9] & ~rd_data[11],
-                ("[%t] ReadSip: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMepcTrap;
-      end
-
-      WriteMepcTrap: begin
-        addr       = 12'h341;
-        ecall      = 1'b1;
-        pc         = `DATA_SIZE'b10101010;
-        next_state = ReadMepcTrap;
-      end
-
-      ReadMepcTrap: begin
-        addr = 12'h341;
-`ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'b10101010,
-                ("[%t] ReadMepcTrap: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMepc;
-      end
-
-      WriteMepc: begin
-        addr       = 12'h341;
-        wr_en      = 1'b1;
-        wr_data    = {`DATA_SIZE{1'b1}};
-        next_state = ReadMepc;
-      end
-
-      ReadMepc: begin
-        addr = 12'h341;
-`ifndef SYNTH
-        `ASSERT(rd_data == {{`DATA_SIZE - 2{1'b1}}, 2'b00},
-                ("[%t] ReadMepc: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteSepc;
-      end
-
-      WriteSepc: begin
-        addr       = 12'h141;
-        wr_en      = 1'b1;
-        wr_data    = {`DATA_SIZE{1'b1}};
-        next_state = ReadSepc;
-      end
-
-      ReadSepc: begin
-        addr = 12'h141;
-`ifndef SYNTH
-        `ASSERT(rd_data == {{`DATA_SIZE - 2{1'b1}}, 2'b00},
-                ("[%t] ReadSepc: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMcauseAsyncTrap;
-      end
-
-      WriteMcauseAsyncTrap: begin
-        addr               = 12'h342;
-        external_interrupt = 1'b1;
-        next_state         = ReadMcauseAsyncTrap;
-      end
-
-      ReadMcauseAsyncTrap: begin
-        addr = 12'h342;
-`ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd11,
-                ("[%t] ReadMcauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = ReadScauseAsyncTrap;
-      end
-
-      ReadScauseAsyncTrap: begin
-        addr = 12'h142;
-        sret = 1'b1;
-`ifndef SYNTH
-        @(posedge clock);
-        `ASSERT(rd_data == `DATA_SIZE'd0,
-                ("[%t] ReadScauseAsyncTrap: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMcauseSyncTrap;
-      end
-
-      WriteMcauseSyncTrap: begin
-        addr = 12'h342;
-        illegal_instruction = 1'b1;
-        next_state = ReadMcauseSyncTrap;
-      end
-
-      ReadMcauseSyncTrap: begin
-        addr = 12'h342;
-`ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd2,
-                ("[%t] ReadMcauseSyncTrap: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = ReadScauseSyncTrap;
-      end
-
-      ReadScauseSyncTrap: begin
-        addr = 12'h142;
-`ifndef SYNTH
-        @(posedge clock);
-        `ASSERT(rd_data == `DATA_SIZE'd0,
-                ("[%t] ReadScauseSyncTrap: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMcauseEcall;
-      end
-
-      WriteMcauseEcall: begin
-        addr = 12'h342;
-        ecall = 1'b1;
-        next_state = ReadMcauseEcall;
-      end
-
-      ReadMcauseEcall: begin
-        addr = 12'h342;
-`ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd11,
-                ("[%t] ReadMcauseEcall: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = ReadScauseEcall;
-      end
-
-      ReadScauseEcall: begin
-        addr = 12'h142;
-`ifndef SYNTH
-        @(posedge clock);
-        `ASSERT(rd_data == `DATA_SIZE'd0,
-                ("[%t] ReadScauseEcall: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = WriteMcause;
-      end
-
-      WriteMcause: begin
-        addr = 12'h342;
-        wr_en = 1'b1;
-        wr_data = 64'd5;
-        next_state = ReadMcause;
-      end
-
-      ReadMcause: begin
-        addr = 12'h342;
-`ifndef SYNTH
-        `ASSERT(rd_data == `DATA_SIZE'd5, ("[%t] ReadMcause: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = ReadScause;
-      end
-
-      ReadScause: begin
-        addr = 12'h142;
-`ifndef SYNTH
-        @(posedge clock);
-        `ASSERT(rd_data == `DATA_SIZE'd0, ("[%t] ReadScause: rd_data = 0x%x", $realtime, rd_data))
-`endif
-        next_state = TestEnd;
-      end
-
-      TestEnd: begin
-`ifndef SYNTH
-        $stop;
-`endif
-        next_state = state;
-      end
-
-      default: begin
-        next_state = state;
-      end
-    endcase
-  end
-
-`ifndef SYNTH
-  always #1 clock = ~clock;
-`endif
 
 endmodule

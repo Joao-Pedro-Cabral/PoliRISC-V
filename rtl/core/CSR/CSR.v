@@ -51,11 +51,9 @@ module CSR (
   wire [`DATA_SIZE-1:0] misa;
 
   // MTVEC
-  localparam reg [`DATA_SIZE-3:0] MTrapAddress = 1000;
   wire [`DATA_SIZE-1:0] mtvec;
 
   // STVEC
-  localparam reg [`DATA_SIZE-3:0] STrapAddress = 1000;
   wire [`DATA_SIZE-1:0] stvec;
 
   // MIDELEG
@@ -100,6 +98,7 @@ module CSR (
   wire [`DATA_SIZE-1:0] cause;
   wire [5:0] interrupt_vector;  // If bit i is high, so interrupt 2*i + 1 happened
   wire [1:0] exception_vector; // 3: ECM, 2: ECS, 1: ECU, 0: II
+  wire [3:0] ecall_exception; // {2'b10, priv}
   wire enable_interrupt; // 1: active interrupt/exception from no high privilege level
   wire m_legal_write;  // check if wr_data is valid for mcause
   wire s_legal_write;  // check if wr_data is valid for scause
@@ -220,7 +219,7 @@ module CSR (
   assign mtvec[1] = 1'b0;  // Reserved
   register_d #(
       .N(`DATA_SIZE - 1),
-      .reset_value({MTrapAddress, 1'b0})
+      .reset_value(0)
   ) mtvec_reg (
       .clock(clock),
       .reset(reset),
@@ -233,7 +232,7 @@ module CSR (
   assign stvec[1] = 1'b0;  // Reserved
   register_d #(
       .N(`DATA_SIZE - 1),
-      .reset_value({STrapAddress, 1'b0})
+      .reset_value(0)
   ) stvec_reg (
       .clock(clock),
       .reset(reset),
@@ -405,15 +404,16 @@ module CSR (
   always @(posedge clock, posedge reset) begin
     if (reset) mtval <= 0;
     //  Store Illegal Instruction
-    else if (m_trap && sync_trap && illegal_instruction) mtval <= instruction;
-    else if (!s_trap && wr_en && (addr == 12'h343)) mtval <= wr_data;
+    else if (m_trap && !async_trap && sync_trap && illegal_instruction) mtval <= instruction;
+    else if (!_trap && wr_en && (addr == 12'h343)) mtval <= wr_data;
   end
 
   // STVAL
   always @(posedge clock, posedge reset) begin
     if (reset) stval <= 0;
-    else if (s_trap && sync_trap && illegal_instruction) stval <= instruction;
-    else if (!m_trap && wr_en && (addr == 12'h143)) stval <= wr_data;
+    //  Store Illegal Instruction
+    else if (s_trap && !async_trap && sync_trap && illegal_instruction) stval <= instruction;
+    else if (!_trap && wr_en && (addr == 12'h143)) stval <= wr_data;
   end
 
   // PRIV
@@ -455,7 +455,7 @@ module CSR (
   // Trap
     // U: Always Enabled, S: SIE, M: MIE
   assign enable_interrupt = ((!priv[1] & !priv[0]) | (!priv[1] & mstatus[SIE])
-                            | (!priv[0] & mstatus[MIE]));
+                            | (priv[0] & priv[1] & mstatus[MIE]));
     // Interrupt Vector
   genvar i;
   generate
@@ -472,11 +472,10 @@ module CSR (
   assign exception_vector[0] = illegal_instruction & enable_interrupt;
   assign exception_vector[1] = ecall & enable_interrupt;
     // Trap
+  assign ecall_exception = {2'b10, priv};
   assign async_trap = |(interrupt_vector);
   assign sync_trap = |(exception_vector);
   always @(*) begin: trap_calc
-    reg ecall_exception;
-    ecall_exception = {2'b10, priv};
     cause_async = 0;
     cause_sync = 0;
     m_trap = 0;
@@ -544,7 +543,7 @@ module CSR (
       .S(m_trap_addr_vet)
   );
     // S-Trap Address
-  assign s_trap_addr = 2'b00;
+  assign s_trap_addr[1:0] = 2'b00;
   assign s_trap_addr[`DATA_SIZE-1:2] = (stvec[0] && async_trap) ? stvec[`DATA_SIZE-1:2]
                                                                 : s_trap_addr_vet;
   sklansky_adder #(
