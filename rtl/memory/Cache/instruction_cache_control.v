@@ -7,23 +7,23 @@
 
 module instruction_cache_control (
     /* Sinais do sistema */
-    input clock,
-    input reset,
+    input CLK_I,
+    input RST_I,
     /* //// */
 
     /* Interface com a memória de instruções */
-    input  inst_busy,
-    output inst_enable,
+    input  inst_ACK_I,
+    output inst_CYC_O,
     /* //// */
 
     /* Interface com o controlador de memória */
-    input inst_cache_enable,
-    output reg inst_cache_busy,
+    input inst_cache_CYC_I,
+    output reg inst_cache_ACK_O,
     /* //// */
 
     /* Interface com o Fluxo de Dados */
-    input hit,
-    output reg cache_write_enable
+    input TGC_I,
+    output reg cache_WE_O
     /* //// */
 
 );
@@ -32,35 +32,35 @@ module instruction_cache_control (
 
   reg [1:0] current_state, next_state;
 
-  always @(posedge clock, posedge reset) begin
-    if (reset) current_state <= DefaultState;
-    else if (clock == 1'b1) current_state <= next_state;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) current_state <= DefaultState;
+    else if (CLK_I == 1'b1) current_state <= next_state;
   end
 
-  assign inst_enable = hit ? 1'b0 : inst_cache_enable;
+  assign inst_CYC_O = TGC_I ? 1'b0 : inst_cache_CYC_I;
 
   always @(*) begin
     case (current_state)  // synthesis parallel_case
       default: begin
-        inst_cache_busy = 1'b0;
-        cache_write_enable = 1'b0;
+        inst_cache_ACK_O = 1'b1;
+        cache_WE_O = 1'b0;
 
-        if (inst_cache_enable) begin
-          if (hit) next_state = HitState;
+        if (inst_cache_CYC_I) begin
+          if (TGC_I) next_state = HitState;
           else next_state = MissState;
         end else next_state = DefaultState;
       end
 
       HitState: begin
-        inst_cache_busy = 1'b1;
-        cache_write_enable = 1'b0;
+        inst_cache_ACK_O = 1'b0;
+        cache_WE_O = 1'b0;
         next_state = DefaultState;
       end
 
       MissState: begin
-        inst_cache_busy = 1'b1;
-        cache_write_enable = ~inst_busy;
-        next_state = inst_busy ? MissState : DefaultState;
+        inst_cache_ACK_O = 1'b0;
+        cache_WE_O = inst_ACK_I;
+        next_state = (~inst_ACK_I) ? MissState : DefaultState;
       end
     endcase
   end
