@@ -11,7 +11,7 @@
 module CSR_tb ();
 
   // Simulation Parameters
-  localparam integer Line = 98;
+  localparam integer Line = 99;
 
   // DUT
   reg clock;
