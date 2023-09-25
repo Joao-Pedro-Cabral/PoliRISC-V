@@ -9,10 +9,11 @@
 `timescale 1 ns / 100 ps
 
 `define ASSERT(condition, message) \
-        if (!(condition)) begin \
-            $display(message); \
-            $stop; \
-        end
+  if (!(condition)) \
+  begin \
+    $display(message); \
+    $stop; \
+  end
 
 module instruction_cache_tb ();
 
@@ -32,22 +33,22 @@ module instruction_cache_tb ();
   localparam integer Depth = 2 ** (L2CacheSize - L2BlockSize);
 
   /* Sinais do sistema */
-  reg clock;
-  reg reset;
+  reg CLK_I;
+  reg RST_I;
   /* //// */
 
   /* Interface com a memória de instruções */
-  reg [2**(L2BlockSize+3)-1:0] inst_data;
-  reg inst_busy;
-  wire inst_enable;
-  wire [2**L2AddrSize-1:0] inst_addr;
+  reg [2**(L2BlockSize+3)-1:0] inst_DAT_I;
+  reg inst_ACK_I;
+  wire inst_CYC_O;
+  wire [2**L2AddrSize-1:0] inst_ADR_O;
   /* //// */
 
   /* Interface com o controlador de memória */
-  reg inst_cache_enable;
-  reg [2**L2AddrSize-1:0] inst_cache_addr;
-  wire [2**(L2DataSize+3)-1:0] inst_cache_data;
-  wire inst_cache_busy;
+  reg inst_cache_CYC_I;
+  reg [2**L2AddrSize-1:0] inst_cache_ADR_I;
+  wire [2**(L2DataSize+3)-1:0] inst_cache_DAT_O;
+  wire inst_cache_ACK_O;
   /* //// */
 
   // Cache local
@@ -56,14 +57,14 @@ module instruction_cache_tb ();
   reg [Depth-1:0] cache_valid;
 
   // Sinais intermediários
-  wire [Index-1:0] index = inst_cache_addr[Index+Offset-1:Offset];
-  wire [Tag-1:0] tag = inst_cache_addr[2**L2AddrSize-1:Index+Offset];
-  wire [(Offset>0 ? Offset-1 : 0):0] offset = Offset > 0 ? inst_cache_addr[Offset-1:0] : 0;
+  wire [Index-1:0] index = inst_cache_ADR_I[Index+Offset-1:Offset];
+  wire [Tag-1:0] tag = inst_cache_ADR_I[2**L2AddrSize-1:Index+Offset];
+  wire [(Offset>0 ? Offset-1 : 0):0] offset = Offset > 0 ? inst_cache_ADR_I[Offset-1:0] : 0;
   wire [(ByteOffset>0 ? ByteOffset-1 : 0):0] byte_offset = ByteOffset > 0 ? offset[ByteOffset-1:0] : 0;
   wire [(BlockOffset>0 ? BlockOffset-1 : 0):0] block_offset = BlockOffset > 0 ? offset[Offset-1:ByteOffset] : 0;
   event busy_event;
   always @(busy_event) begin
-    inst_busy = ~inst_busy;
+    inst_ACK_I = ~inst_ACK_I;
   end
 
   instruction_cache #(
@@ -73,36 +74,36 @@ module instruction_cache_tb ();
       .L2_DATA_SIZE (L2DataSize)    // log2(bytes de dados)
   ) DUT (
       /* Sinais do sistema */
-      .clock(clock),
-      .reset(reset),
+      .CLK_I(CLK_I),
+      .RST_I(RST_I),
       /* //// */
 
       /* Interface com a memória de instruções */
-      .inst_data  (inst_data),
-      .inst_busy  (inst_busy),
-      .inst_enable(inst_enable),
-      .inst_addr  (inst_addr),
+      .inst_DAT_I  (inst_DAT_I),
+      .inst_ACK_I  (inst_ACK_I),
+      .inst_CYC_O(inst_CYC_O),
+      .inst_ADR_O  (inst_ADR_O),
       /* //// */
 
       /* Interface com o controlador de memória */
-      .inst_cache_enable(inst_cache_enable),
-      .inst_cache_addr  (inst_cache_addr),
-      .inst_cache_data  (inst_cache_data),
-      .inst_cache_busy  (inst_cache_busy)
+      .inst_cache_CYC_I(inst_cache_CYC_I),
+      .inst_cache_ADR_I  (inst_cache_ADR_I),
+      .inst_cache_DAT_O  (inst_cache_DAT_O),
+      .inst_cache_ACK_O  (inst_cache_ACK_O)
       /* //// */
   );
 
   task assert_dut;
     begin
-      `ASSERT(inst_cache_busy === 1'b0, "\tinst_cache_busy !== 0b0")
+      `ASSERT(inst_cache_ACK_O === 1'b1, "\tinst_cache_busy !== 0b0")
       `ASSERT(
-          cache_data[index][(block_offset+1)*(2**(ByteOffset+3))-1-:(2**(ByteOffset+3))] === inst_cache_data,
-          "\tcache_data[index][(block_offset+1)*(2**(ByteOffset+3))-1-:(2**(ByteOffset+3))] !== inst_cache_data")
+          cache_data[index][(block_offset+1)*(2**(ByteOffset+3))-1-:(2**(ByteOffset+3))] === inst_cache_DAT_O,
+          "\tcache_data[index][(block_offset+1)*(2**(ByteOffset+3))-1-:(2**(ByteOffset+3))] !== inst_cache_DAT_O")
       `ASSERT(cache_tag[index] === DUT.path.cache_tag[index],
               "\tcache_tag[index] !== DUT.path.cache_tag[index]")
       `ASSERT(cache_valid[index] === DUT.path.cache_valid[index],
               "\tcache_valid[index] !== DUT.path.cache_valid[index]")
-      `ASSERT(DUT.control.cache_write_enable === '0, "\tDUT.control.cache_write_enable !== 0b0")
+      `ASSERT(DUT.control.cache_WE_O === '0, "\tDUT.control.cache_WE_O !== 0b0")
     end
   endtask
 
@@ -112,36 +113,36 @@ module instruction_cache_tb ();
       #ClockPeriod;
       $display("[%0t] doNothing end", $time);
       assert_dut();
-      @(negedge clock);
+      @(negedge CLK_I);
     end
   endtask
 
   task hitState(input integer test_case);
     begin
       $display("[%0t] hitState start: test %d", $time, test_case);
-      `ASSERT(inst_cache_busy === 1'b1, "\tinst_cache_busy !== 0b1")
+      `ASSERT(inst_cache_ACK_O === 1'b0, "\tinst_cache_busy !== 0b1")
       #ClockPeriod;
       $display("[%0t] hitState end", $time);
       assert_dut();
-      @(negedge clock);
+      @(negedge CLK_I);
     end
   endtask
 
   task missState(input integer test_case);
     begin
       $display("[%0t] missState start: test %d", $time, test_case);
-      `ASSERT(inst_cache_busy === 1'b1, "\tinst_cache_busy !== 0b1")
-      /* inst_busy = 1'b1; */
+      `ASSERT(inst_cache_ACK_O === 1'b0, "\tinst_cache_busy !== 0b1")
+      /* inst_ACK_I = 1'b1; */
       -> busy_event;
-      `ASSERT(DUT.control.cache_write_enable === ~inst_busy,
-              "\tDUT.control.cache_write_enable !== ~inst_busy")
+      `ASSERT(DUT.control.cache_WE_O === inst_ACK_I,
+              "\tDUT.control.cache_WE_O !== inst_ACK_I")
       fork
         begin
           #(BusyCycles * ClockPeriod) -> busy_event;
         end
         begin
           #(BusyCycles / 2.0 * ClockPeriod);
-          cache_data[index]  = inst_data;
+          cache_data[index]  = inst_DAT_I;
           cache_tag[index]   = tag;
           cache_valid[index] = 1'b1;
         end
@@ -149,32 +150,33 @@ module instruction_cache_tb ();
       #(ClockPeriod);
       $display("[%0t] missState end", $time);
       assert_dut();
-      @(negedge clock);
+      @(negedge CLK_I);
     end
   endtask
 
 
-  always #(ClockPeriod/2) clock = ~clock;
+  always #(ClockPeriod/2) CLK_I = ~CLK_I;
   integer i;
   initial begin
-    {clock, reset, inst_data, inst_busy, inst_cache_enable, inst_cache_addr, cache_valid} = 0;
+    {CLK_I, RST_I, inst_DAT_I, inst_cache_CYC_I, inst_cache_ADR_I, cache_valid} = 0;
+    inst_ACK_I = 1'b1;
 
-    @(negedge clock);
-    reset = 1;
-    @(negedge clock);
-    reset = 0;
+    @(negedge CLK_I);
+    RST_I = 1;
+    @(negedge CLK_I);
+    RST_I = 0;
 
     $display("[%0t] SOT", $time);
 
     // Teste de leitura da Cache
-    @(negedge clock);
+    @(negedge CLK_I);
     for (i = 0; i < AmntOfTests; i = i + 1) begin
-      inst_data = $urandom;
-      inst_cache_enable = $urandom;
-      inst_cache_addr = $urandom;
-      @(negedge clock);
+      inst_DAT_I = $urandom;
+      inst_cache_CYC_I = $urandom;
+      inst_cache_ADR_I = $urandom;
+      @(negedge CLK_I);
 
-      if (inst_cache_enable === 1'b1) begin
+      if (inst_cache_CYC_I === 1'b1) begin
         if (cache_valid[index] === 1'b1 && tag === cache_tag[index]) begin
           hitState(i);
         end else begin
