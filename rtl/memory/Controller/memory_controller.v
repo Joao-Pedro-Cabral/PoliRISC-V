@@ -17,19 +17,19 @@ module memory_controller #(
     /* Interface com o cache de instruções */
     input  [8*BYTE_AMNT-1:0] inst_cache_DAT_I,
     input  inst_cache_ACK_I,
-    output inst_cache_enable,
-    output [8*BYTE_AMNT-1:0] inst_cache_addr,
+    output inst_cache_CYC_O,
+    output [8*BYTE_AMNT-1:0] inst_cache_ADR_O,
     /* //// */
 
     /* Interface com a memória RAM */
-    input  [8*BYTE_AMNT-1:0] ram_DAT_I,
-    input  ram_ACK_I,
     output [8*BYTE_AMNT-1:0] ram_ADR_O,
     output [8*BYTE_AMNT-1:0] ram_DAT_O,
-    output ram_output_enable,
+    output ram_TGC_O,
     output ram_WE_O,
     output ram_STB_O,
     output [BYTE_AMNT-1:0] ram_SEL_O,
+    input  [8*BYTE_AMNT-1:0] ram_DAT_I,
+    input  ram_ACK_I,
     /* //// */
 
     /* Registradores do CSR mapeados em memória */
@@ -53,6 +53,8 @@ module memory_controller #(
 
     /* Interface com o processador */
     input WE_I,
+    input CYC_I,
+    input TGC_I,
     input [BYTE_AMNT-1:0] SEL_I,
     input [8*BYTE_AMNT-1:0] DAT_I,
     input [8*BYTE_AMNT-1:0] ADR_I,
@@ -103,8 +105,8 @@ module memory_controller #(
   assign ram_byte_enable = s_ram_chip_select ? mem_byte_en : 0;
 
 `ifdef UART_0
-  assign uart_0_rd_en = uart_0_cs ? ~WE_I : 1'b0;
-  assign uart_0_WE_O = uart_0_cs ? WE_I : 1'b0;
+  assign uart_0_rd_en = uart_0_cs ? (CYC_I & ~WE_I) : 1'b0;
+  assign uart_0_WE_O = uart_0_cs ? (CYC_I & WE_I) : 1'b0;
 `endif
 
   assign msip_en = msip_cs;
@@ -116,8 +118,8 @@ module memory_controller #(
   /* //// */
 
   /* Endereçamento */
-  assign inst_cache_addr[23:0] = ADR_I[23:0];
-  assign inst_cache_addr[8*BYTE_AMNT-1:24] = 'b0;
+  assign inst_cache_ADR_O[23:0] = ADR_I[23:0];
+  assign inst_cache_ADR_O[8*BYTE_AMNT-1:24] = 'b0;
 
   wire ram_address24 = (~ADR_I[24]) & (ADR_I[26] ^ ADR_I[25]);
   wire ram_address25 =
