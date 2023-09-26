@@ -252,7 +252,7 @@ module core_tb ();
       .mem_mtimecmp(mtimecmp),
       .instruction(instruction),
       .trap_addr(trap_addr),
-      .trap(),  // Consertar trap
+      .trap(csr_trap),
       .privilege_mode(csr_privilege_mode),
       .pc(pc),
       // CSR RW interface
@@ -280,8 +280,6 @@ module core_tb ();
       .sepc()
 `endif
   );
-
-  assign csr_trap = 1'b0; // tirar isso!!!
 
   // geração do clock
   always begin

@@ -355,6 +355,24 @@ module control_unit_tb ();
             if (opcode == 7'b0010011 && funct3 === 3'b101) begin
               if (funct7 == LUT_linear[(NColumnI*(i+1)-17)+:7])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
+            end // ECALL + Privilegied
+            else if(opcode === 7'b1110011) begin
+              // ECALL, MRET, SRET
+              if(funct3 === 3'b000 && funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7]) begin
+                if(funct7 === 7'b0) begin
+                  temp = LUT_linear[NColumnI*i+:(NColumnI-17)]; // ECALL
+                  $display("ECALL: %d", i);
+                end
+                // MRET, SRET
+                else if({funct7[6:5], funct7[3:0]} === 6'b001000 &&
+                (privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) begin
+                  temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
+                  $display("XRET: %d", i);
+                end
+              end
+              // Zicsr
+              else if(funct3 !== 3'b000 && privilege_mode >= funct7[6:5])
+                temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
           end
         end

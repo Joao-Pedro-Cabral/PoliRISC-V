@@ -88,6 +88,7 @@ module Dataflow (
   // PC
   wire [`DATA_SIZE-1:0] pc;
   reg  [`DATA_SIZE-1:0] new_pc;
+  wire pc_en_;
   // Instruction Register(IR)
   wire [          31:0] ir;
   // CSR
@@ -203,6 +204,11 @@ module Dataflow (
     else if (pc_src) new_pc = pc_plus_immediate;
     else new_pc = pc_plus_4;
   end
+`ifdef TrapReturn
+  assign pc_en_ = pc_en | mret | sret | _trap;
+`else
+  assign pc_en_ = pc_en | _trap;
+`endif
   // Immediate Extender
   ImmediateExtender #(
       .N(`DATA_SIZE)
@@ -236,7 +242,7 @@ module Dataflow (
       .mem_mtime(mem_mtime),
       .mem_mtimecmp(mem_mtimecmp),
       .trap_addr(trap_addr),
-      .trap(), // Consertar trap
+      .trap(_trap),
       .privilege_mode(_privilege_mode),
       .pc(pc),
       .instruction(ir),
@@ -259,8 +265,8 @@ module Dataflow (
       .mepc(mepc),
       .sepc(sepc)
 `else
-      .mret(),
-      .sret(),
+      .mret(1'b0),
+      .sret(1'b0),
       .mepc(),
       .sepc()
 `endif
@@ -287,7 +293,6 @@ module Dataflow (
   assign funct3 = ir[14:12];
   assign funct7 = ir[31:25];
   assign trap = _trap;
-  assign _trap = 1'b0;
   assign privilege_mode = _privilege_mode;
 
 endmodule

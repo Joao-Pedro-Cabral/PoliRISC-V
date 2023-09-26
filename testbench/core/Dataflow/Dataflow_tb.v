@@ -322,7 +322,7 @@ module Dataflow_tb ();
       .mem_mtime(mtime),
       .mem_mtimecmp(mtimecmp),
       .trap_addr(trap_addr),
-      .trap(), // Consertar trap
+      .trap(csr_trap),
       .privilege_mode(csr_privilege_mode),
       .pc(pc),
       .instruction(instruction),
@@ -342,17 +342,13 @@ module Dataflow_tb ();
     `ifdef TrapReturn
       .mret(mret),
       .sret(sret),
+    `else
+      .mret(1'b0),
+      .sret(1'b0),
+    `endif
       .mepc(mepc),
       .sepc(sepc)
-    `else
-      .mret(),
-      .sret(),
-      .mepc(),
-      .sepc()
-    `endif
   );
-
-  assign csr_trap = 1'b0; // Tirar isso!
 
   // geração do clock
   always begin
@@ -392,6 +388,24 @@ module Dataflow_tb ();
             if (opcode == 7'b0010011 && funct3 === 3'b101) begin
               if (funct7 == LUT_linear[(NColumnI*(i+1)-17)+:7])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
+            end // ECALL + Privilegied
+            else if(opcode === 7'b1110011) begin
+              // ECALL, MRET, SRET
+              if(funct3 === 3'b000 && funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7]) begin
+                if(funct7 === 7'b0) begin
+                  temp = LUT_linear[NColumnI*i+:(NColumnI-17)]; // ECALL
+                  $display("ECALL: %d", i);
+                end
+                // MRET, SRET
+                else if({funct7[6:5], funct7[3:0]} === 6'b001000 &&
+                (privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) begin
+                  temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
+                  $display("XRET: %d", i);
+                end
+              end
+              // Zicsr
+              else if(funct3 !== 3'b000 && privilege_mode >= funct7[6:5])
+                temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
           end
         end
@@ -402,14 +416,6 @@ module Dataflow_tb ();
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
           temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-      end
-      // Checar privilégio
-      if(opcode === 7'b1110011 && funct3 !== 3'b100) begin
-        // MRET, SRET
-        if(funct3 === 3'b000 && {funct7[6:5], funct7[3:0]} === 6'b001000 &&
-          !(privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) temp = 0;
-        // Zicsr
-        if(funct3 !== 3'b000 && privilege_mode < funct7[6:5]) temp = 0;
       end
       if(temp == 0) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
       find_instruction = temp;
@@ -493,6 +499,9 @@ module Dataflow_tb ();
   task automatic DoReset();
     begin
       db_df_src = 0;
+      reg_data = 0;
+      csr_wr_data = 0;
+      pc_4 = 0;
       @(negedge clock);
       reset = 1'b1;
       @(posedge clock);
