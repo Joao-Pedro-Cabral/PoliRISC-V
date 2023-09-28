@@ -5,7 +5,7 @@ addi sp,sp,-32
 addi s0,sp,32
 
 ; writing to mtvec
-addi t0,x0,156            ; BASE address for interrupt handling
+addi t0,x0,148            ; BASE address for interrupt handling
 slli t0,t0,2
 csrrw x0,mtvec,t0
 
