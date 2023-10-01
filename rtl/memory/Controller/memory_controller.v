@@ -60,7 +60,7 @@ module memory_controller #(
     input [8*BYTE_AMNT-1:0] ADR_I,
 
     output [8*BYTE_AMNT-1:0] DAT_O,
-    output ACK_I
+    output ACK_O
     /* //// */
 );
 
@@ -91,7 +91,7 @@ module memory_controller #(
   assign inst_cache_enable = s_rom_enable & mem_rd_en;
   assign ram_chip_select = s_ram_chip_select;
 
-  assign ACK_I =
+  assign ACK_O =
     s_rom_enable ? inst_cache_ACK_I
     : s_ram_chip_select ? ram_ACK_I
     `ifdef UART_0

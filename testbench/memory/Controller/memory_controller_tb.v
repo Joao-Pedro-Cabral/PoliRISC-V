@@ -13,82 +13,82 @@ module memory_controller_tb;
   localparam integer ClockPeriod = 20;
 
   // Sinais do testbench
-  reg clock;
-  reg reset;
+  reg CLK_I;
+  reg RST_I;
   reg [63:0] inst_cache_memory[7:0];
   reg [63:0] ram_memory[7:0];
   integer i;
 
   // Entradas
-  reg mem_rd_en;
-  reg mem_wr_en;
-  reg [7:0] mem_byte_en;
-  reg [63:0] wr_data;
-  reg [63:0] mem_addr;
+  reg WE_I;
+  reg CYC_I;
+  reg [7:0] SEL_I;
+  reg [63:0] DAT_I;
+  reg [63:0] ADR_I;
 
   // Saídas
-  wire [63:0] rd_data;
-  wire mem_busy;
+  wire [63:0] DAT_O;
+  wire ACK_O;
 
   // Interface da Cache
-  wire [63:0] inst_cache_data;
-  wire inst_cache_busy;
-  wire inst_cache_enable;
-  wire [63:0] inst_cache_addr;
+  wire [63:0] inst_cache_DAT_O;
+  wire [63:0] inst_cache_DAT_I = inst_cache_DAT_O;
+  wire inst_cache_ACK_O;
+  wire inst_cache_ACK_I = inst_cache_ACK_O;
+  wire inst_cache_CYC_O;
+  wire inst_cache_CYC_I = inst_cache_CYC_O;
+  wire [63:0] inst_cache_ADR_O;
+  wire [63:0] inst_cache_ADR_I = inst_cache_ADR_O;
 
   // Interface da ROM com a Cache
-  wire [511:0] inst_data;
-  wire inst_busy;
-  wire inst_enable;
-  wire [63:0] inst_addr;
+  wire [511:0] inst_DAT_O;
+  wire [511:0] inst_DAT_I = inst_DAT_O;
+  wire inst_ACK_O;
+  wire inst_ACK_I = inst_ACK_O;
+  wire inst_CYC_O;
+  wire inst_CYC_I = inst_CYC_O;
+  wire [63:0] inst_ADR_O;
+  wire [63:0] inst_ADR_I = inst_ADR_O;
 
   // Interface da RAM
-  wire [63:0] ram_read_data;
-  wire ram_busy;
-  wire [63:0] ram_address;
-  wire [63:0] ram_write_data;
-  wire ram_output_enable;
-  wire ram_write_enable;
-  wire ram_chip_select;
-  wire [7:0] ram_byte_enable;
-
-  // Interface da UART
-  wire [63:0] uart_0_rd_data;
-  wire uart_0_busy;
-  wire uart_0_rd_en;
-  wire uart_0_wr_en;
-  wire [4:0] uart_0_addr;
-  wire [63:0] uart_0_wr_data;
-  reg txd, rxd;
-
+  wire [63:0] ram_DAT_O;
+  wire [63:0] ram_rd_DAT_I = ram_DAT_O;
+  wire ram_ACK_O;
+  wire ram_ACK_I = ram_ACK_O;
+  wire [63:0] ram_ADR_O;
+  wire [63:0] ram_ADR_I = ram_ADR_O;
+  wire [63:0] ram_wr_DAT_O;
+  wire [63:0] ram_DAT_I = ram_wr_DAT_O;
+  wire ram_TGC_O;
+  wire ram_TGC_I = ram_TGC_O;
+  wire ram_WE_O;
+  wire ram_WE_I = ram_WE_O;
+  wire ram_STB_O;
+  wire ram_STB_I = ram_STB_O;
+  wire [7:0] ram_SEL_O;
+  wire [7:0] ram_SEL_I = ram_SEL_O;
 
   // Instanciação do DUT
   memory_controller DUT (
-      .mem_rd_en        (mem_rd_en),
-      .mem_wr_en        (mem_wr_en),
-      .mem_byte_en      (mem_byte_en),
-      .wr_data          (wr_data),
-      .mem_addr         (mem_addr),
-      .rd_data          (rd_data),
-      .mem_busy         (mem_busy),
-      .inst_cache_data  (inst_cache_data),
-      .inst_cache_busy  (inst_cache_busy),
-      .inst_cache_enable(inst_cache_enable),
-      .inst_cache_addr  (inst_cache_addr),
-      .ram_read_data    (ram_read_data),
-      .ram_busy         (ram_busy),
-      .ram_address      (ram_address),
-      .ram_write_data   (ram_write_data),
-      .ram_output_enable(ram_output_enable),
-      .ram_write_enable (ram_write_enable),
-      .ram_chip_select  (ram_chip_select),
-      .ram_byte_enable  (ram_byte_enable),
-      .uart_0_rd_data   (uart_0_rd_data),
-      .uart_0_busy      (uart_0_busy),
-      .uart_0_rd_en     (uart_0_rd_en),
-      .uart_0_wr_en     (uart_0_wr_en),
-      .uart_0_addr      (uart_0_addr),
-      .uart_0_wr_data   (uart_0_wr_data)
+      .WE_I             (WE_I),
+      .CYC_I            (CYC_I),
+      .SEL_I            (SEL_I),
+      .DAT_I          (DAT_I),
+      .ADR_I         (ADR_I),
+      .DAT_O          (DAT_O),
+      .ACK_O         (ACK_O),
+      .inst_cache_DAT_I  (inst_cache_DAT_I),
+      .inst_cache_ACK_I  (inst_cache_ACK_I),
+      .inst_cache_CYC_O(inst_cache_CYC_O),
+      .inst_cache_ADR_O  (inst_cache_ADR_O),
+      .ram_DAT_I    (ram_rd_DAT_I),
+      .ram_ACK_I         (ram_ACK_I),
+      .ram_ADR_O      (ram_ADR_O),
+      .ram_DAT_O   (ram_wr_DAT_O),
+      .ram_TGC_O(ram_TGC_O),
+      .ram_WE_O (ram_WE_O),
+      .ram_STB_O  (ram_STB_O),
+      .ram_SEL_O  (ram_SEL_O)
   );
 
   instruction_cache #(
@@ -97,16 +97,16 @@ module memory_controller_tb;
       .L2_ADDR_SIZE (6),  // bits
       .L2_DATA_SIZE (3)   // bytes
   ) cache (
-      .clock            (clock),
-      .reset            (reset),
-      .inst_data        (inst_data),
-      .inst_busy        (inst_busy),
-      .inst_enable      (inst_enable),
-      .inst_addr        (inst_addr),
-      .inst_cache_enable(inst_cache_enable),
-      .inst_cache_addr  (inst_cache_addr),
-      .inst_cache_data  (inst_cache_data),
-      .inst_cache_busy  (inst_cache_busy)
+      .CLK_I            (CLK_I),
+      .RST_I            (RST_I),
+      .inst_DAT_I       (inst_DAT_I),
+      .inst_ACK_I       (inst_ACK_I),
+      .inst_CYC_O       (inst_CYC_O),
+      .inst_ADR_O        (inst_ADR_O),
+      .inst_cache_CYC_I (inst_cache_CYC_I),
+      .inst_cache_ADR_I (inst_cache_ADR_I),
+      .inst_cache_DAT_O (inst_cache_DAT_O),
+      .inst_cache_ACK_O (inst_cache_ACK_O)
   );
 
   // Instanciação da memória ROM
@@ -117,11 +117,11 @@ module memory_controller_tb;
       .offset(3),
       .busy_cycles(12)
   ) rom (
-      .clock (clock),
-      .enable(inst_enable),
-      .addr  (inst_addr[5:0]),
-      .data  (inst_data),
-      .busy  (inst_busy)
+      .CLK_I  (CLK_I),
+      .CYC_I  (inst_CYC_I),
+      .ADR_I  (inst_ADR_I[5:0]),
+      .DAT_O  (inst_DAT_O),
+      .ACK_O  (inst_ACK_O)
   );
 
   // Instanciação da memória RAM
@@ -132,116 +132,125 @@ module memory_controller_tb;
       .DATA_SIZE(64),
       .BUSY_CYCLES(30)
   ) ram (
-      .clk          (clock),
-      .address      (ram_address),
-      .write_data   (ram_write_data),
-      .output_enable(ram_output_enable),
-      .write_enable (ram_write_enable),
-      .chip_select  (ram_chip_select),
-      .byte_enable  (ram_byte_enable),
-      .read_data    (ram_read_data),
-      .busy         (ram_busy)
+      .CLK_I        (CLK_I),
+      .ADR_I        (ram_ADR_I),
+      .DAT_I        (ram_DAT_I),
+      .TGC_I        (ram_TGC_I),
+      .WE_I         (ram_WE_I),
+      .STB_I        (ram_STB_I),
+      .SEL_I        (ram_SEL_I),
+      .DAT_O        (ram_DAT_O),
+      .ACK_O        (ram_ACK_O)
   );
 
-  // Geração do clock
-  always #(ClockPeriod / 2) clock = ~clock;
+  // Geração do CLK_I
+  always #(ClockPeriod / 2) CLK_I = ~CLK_I;
 
   initial begin
     $readmemb("./ROM.mif", inst_cache_memory);
     $readmemb("./RAM.mif", ram_memory);
 
     // Inicialização das entradas
-    clock = 0;
-    reset = 0;
-    mem_rd_en = 0;
-    mem_byte_en = 0;
-    wr_data = 0;
-    mem_addr = 0;
+    CLK_I = 0;
+    RST_I = 0;
+    SEL_I = 0;
+    DAT_I = 0;
+    ADR_I = 0;
 
     // Resetando a cache
-    @(negedge clock);
-    reset = 1;
-    @(negedge clock);
-    reset = 0;
+    @(negedge CLK_I);
+    RST_I = 1;
+    @(negedge CLK_I);
+    RST_I = 0;
 
     // Teste da ROM
-    mem_byte_en = 8'hFF;
+    SEL_I = 8'hFF;
     for (i = 0; i < 8; i = i + 1) begin
-      @(negedge clock);
-      mem_addr  = 8 * i;  // acesso da ROM
-      mem_rd_en = 1;
-      @(posedge mem_busy);
-      @(negedge mem_busy);
-      if (rd_data[31:0] !== inst_cache_memory[i][31:0]) begin
+      @(negedge CLK_I);
+      ADR_I  = 8 * i;  // acesso da ROM
+      CYC_I = 1'b1;
+      WE_I = 1'b0;
+      @(negedge ACK_O);
+      @(posedge ACK_O);
+      if (DAT_O[31:0] !== inst_cache_memory[i][31:0]) begin
         $warning(
             "Erro no teste %d.1 da rom[31:0]:\n\trom[31:0] = 0x%h\n\tcontrolador[31:0] = 0x%h\n",
-            i + 1, inst_cache_memory[i][31:0], rd_data[31:0]);
+            i + 1, inst_cache_memory[i][31:0], DAT_O[31:0]);
         $warning("Erro no teste %d.1 da rom:\n\trom = 0x%h\n\tcontrolador = 0x%h\n", i + 1,
-                 inst_cache_memory[i], rd_data);
+                 inst_cache_memory[i], DAT_O);
       end else $display("Acerto no teste %d.1 da ROM", i + 1);
 
-      mem_rd_en = 0;
+      CYC_I = 1'b0;
+      WE_I = 1'b0;
 
-      @(negedge clock);
-      mem_addr  = 8 * i + 4;  // acesso da ROM
-      mem_rd_en = 1;
-      @(posedge mem_busy);
-      @(negedge mem_busy);
-      if (rd_data[31:0] !== inst_cache_memory[i][63:32]) begin
+      @(negedge CLK_I);
+      ADR_I  = 8 * i + 4;  // acesso da ROM
+      CYC_I = 1'b1;
+      WE_I = 1'b0;
+      @(negedge ACK_O);
+      @(posedge ACK_O);
+      if (DAT_O[31:0] !== inst_cache_memory[i][63:32]) begin
         $warning(
             "Erro no teste %d.2 da rom[63:32]:\n\trom[63:32] = 0x%h\n\tcontrolador[31:0] = 0x%h\n",
-            i + 1, inst_cache_memory[i][63:32], rd_data[31:0]);
+            i + 1, inst_cache_memory[i][63:32], DAT_O[31:0]);
         $warning("Erro no teste %d.2 da rom:\n\trom = 0x%h\n\tcontrolador = 0x%h\n", i + 1,
-                 inst_cache_memory[i], rd_data);
+                 inst_cache_memory[i], DAT_O);
       end else $display("Acerto no teste %d.2 da ROM", i + 1);
-      mem_rd_en = 0;
+      CYC_I = 1'b0;
+      WE_I = 1'b0;
     end
 
 
     // Teste de leitura da RAM
     for (i = 0; i < 8; i = i + 1) begin
-      @(negedge clock);
-      mem_addr  = 2 ** 24 + 8 * i;  // acesso da RAM, começando no endereço 2^24
-      mem_rd_en = 1;
-      @(posedge mem_busy);
-      @(negedge mem_busy);
-      if (rd_data !== ram_memory[i])
+      @(negedge CLK_I);
+      ADR_I  = 2 ** 24 + 8 * i;  // acesso da RAM, começando no endereço 2^24
+      CYC_I = 1'b1;
+      WE_I = 1'b0;
+      @(negedge ACK_O);
+      @(posedge ACK_O);
+      if (DAT_O !== ram_memory[i])
         $warning(
             "Erro no teste %d de leitura da ram:\n\tram = 0x%h\n\tcontrolador = 0x%h\n",
             i + 1,
             ram_memory[i],
-            rd_data
+            DAT_O
         );
       else $display("Acerto no teste %d de leitura da RAM", i + 1);
-      mem_rd_en = 0;
+      CYC_I = 1'b0;
+      WE_I = 1'b0;
 
       // Escreve na RAM para teste de escrita a seguir
-      @(negedge clock);
-      wr_data = i;
+      @(negedge CLK_I);
+      DAT_I = i;
       ram_memory[i] = i;  // atualiza conteúdo de memória da RAM
-      mem_wr_en = 1'b1;
-      @(posedge mem_busy);
-      @(negedge mem_busy);
-      mem_wr_en = 1'b0;
+      CYC_I = 1'b1;
+      WE_I = 1'b1;
+      @(negedge ACK_O);
+      @(posedge ACK_O);
+      CYC_I = 1'b0;
+      WE_I = 1'b0;
     end
 
     // Teste de escrita da RAM
-    mem_byte_en = 8'hFF;
+    SEL_I = 8'hFF;
     for (i = 0; i < 8; i = i + 1) begin
-      @(negedge clock);
-      mem_addr  = 2 ** 24 + 8 * i;  // acesso da RAM, começando no endereço 2^24
-      mem_rd_en = 1;
-      @(posedge mem_busy);
-      @(negedge mem_busy);
-      if (rd_data !== ram_memory[i])
+      @(negedge CLK_I);
+      ADR_I  = 2 ** 24 + 8 * i;  // acesso da RAM, começando no endereço 2^24
+      CYC_I = 1'b1;
+      WE_I = 1'b0;
+      @(negedge ACK_O);
+      @(posedge ACK_O);
+      if (DAT_O !== ram_memory[i])
         $warning(
             "Erro no teste %d de escrita da ram:\n\tram = 0x%h\n\tcontrolador = 0x%h\n",
             i + 1,
             ram_memory[i],
-            rd_data
+            DAT_O
         );
       else $display("Acerto no teste %d de escrita da RAM", i + 1);
-      mem_rd_en = 0;
+      CYC_I = 1'b1;
+      WE_I = 1'b0;
     end
 
     $stop;
