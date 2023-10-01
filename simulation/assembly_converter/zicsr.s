@@ -5,8 +5,7 @@ addi sp,sp,-32
 addi s0,sp,32
 
 ; writing to mtvec
-addi t0,x0,148            ; BASE address for interrupt handling
-slli t0,t0,2
+addi t0,x0,144            ; BASE address for interrupt handling
 csrrw x0,mtvec,t0
 
 ; setting mtimecmp
@@ -43,12 +42,12 @@ mul x0,x0,x0
 
 ; Machine Software Interrupt
 addi t0,x0,-1
-lui t1,524292             ; msip base address
+lui t1,524296             ; msip base address
 sw t0,0(t1)
 
 ; Supervisor Software Interrupt
 j 106
-lui t1,524296             ; ssip base address
+lui t1,524300             ; ssip base address
 sw t0,0(t1)
 
 ; end program
