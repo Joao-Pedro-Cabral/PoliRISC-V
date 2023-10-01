@@ -180,7 +180,7 @@ module Dataflow_tb ();
       .mret(mret),
       .sret(sret),
     `endif
-    `ifdef Zicsr
+    `ifdef ZICSR
       .csr_imm(csr_imm),
       .csr_op(csr_op),
       .csr_wr_en(csr_wr_en),
@@ -254,7 +254,11 @@ module Dataflow_tb ();
 
   // Instanciação do barramento
   memory_controller #(
-      .BYTE_AMNT(`BYTE_NUM)
+      .BYTE_AMNT(`BYTE_NUM),
+      .MTIME_ADDR({32'b0, 524284*(2**12)}),    // lui 524284
+      .MTIMECMP_ADDR({32'b0, 524288*(2**12)}), // lui 524288
+      .MSIP_ADDR({32'b0, 524292*(2**12)}),     // lui 524292
+      .SSIP_ADDR({32'b0, 524296*(2**12)})      // lui 524296
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -394,13 +398,11 @@ module Dataflow_tb ();
               if(funct3 === 3'b000 && funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7]) begin
                 if(funct7 === 7'b0) begin
                   temp = LUT_linear[NColumnI*i+:(NColumnI-17)]; // ECALL
-                  $display("ECALL: %d", i);
                 end
                 // MRET, SRET
                 else if({funct7[6:5], funct7[3:0]} === 6'b001000 &&
                 (privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) begin
                   temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-                  $display("XRET: %d", i);
                 end
               end
               // Zicsr
@@ -502,6 +504,7 @@ module Dataflow_tb ();
       reg_data = 0;
       csr_wr_data = 0;
       pc_4 = 0;
+      pc_imm = 0;
       @(negedge clock);
       reset = 1'b1;
       @(posedge clock);
@@ -638,14 +641,16 @@ module Dataflow_tb ();
           @(negedge clock);
           if(funct3 == 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
+          `ifdef TrapReturn
             else if(funct7 == 7'b0001000) next_pc = mepc; // MRET
             else if(funct7 == 7'b0011000) next_pc = sepc; // SRET
+          `endif
             else begin
               $display("Error SYSTEM: Invalid funct7! funct7 : %x", funct7);
               $stop;
             end
           end
-        `ifdef Zicsr // Apenas aqui há ifdef, pois nem sempre DUT.csr_wr_data existe
+        `ifdef ZICSR // Apenas aqui há ifdef, pois nem sempre DUT.csr_wr_data existe
           else if(funct3 != 3'b100) begin // CSRR*
             reg_data = csr_rd_data;
             if(instruction[31:20] == 12'h344 || instruction[31:20] == 12'h144)

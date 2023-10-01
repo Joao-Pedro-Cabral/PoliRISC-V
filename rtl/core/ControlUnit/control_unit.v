@@ -50,9 +50,9 @@ module control_unit (
     output reg [1:0] wr_reg_src,
     output reg wr_reg_en,
 `ifdef ZICSR
-    output wire csr_imm,
-    output wire [1:0] csr_op,
-    output reg csr_wr_en
+    output reg csr_imm,
+    output reg [1:0] csr_op,
+    output reg csr_wr_en,
 `endif
     output reg ir_en,
     output reg mem_addr_src,
@@ -113,7 +113,7 @@ module control_unit (
       ir_en        = 1'b0;
       mem_addr_src = 1'b0;
       ecall        = 1'b0;
-`ifdef TrapReturn;
+`ifdef TrapReturn
       mret         = 1'b0;
       sret         = 1'b0;
 `endif
@@ -346,6 +346,8 @@ module control_unit (
 
     `ifdef ZICSR
       Zicsr: begin
+        wr_reg_en = 1'b1;
+        wr_reg_src = 2'b01;
         // não significa que algum CSR será escrito
         csr_wr_en = 1'b1;
         csr_imm = funct3[2];

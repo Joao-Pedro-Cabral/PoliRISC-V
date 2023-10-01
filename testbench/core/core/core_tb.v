@@ -183,7 +183,11 @@ module core_tb ();
 
   // Instanciação do barramento
   memory_controller #(
-      .BYTE_AMNT(`BYTE_NUM)
+      .BYTE_AMNT(`BYTE_NUM),
+      .MTIME_ADDR({32'b0, 524284*(2**12)}),    // lui 524284
+      .MTIMECMP_ADDR({32'b0, 524288*(2**12)}), // lui 524288
+      .MSIP_ADDR({32'b0, 524292*(2**12)}),     // lui 524292
+      .SSIP_ADDR({32'b0, 524296*(2**12)})      // lui 524296
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -366,6 +370,10 @@ module core_tb ();
       // desabilito a escrita no banco simulado
       wr_reg_en = 1'b0;
       csr_wr_en = 1'b0;
+      reg_data = 0;
+      csr_wr_data = 0;
+      pc_4 = 0;
+      pc_imm = 0;
       reset = 1'b1;
       `ASSERT(db_mem_en === 0);  // Enables abaixados: Idle
       @(posedge clock);
@@ -495,14 +503,16 @@ module core_tb ();
           wr_reg_en = 1'b0;
           if(funct3 == 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
+          `ifdef TrapReturn
             else if(funct7 == 7'b0001000) next_pc = mepc; // MRET
             else if(funct7 == 7'b0011000) next_pc = sepc; // SRET
+          `endif
             else begin
               $display("Error SYSTEM: Invalid funct7! funct7 : %x", funct7);
               $stop;
             end
           end
-        `ifdef Zicsr // Apenas aqui há ifdef, pois nem sempre DUT.DF.csr_wr_data existe
+        `ifdef ZICSR // Apenas aqui há ifdef, pois nem sempre DUT.DF.csr_wr_data existe
           else if(funct3 != 3'b100) begin // CSRR*
             wr_reg_en = 1'b1;
             csr_wr_en = (!funct3[1] || (instruction[19:15] == 0));
@@ -513,8 +523,8 @@ module core_tb ();
             if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
             else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
             // Sempre checo a leitura/escrita até se ela não acontecer
-            `ASSERT(csr_wr_data === DUT.csr_wr_data);
-            `ASSERT(reg_data === DUT.rd);
+            `ASSERT(csr_wr_data === DUT.DF.csr_wr_data);
+            `ASSERT(reg_data === DUT.DF.rd);
             next_pc = pc + 4;
           end
         `endif

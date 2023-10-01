@@ -151,7 +151,7 @@ module control_unit_tb ();
       .mret(mret),
       .sret(sret),
     `endif
-    `ifdef Zicsr
+    `ifdef ZICSR
       .csr_imm(csr_imm),
       .csr_op(csr_op),
       .csr_wr_en(csr_wr_en),
@@ -187,7 +187,7 @@ module control_unit_tb ();
     `ifdef RV64I
       .aluy_src(aluy_src),
     `endif
-    `ifdef Zicsr
+    `ifdef ZICSR
       .csr_imm(csr_imm),
       .csr_op(csr_op),
       .csr_wr_en(csr_wr_en),
@@ -225,7 +225,11 @@ module control_unit_tb ();
 
   // Instanciação do barramento
   memory_controller #(
-      .BYTE_AMNT(`BYTE_NUM)
+      .BYTE_AMNT(`BYTE_NUM),
+      .MTIME_ADDR({32'b0, 524284*(2**12)}),    // lui 524284
+      .MTIMECMP_ADDR({32'b0, 524288*(2**12)}), // lui 524288
+      .MSIP_ADDR({32'b0, 524292*(2**12)}),     // lui 524292
+      .SSIP_ADDR({32'b0, 524296*(2**12)})      // lui 524296
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -312,7 +316,7 @@ module control_unit_tb ();
     assign {mret, sret} = 2'b00;
   `endif
 
-  `ifndef Zicsr
+  `ifndef ZICSR
     assign {csr_imm, csr_op, csr_wr_en} = 4'h0;
   `endif
 
@@ -361,13 +365,11 @@ module control_unit_tb ();
               if(funct3 === 3'b000 && funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7]) begin
                 if(funct7 === 7'b0) begin
                   temp = LUT_linear[NColumnI*i+:(NColumnI-17)]; // ECALL
-                  $display("ECALL: %d", i);
                 end
                 // MRET, SRET
                 else if({funct7[6:5], funct7[3:0]} === 6'b001000 &&
                 (privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) begin
                   temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-                  $display("XRET: %d", i);
                 end
               end
               // Zicsr

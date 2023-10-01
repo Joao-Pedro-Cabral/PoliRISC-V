@@ -10,10 +10,10 @@
 
 module memory_controller #(
     parameter integer BYTE_AMNT = 8,
-    parameter integer MSIP_ADDR = 32'hFFFFFFC0,
-    parameter integer SSIP_ADDR = 32'hFFFFFFD0,
-    parameter integer MTIME_ADDR = 32'hFFFFFFE0, // Alinhado em 8 bytes
-    parameter integer MTIMECMP_ADDR = 32'hFFFFFFF0 // Alinhado em 8 bytes
+    parameter [63:0] MSIP_ADDR = 32'hFFFFFFC0,
+    parameter [63:0] SSIP_ADDR = 32'hFFFFFFD0,
+    parameter [63:0] MTIME_ADDR = 32'hFFFFFFE0, // Alinhado em 8 bytes
+    parameter [63:0] MTIMECMP_ADDR = 32'hFFFFFFF0 // Alinhado em 8 bytes
 ) (
     /* Interface com o cache de instruções */
     input [8*BYTE_AMNT-1:0] inst_cache_data,
