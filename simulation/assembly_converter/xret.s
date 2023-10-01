@@ -17,12 +17,12 @@ csrrw x0,mstatus,t0       ; enables global interrupts
 
 ; Machine Software Interrupt
 addi t0,x0,-1
-lui t1,524292             ; msip base address
+lui t1,524296             ; msip base address
 sw t0,0(t1)
 
 ; Supervisor Software Interrupt
 j 30
-lui t1,524296             ; ssip base address
+lui t1,524300             ; ssip base address
 sw t0,0(t1)
 
 ; end program
