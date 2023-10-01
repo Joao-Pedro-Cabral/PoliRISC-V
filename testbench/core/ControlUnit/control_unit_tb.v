@@ -226,10 +226,10 @@ module control_unit_tb ();
   // Instanciação do barramento
   memory_controller #(
       .BYTE_AMNT(`BYTE_NUM),
-      .MTIME_ADDR({32'b0, 524284*(2**12)}),    // lui 524284
+      .MTIME_ADDR({32'b0, 524280*(2**12)}),    // lui 524280
       .MTIMECMP_ADDR({32'b0, 524288*(2**12)}), // lui 524288
-      .MSIP_ADDR({32'b0, 524292*(2**12)}),     // lui 524292
-      .SSIP_ADDR({32'b0, 524296*(2**12)})      // lui 524296
+      .MSIP_ADDR({32'b0, 524296*(2**12)}),     // lui 524296
+      .SSIP_ADDR({32'b0, 524300*(2**12)})      // lui 524300
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -363,14 +363,11 @@ module control_unit_tb ();
             else if(opcode === 7'b1110011) begin
               // ECALL, MRET, SRET
               if(funct3 === 3'b000 && funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7]) begin
-                if(funct7 === 7'b0) begin
-                  temp = LUT_linear[NColumnI*i+:(NColumnI-17)]; // ECALL
-                end
+                if(funct7 === 7'b0) temp = LUT_linear[NColumnI*i+:(NColumnI-17)]; // ECALL
                 // MRET, SRET
                 else if({funct7[6:5], funct7[3:0]} === 6'b001000 &&
-                (privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) begin
+                (privilege_mode[0] && (privilege_mode[1] | !funct7[4])))
                   temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-                end
               end
               // Zicsr
               else if(funct3 !== 3'b000 && privilege_mode >= funct7[6:5])

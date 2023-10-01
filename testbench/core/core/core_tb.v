@@ -184,10 +184,10 @@ module core_tb ();
   // Instanciação do barramento
   memory_controller #(
       .BYTE_AMNT(`BYTE_NUM),
-      .MTIME_ADDR({32'b0, 524284*(2**12)}),    // lui 524284
+      .MTIME_ADDR({32'b0, 524280*(2**12)}),    // lui 524280
       .MTIMECMP_ADDR({32'b0, 524288*(2**12)}), // lui 524288
-      .MSIP_ADDR({32'b0, 524292*(2**12)}),     // lui 524292
-      .SSIP_ADDR({32'b0, 524296*(2**12)})      // lui 524296
+      .MSIP_ADDR({32'b0, 524296*(2**12)}),     // lui 524296
+      .SSIP_ADDR({32'b0, 524300*(2**12)})      // lui 524300
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -504,8 +504,8 @@ module core_tb ();
           if(funct3 == 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
           `ifdef TrapReturn
-            else if(funct7 == 7'b0001000) next_pc = mepc; // MRET
-            else if(funct7 == 7'b0011000) next_pc = sepc; // SRET
+            else if(funct7 == 7'b0011000) next_pc = mepc; // MRET
+            else if(funct7 == 7'b0001000) next_pc = sepc; // SRET
           `endif
             else begin
               $display("Error SYSTEM: Invalid funct7! funct7 : %x", funct7);

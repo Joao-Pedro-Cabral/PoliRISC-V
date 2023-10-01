@@ -180,7 +180,7 @@ module control_unit (
                   if (funct7 == 7'b0) proximo_estado = Ecall;
                 `ifdef TrapReturn
                   else if (((funct7 == 7'h18) || (funct7 == 7'h38)) &&
-                  (privilege_mode[0] && (privilege_mode[1] ^ funct7[4])))
+                  (privilege_mode[0] && (privilege_mode[1] | !funct7[4])))
                     proximo_estado = Xret;
                 `endif
                   else illegal_instruction = 1'b1;
