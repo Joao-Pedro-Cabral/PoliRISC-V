@@ -99,7 +99,7 @@ module CSR (
   wire [5:0] interrupt_vector;  // If bit i is high, so interrupt 2*i + 1 happened
   wire [1:0] exception_vector; // 3: ECM, 2: ECS, 1: ECU, 0: II
   wire [3:0] ecall_exception; // {2'b10, priv}
-  wire enable_interrupt; // 1: active interrupt/exception from no high privilege level
+  wire active_trap_SI_E; // 1: active S-Interrupt/exception
   wire m_legal_write;  // check if wr_data is valid for mcause
   wire s_legal_write;  // check if wr_data is valid for scause
   // Trap signals
@@ -454,7 +454,7 @@ module CSR (
 
   // Trap
     // U: Always Enabled, S: SIE, M: MIE
-  assign enable_interrupt = ((!priv[1] & !priv[0]) | (!priv[1] & mstatus[SIE])
+  assign active_trap_SI_E = ((!priv[1] & !priv[0]) | (!priv[1] & mstatus[SIE])
                             | (priv[0] & priv[1] & mstatus[MIE]));
     // Interrupt Vector
   genvar i;
@@ -462,15 +462,16 @@ module CSR (
     // Maps interrupt code 2*i + 1 to interrupt vector bit i
     for (i = 0; i < 6; i = i + 1) begin : gen_interrupt_vector
       if (i % 2 == 1)
-        // U,S: Always Enabled, M: MIE
-        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & (!priv[1] | mstatus[MIE]);
+        // U: Always Enabled, S: MIE or SIE (mideleg[i]), M: MIE
+        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & ((!priv[1] & !priv[0]) | (!priv[1]
+                & (mideleg[i] ? mstatus[SIE] : mstatus[MIE])) | (priv[0] & priv[1] & mstatus[MIE]));
       else
-        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & enable_interrupt;
+        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & active_trap_SI_E;
     end
   endgenerate
     // Exception Vector
-  assign exception_vector[0] = illegal_instruction & enable_interrupt;
-  assign exception_vector[1] = ecall & enable_interrupt;
+  assign exception_vector[0] = illegal_instruction & active_trap_SI_E;
+  assign exception_vector[1] = ecall & active_trap_SI_E;
     // Trap
   assign ecall_exception = {2'b10, priv};
   assign async_trap = |(interrupt_vector);

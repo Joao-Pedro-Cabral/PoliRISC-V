@@ -513,10 +513,17 @@ module Dataflow_tb ();
 
   task automatic DoFetch();
     begin
-      db_df_src = {1'b1, {`BYTE_NUM - 4{1'b0}}, 4'hF};
+      // Evitar bugs de sincronismos com a memória
+      db_df_src = 0;
       @(negedge clock);
+      db_df_src = {1'b1, {`BYTE_NUM - 4{1'b0}}, 4'hF};
       // Testo o endereço de acesso a Memória de Instrução
       `ASSERT(pc === mem_addr);
+      // Trap não muda o pc anterior, pois não passou a borda de subida
+      if(csr_trap) begin
+        db_df_src = 0;
+        disable DoFetch;
+      end
       wait_mem;
       @(negedge clock);
       // Sem Trap -> Terminar Fetch
