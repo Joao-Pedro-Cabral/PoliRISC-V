@@ -31,13 +31,13 @@ lui t1,524288             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
-j 110
+j 112
 add t0,x0,x0
 lui t1,524288             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Illegal Instruction
-j 116
+j 120
 mul x0,x0,x0
 
 ; Machine Software Interrupt
@@ -46,7 +46,7 @@ lui t1,524296             ; msip base address
 sw t0,0(t1)
 
 ; Supervisor Software Interrupt
-j 106
+j 110
 lui t1,524300             ; ssip base address
 sw t0,0(t1)
 
@@ -57,6 +57,7 @@ sw x1,0(sp)
 addi sp,sp,4
 add x0,x0,x0
 
+csrrci x0,mstatus,0b1010
 csrrs t0,mcause,x0        ; does not write to mcause
 and t1,t0,a7
 bne t1,x0,24
@@ -103,6 +104,7 @@ slli t0,t0,11             ; MPP[0]
 csrrs x0,mstatus,t0       ; set MPP[0]
 csrrc x0,mstatus,t1       ; clear MPP[1]
 ecall
+csrrsi x0,mstatus,0b1010
 jr ra
 
 ; go to machine mode
@@ -112,4 +114,5 @@ slli t0,t0,11             ; MPP[0]
 csrrc x0,mstatus,t0       ; clear MPP[0]
 csrrc x0,mstatus,t1       ; clear MPP[1]
 ecall
+csrrsi x0,mstatus,0b1010
 jr ra
