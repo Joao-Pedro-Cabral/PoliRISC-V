@@ -31,19 +31,20 @@ lui t1,524288             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
-j 112
+j 114
 add t0,x0,x0
 lui t1,524288             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Illegal Instruction
-j 120
+j 122
 mul x0,x0,x0
 
 ; Machine Software Interrupt
 addi t0,x0,-1
 lui t1,524296             ; msip base address
 sw t0,0(t1)
+csrrsi x0,mstatus,0b1010
 
 ; Supervisor Software Interrupt
 j 110
