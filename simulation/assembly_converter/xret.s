@@ -5,7 +5,7 @@ addi sp,sp,-32
 addi s0,sp,32
 
 ; writing to mtvec
-addi t0,x0,96            ; BASE address for interrupt handling
+addi t0,x0,100            ; BASE address for interrupt handling
 csrrw x0,mtvec,t0
 
 addi a0,x0,0b1            ; SSI
@@ -19,6 +19,7 @@ csrrw x0,mstatus,t0       ; enables global interrupts
 addi t0,x0,-1
 lui t1,524296             ; msip base address
 sw t0,0(t1)
+sw x0,0(t1)
 
 ; Supervisor Software Interrupt
 j 32
