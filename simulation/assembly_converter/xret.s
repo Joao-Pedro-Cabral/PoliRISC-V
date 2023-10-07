@@ -34,8 +34,8 @@ add x0,x0,x0
 
 csrrci x0,mstatus,0b1010
 csrrs t0,mcause,x0        ; does not write to mcause
-and t1,t0,a0
-bne t1,x0,6
+sub t2,t0,a0
+beq t2,x0,6
 sw x0,0(t1)
 mret
 ori t0,x0,0b100000000000  ; SSI ISR
