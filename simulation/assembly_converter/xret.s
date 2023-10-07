@@ -17,13 +17,13 @@ csrrw x0,mstatus,t0       ; enables global interrupts
 
 ; Machine Software Interrupt
 addi t0,x0,-1
-lui t1,524296             ; msip base address
-sw t0,0(t1)
+lui s2,524296             ; msip base address
+sw t0,0(s2)
 
 ; Supervisor Software Interrupt
 j 42
-lui t1,524300             ; ssip base address
-sw t0,0(t1)
+lui s2,524300             ; ssip base address
+sw t0,0(s2)
 
 ; end program
 addi sp,sp,28
@@ -39,11 +39,11 @@ csrrw x0,mepc,t2
 csrrs t0,mcause,x0        ; does not write to mcause
 sub t2,t0,a0
 beq t2,x0,6
-sw x0,0(t1)
+sw x0,0(s2)
 mret
 ori t0,x0,0b100000000000  ; SSI ISR
 sb t0,0(s0)
-sw x0,0(t1)
+sw x0,0(s2)
 sret
 
 ; go to supervisor mode
