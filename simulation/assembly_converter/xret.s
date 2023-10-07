@@ -21,7 +21,7 @@ lui t1,524296             ; msip base address
 sw t0,0(t1)
 
 ; Supervisor Software Interrupt
-j 36
+j 42
 lui t1,524300             ; ssip base address
 sw t0,0(t1)
 
@@ -33,6 +33,9 @@ addi sp,sp,4
 add x0,x0,x0
 
 csrrci x0,mstatus,0b1010
+csrrs t2,mepc,x0          ; does not write to mepc
+addi t2,t2,4
+csrrw x0,mepc,t2
 csrrs t0,mcause,x0        ; does not write to mcause
 sub t2,t0,a0
 beq t2,x0,6
