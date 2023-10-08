@@ -54,9 +54,9 @@ slli t1,t0,12             ; MPP[1]
 slli t0,t0,11             ; MPP[0]
 csrrs x0,mstatus,t0       ; set MPP[0]
 csrrc x0,mstatus,t1       ; clear MPP[1]
-ecall
+csrrw x0,mepc,ra
 csrrsi x0,mstatus,0b1010
-jr ra
+mret
 
 ; go to machine mode
 addi t0,x0,0b1
@@ -64,6 +64,6 @@ slli t1,t0,12             ; MPP[1]
 slli t0,t0,11             ; MPP[0]
 csrrc x0,mstatus,t0       ; clear MPP[0]
 csrrc x0,mstatus,t1       ; clear MPP[1]
-ecall
+csrrw x0,sepc,ra
 csrrsi x0,mstatus,0b1010
-jr ra
+sret
