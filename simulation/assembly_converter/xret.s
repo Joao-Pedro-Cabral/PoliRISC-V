@@ -21,7 +21,7 @@ lui s2,524296             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
-j 42
+jal ra,42
 lui s2,524300             ; ssip base address
 sw t0,0(s2)
 
