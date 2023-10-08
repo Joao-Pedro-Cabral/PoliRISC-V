@@ -32,13 +32,13 @@ lui t1,524280             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
-jal ra,126
+jal ra,138
 add t0,x0,x0
-lui t1,524288             ; stimecmp base address
+lui t1,524280             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Illegal Instruction
-jal ra,134
+jal ra,146
 mul x0,x0,x0
 
 ; Machine Software Interrupt
@@ -47,7 +47,7 @@ lui s2,524296             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
-jal ra,108
+jal ra,120
 lui s2,524300             ; ssip base address
 sw t0,0(s2)
 
@@ -62,20 +62,26 @@ csrrci x0,mstatus,0b1010
 csrrs t2,mepc,x0          ; does not write to mepc
 addi t2,t2,4
 csrrw x0,mepc,t2
+csrrs t2,sepc,x0          ; does not write to sepc
+addi t2,t2,4
+csrrw x0,sepc,t2
 csrrs t0,mcause,x0        ; does not write to mcause
+csrrs t3,scause,x0        ; does not write to scause
+csrrw x0,mcause,x0        ; writes to mcause
+csrrw x0,scause,x0        ; writes to scause
 slli t0,t0,1
 srli t0,t0,1
 sub t1,t0,a7
 bne t1,x0,24
-sub t1,t0,a6
+sub t1,t3,a6
 bne t1,x0,26
 sub t1,t0,a5
 bne t1,x0,28
-sub t1,t0,a4
+sub t1,t3,a4
 bne t1,x0,36
 sub t1,t0,a3
 bne t1,x0,44
-sub t1,t0,a2
+sub t1,t3,a2
 bne t1,x0,48
 mret
 ori t0,x0,0b10            ; MEI ISR
@@ -87,13 +93,13 @@ mret
 ori t0,x0,0b100000        ; MTI ISR
 lui t0,-1
 lui t1,524280             ; mtimecmp base address
-sw t0,0(t1)
+sw x0,0(t1)
 sb t0,3(s0)
 mret
 ori t0,x0,0b10000000      ; STI ISR
 lui t0,-1
 lui t1,524280             ; mtimecmp base address
-sw t0,0(t1)
+sw x0,0(t1)
 sb t0,2(s0)
 mret
 ori t0,x0,0b1000000000    ; MSI ISR
