@@ -18,14 +18,18 @@
 00000100
 00000001
 00000010
-10010011 // addi t0,x0,96             ; BASE address for interrupt handling
+10010011 // addi t0,x0,100             ; BASE address for interrupt handling
 00000010
-00000000
+01000000
 00000110
 01110011 // csrrw x0,mtvec,t0
 10010000
 01010010
 00110000
+01110011 // csrrw x0,stvec,t0
+10010000
+01010010
+00010000
 00010011 // addi a0,x0,0b1            ; SSI
 00000101
 00010000
