@@ -5,12 +5,13 @@ addi sp,sp,-32
 addi s0,sp,32
 
 ; writing to mtvec
-addi t0,x0,176            ; BASE address for interrupt handling
+addi t0,x0,168            ; BASE address for interrupt handling
 csrrw x0,mtvec,t0
+csrrw x0,stvec,t0
 
 ; setting mtimecmp
 lui t0,-1
-lui t1,524288             ; mtimecmp base address
+lui t1,524280             ; mtimecmp base address
 sw t0,0(t1)
 
 addi a2,x0,0b1            ; SSI
@@ -27,31 +28,28 @@ ecall
 
 ; Machine Timer Interrupt
 add t0,x0,x0
-lui t1,524288             ; mtimecmp base address
+lui t1,524280             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
-j 118
+jal ra,126
 add t0,x0,x0
-lui t1,524288             ; mtimecmp base address
+lui t1,524288             ; stimecmp base address
 sw t0,0(t1)
 
 ; Illegal Instruction
-j 126
+jal ra,134
 mul x0,x0,x0
 
 ; Machine Software Interrupt
 addi t0,x0,-1
-lui t1,524296             ; msip base address
-sw t0,0(t1)
-sw x0,0(t1)
-csrrsi x0,mstatus,0b1010
+lui s2,524296             ; msip base address
+sw t0,0(s2)
 
 ; Supervisor Software Interrupt
-j 112
-lui t1,524300             ; ssip base address
-sw t0,0(t1)
-sw x0,0(t1)
+jal ra,108
+lui s2,524300             ; ssip base address
+sw t0,0(s2)
 
 ; end program
 addi sp,sp,28
@@ -61,19 +59,24 @@ addi sp,sp,4
 add x0,x0,x0
 
 csrrci x0,mstatus,0b1010
+csrrs t2,mepc,x0          ; does not write to mepc
+addi t2,t2,4
+csrrw x0,mepc,t2
 csrrs t0,mcause,x0        ; does not write to mcause
-and t1,t0,a7
+slli t0,t0,1
+srli t0,t0,1
+sub t1,t0,a7
 bne t1,x0,24
-and t1,t0,a6
+sub t1,t0,a6
 bne t1,x0,26
-and t1,t0,a5
+sub t1,t0,a5
 bne t1,x0,28
-and t1,t0,a4
+sub t1,t0,a4
 bne t1,x0,36
-and t1,t0,a3
+sub t1,t0,a3
 bne t1,x0,44
-and t1,t0,a2
-bne t1,x0,46
+sub t1,t0,a2
+bne t1,x0,48
 mret
 ori t0,x0,0b10            ; MEI ISR
 sb t0,5(s0)
@@ -83,21 +86,23 @@ sb t0,4(s0)
 mret
 ori t0,x0,0b100000        ; MTI ISR
 lui t0,-1
-lui t1,524288             ; mtimecmp base address
+lui t1,524280             ; mtimecmp base address
 sw t0,0(t1)
 sb t0,3(s0)
 mret
 ori t0,x0,0b10000000      ; STI ISR
 lui t0,-1
-lui t1,524288             ; mtimecmp base address
+lui t1,524280             ; mtimecmp base address
 sw t0,0(t1)
 sb t0,2(s0)
 mret
 ori t0,x0,0b1000000000    ; MSI ISR
 sb t0,1(s0)
+sw x0,0(s2)
 mret
 ori t0,x0,0b100000000000  ; SSI ISR
 sb t0,0(s0)
+sw x0,0(s2)
 mret
 
 ; go to supervisor mode
@@ -106,9 +111,9 @@ slli t1,t0,12             ; MPP[1]
 slli t0,t0,11             ; MPP[0]
 csrrs x0,mstatus,t0       ; set MPP[0]
 csrrc x0,mstatus,t1       ; clear MPP[1]
-ecall
+csrrw x0,mepc,ra
 csrrsi x0,mstatus,0b1010
-jr ra
+mret
 
 ; go to machine mode
 addi t0,x0,0b1
@@ -116,6 +121,6 @@ slli t1,t0,12             ; MPP[1]
 slli t0,t0,11             ; MPP[0]
 csrrc x0,mstatus,t0       ; clear MPP[0]
 csrrc x0,mstatus,t1       ; clear MPP[1]
-ecall
+csrrw x0,sepc,ra
 csrrsi x0,mstatus,0b1010
-jr ra
+sret
