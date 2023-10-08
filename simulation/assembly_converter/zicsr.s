@@ -93,13 +93,13 @@ mret
 ori t0,x0,0b100000        ; MTI ISR
 lui t0,-1
 lui t1,524280             ; mtimecmp base address
-sw x0,0(t1)
+sw t0,0(t1)
 sb t0,3(s0)
 mret
 ori t0,x0,0b10000000      ; STI ISR
 lui t0,-1
 lui t1,524280             ; mtimecmp base address
-sw x0,0(t1)
+sw t0,0(t1)
 sb t0,2(s0)
 mret
 ori t0,x0,0b1000000000    ; MSI ISR
