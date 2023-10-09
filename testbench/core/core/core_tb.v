@@ -402,6 +402,8 @@ module core_tb ();
       sret = 1'b0;
       `ASSERT(pc === mem_addr);
       `ASSERT(db_mem_en === {2'b01, {`BYTE_NUM - 4{1'b0}}, 4'hF});
+      // Trap não muda o pc anterior, pois não passou a borda de subida
+      if(csr_trap) disable DoFetch;
       wait_mem;
       @(negedge clock);
       // Trap -> Ainda estou em Fetch 1

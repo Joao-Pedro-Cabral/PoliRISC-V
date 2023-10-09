@@ -456,6 +456,8 @@ module control_unit_tb ();
   task automatic DoFetch();
     begin
       `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
+      // Trap não muda o df_src ainda
+      if(trap) disable DoFetch;
       wait_mem;
       @(negedge clock);
       // Trap -> UC ainda está no Fetch1
