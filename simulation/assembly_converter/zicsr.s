@@ -72,17 +72,17 @@ csrrw x0,scause,x0        ; writes to scause
 slli t0,t0,1
 srli t0,t0,1
 sub t1,t0,a7
-bne t1,x0,24
+beq t1,x0,24
 sub t1,t3,a6
-bne t1,x0,26
+beq t1,x0,26
 sub t1,t0,a5
-bne t1,x0,28
+beq t1,x0,28
 sub t1,t3,a4
-bne t1,x0,36
+beq t1,x0,36
 sub t1,t0,a3
-bne t1,x0,44
+beq t1,x0,44
 sub t1,t3,a2
-bne t1,x0,48
+beq t1,x0,48
 mret
 ori t0,x0,0b10            ; MEI ISR
 sb t0,5(s0)

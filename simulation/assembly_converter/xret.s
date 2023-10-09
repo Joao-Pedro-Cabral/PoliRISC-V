@@ -23,7 +23,7 @@ sw t0,0(s2)
 
 ; Supervisor Software Interrupt
 jal ra,54
-addi s2,s2,4              ; ssip base address
+lui s2,262145             ; ssip base address
 sw t0,0(s2)
 
 ; end program
