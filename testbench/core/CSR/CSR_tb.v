@@ -11,7 +11,7 @@
 module CSR_tb ();
 
   // Simulation Parameters
-  localparam integer Line = 99;
+  localparam integer Line = 101;
 
   // DUT
   reg clock;
@@ -110,25 +110,6 @@ module CSR_tb ();
   endtask
 
   // Functions
-  // function automatic [`DATA_SIZE-1:0] gen_new_xepc(
-  //     input reg [`DATA_SIZE-1:0] xepc, input reg [`DATA_SIZE-1:0] pc, input reg [1:0] trap_type,
-  //     input reg [`DATA_SIZE-1:0] data, input reg wr_en, input reg [11:0] addr, input reg is_m_mode);
-  //   begin
-  //     test = 0;
-  //     if (trap_type === {is_m_mode, 1'b1}) gen_new_xepc = pc;
-  //     else if (trap_type == 2'b00) begin
-  //       test = 1;
-  //       if (wr_en) begin
-  //         test = 2;
-  //         if (addr == {is_m_mode, 11'h141}) begin
-  //           test = 3;
-  //           gen_new_xepc = data;
-  //         end else gen_new_xepc = xepc;
-  //       end else gen_new_xepc = xepc;
-  //     end else gen_new_xepc = xepc;
-  //   end
-  // endfunction
-
   function automatic [`DATA_SIZE-1:0] gen_new_mepc(
       input reg [`DATA_SIZE-1:0] xepc, input reg [`DATA_SIZE-1:0] pc, input reg [1:0] trap_type,
       input reg [`DATA_SIZE-1:0] data, input reg wr_en, input reg [11:0] addr);
@@ -154,18 +135,13 @@ module CSR_tb ();
   function automatic [`DATA_SIZE-1:0] gen_new_trap_addr(
       input reg [`DATA_SIZE-1:0] xtvec, input reg [`DATA_SIZE-1:0] cause, input reg has_async_trap);
     begin
-      gen_new_trap_addr = (xtvec[0] && has_async_trap) ? {xtvec[`DATA_SIZE-1:2], 2'b00} :
-                                                    {xtvec[`DATA_SIZE-1:2], 2'b00} + (cause << 2);
+      gen_new_trap_addr = (xtvec[0] && has_async_trap) ?
+                                                      {xtvec[`DATA_SIZE-1:2], 2'b00} + (cause << 2)
+                                                      : {xtvec[`DATA_SIZE-1:2], 2'b00};
     end
   endfunction
 
   always #3 clock = ~clock;
-
-  // Lock wr_en to enable 2 differents readings in the same context
-  // always @(unlock_wr_en) begin
-  //   @(posedge clock);
-  //   release wr_en;
-  // end
 
   initial begin
     // Reset
@@ -205,7 +181,7 @@ module CSR_tb ();
       // special treatment for MISA
       if (addr === 12'h301) begin
         rd_data_ = `DATA_SIZE'h1400100;
-        rd_data_[`DATA_SIZE-1:`DATA_SIZE-2] = `DATA_SIZE == 64 ? 2'b11 : 2'b01;
+        rd_data_[`DATA_SIZE-1:`DATA_SIZE-2] = `DATA_SIZE == 64 ? 2'b10 : 2'b01;
       end
       #1;
       trap_addr_ = gen_new_trap_addr(xtvec, DUT.cause_async, DUT.async_trap);
