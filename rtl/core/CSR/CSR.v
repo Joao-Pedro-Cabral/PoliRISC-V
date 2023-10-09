@@ -532,8 +532,8 @@ module CSR (
   // Trap Address
     // M-Trap Address
   assign m_trap_addr[1:0] = 2'b00;
-  assign m_trap_addr[`DATA_SIZE-1:2] = (mtvec[0] && async_trap) ? mtvec[`DATA_SIZE-1:2]
-                                                                : m_trap_addr_vet;
+  assign m_trap_addr[`DATA_SIZE-1:2] = (mtvec[0] && async_trap) ? m_trap_addr_vet
+                                                                : mtvec[`DATA_SIZE-1:2];
   sklansky_adder #(
       .INPUT_SIZE(`DATA_SIZE - 2)
   ) m_trap_addr_vet_adder (
@@ -545,8 +545,8 @@ module CSR (
   );
     // S-Trap Address
   assign s_trap_addr[1:0] = 2'b00;
-  assign s_trap_addr[`DATA_SIZE-1:2] = (stvec[0] && async_trap) ? stvec[`DATA_SIZE-1:2]
-                                                                : s_trap_addr_vet;
+  assign s_trap_addr[`DATA_SIZE-1:2] = (stvec[0] && async_trap) ? s_trap_addr_vet
+                                                                : stvec[`DATA_SIZE-1:2];
   sklansky_adder #(
       .INPUT_SIZE(`DATA_SIZE - 2)
   ) s_trap_addr_vet_adder (

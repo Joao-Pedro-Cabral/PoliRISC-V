@@ -226,10 +226,10 @@ module control_unit_tb ();
   // Instanciação do barramento
   memory_controller #(
       .BYTE_AMNT(`BYTE_NUM),
-      .MTIME_ADDR({32'b0, 524280*(2**12)}),    // lui 524280
-      .MTIMECMP_ADDR({32'b0, 524288*(2**12)}), // lui 524288
-      .MSIP_ADDR({32'b0, 524296*(2**12)}),     // lui 524296
-      .SSIP_ADDR({32'b0, 524300*(2**12)})      // lui 524300
+      .MTIME_ADDR({32'b0, 262142*(2**12)}),    // lui 262142
+      .MTIMECMP_ADDR({32'b0, 262143*(2**12)}), // lui 262143
+      .MSIP_ADDR({32'b0, 262144*(2**12)}),     // lui 262144
+      .SSIP_ADDR({32'b0, 262145*(2**12)})      // lui 262145
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -336,8 +336,8 @@ module control_unit_tb ();
 
   // função para determinar os seletores(sinais provenientes da UC) a partir do opcode, funct3 e funct7
   function automatic [DfSrcSize-1:0] find_instruction(
-    input reg [6:0] opcode, input reg [2:0] funct3, input reg [6:0] funct7,
-    input reg [NColumnI*NLineI-1:0] LUT_linear);
+      input reg [6:0] opcode, input reg [2:0] funct3, input reg [6:0] funct7,
+      input reg [NColumnI*NLineI-1:0] LUT_linear);
     integer i;
     reg [DfSrcSize-1:0] temp;
     begin
@@ -346,8 +346,8 @@ module control_unit_tb ();
       // U,J : apenas opcode
       if (opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
         for (i = 0; i < 3; i = i + 1)
-          if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7])
-            temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
+        if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7])
+          temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end  // I, S, B: opcode e funct3
       else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
               opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111 ||
@@ -357,7 +357,7 @@ module control_unit_tb ();
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
             if (opcode == 7'b0010011 && funct3 === 3'b101) begin
-              if (funct7 == LUT_linear[(NColumnI*(i+1)-17)+:7])
+              if (funct7[6:1] == LUT_linear[(NColumnI*(i+1)-16)+:6])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end // ECALL + Privilegied
             else if(opcode === 7'b1110011) begin
@@ -378,18 +378,10 @@ module control_unit_tb ();
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
         for (i = 43; i < 58; i = i + 1)
-          if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
+        if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
-            temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-      end
-      // Checar privilégio
-      if(opcode === 7'b1110011 && funct3 !== 3'b100) begin
-        // MRET, SRET
-        if(funct3 === 3'b000 && {funct7[6:5], funct7[3:0]} === 6'b001000 &&
-          !(privilege_mode[0] && (privilege_mode[1] ^ funct7[4]))) temp = 0;
-        // Zicsr
-        if(funct3 !== 3'b000 && privilege_mode < funct7[6:5]) temp = 0;
+          temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end
       if(temp == 0) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
       find_instruction = temp;
@@ -427,6 +419,15 @@ module control_unit_tb ();
     mem_rd_en,
     mem_byte_en
   };
+
+  // Always to finish the simulation
+  always @(posedge mem_wr_en) begin
+    if(mem_addr == 16781308) begin // Final write addr
+      $display("End of program!");
+      $display("Write data: 0x%x", wr_data);
+      $stop;
+    end
+  end
 
   // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
   task automatic wait_mem();
@@ -541,7 +542,11 @@ module control_unit_tb ();
         end
         // ECALL, MRET, SRET, CSRR* (SYSTEM)
         7'b1110011: begin
-          `ASSERT(pc_en === (|funct3));
+          if(privilege_mode >= funct7[6:5]) begin
+            `ASSERT(pc_en === (|funct3));
+          end else begin
+            `ASSERT(pc_en === 1'b0);
+          end
         end
         default: begin
           // Fim do programa -> última instrução 0000000
@@ -571,6 +576,7 @@ module control_unit_tb ();
         Execute: DoExecute;
         default: DoReset;
       endcase
+      #1;
       _trap = trap;
       @(posedge clock);
       // Atualizando estado

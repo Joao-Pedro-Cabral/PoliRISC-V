@@ -174,12 +174,15 @@ module control_unit (
         else if (opcode[4] == 1'b1) begin
           if (opcode[5] == 1'b1) begin
             if (opcode[2] == 1'b0) begin
-              if (opcode[6] == 1'b0) proximo_estado = RegistradorRegistrador;
+              if (opcode[6] == 1'b0) begin
+                if({funct7[6], funct7[4:0]} == 0) proximo_estado = RegistradorRegistrador;
+                else illegal_instruction = 1'b1;
+              end
               else begin
                 if (funct3 == 3'b0) begin
                   if (funct7 == 7'b0) proximo_estado = Ecall;
                 `ifdef TrapReturn
-                  else if (((funct7 == 7'h18) || (funct7 == 7'h38)) &&
+                  else if (((funct7 == 7'h18) || (funct7 == 7'h08)) &&
                   (privilege_mode[0] && (privilege_mode[1] | !funct7[4])))
                     proximo_estado = Xret;
                 `endif

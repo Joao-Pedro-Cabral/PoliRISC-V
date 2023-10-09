@@ -255,10 +255,10 @@ module Dataflow_tb ();
   // Instanciação do barramento
   memory_controller #(
       .BYTE_AMNT(`BYTE_NUM),
-      .MTIME_ADDR({32'b0, 524280*(2**12)}),    // lui 524280
-      .MTIMECMP_ADDR({32'b0, 524288*(2**12)}), // lui 524288
-      .MSIP_ADDR({32'b0, 524296*(2**12)}),     // lui 524296
-      .SSIP_ADDR({32'b0, 524300*(2**12)})      // lui 524300
+      .MTIME_ADDR({32'b0, 262142*(2**12)}),    // lui 262142
+      .MTIMECMP_ADDR({32'b0, 262143*(2**12)}), // lui 262143
+      .MSIP_ADDR({32'b0, 262144*(2**12)}),     // lui 262144
+      .SSIP_ADDR({32'b0, 262145*(2**12)})      // lui 262145
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -390,7 +390,7 @@ module Dataflow_tb ();
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
             if (opcode == 7'b0010011 && funct3 === 3'b101) begin
-              if (funct7 == LUT_linear[(NColumnI*(i+1)-17)+:7])
+              if (funct7[6:1] == LUT_linear[(NColumnI*(i+1)-16)+:6])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end // ECALL + Privilegied
             else if(opcode === 7'b1110011) begin
@@ -427,15 +427,15 @@ module Dataflow_tb ();
     begin
       case (seletor)
         4'b0000: ULA_function = $signed(A) + $signed(B);  // ADD
-        4'b0001: ULA_function = A << (B[5:0]);  // SLL
+        4'b0001: ULA_function = A << (B[$clog2(`DATA_SIZE)-1:0]);  // SLL
         4'b0010: ULA_function = ($signed(A) < $signed(B));  // SLT
         4'b0011: ULA_function = (A < B);  // SLTU
         4'b0100: ULA_function = A ^ B;  // XOR
-        4'b0101: ULA_function = A >> (B[5:0]); // SRL
+        4'b0101: ULA_function = A >> (B[$clog2(`DATA_SIZE)-1:0]); // SRL
         4'b0110: ULA_function = A | B;  // OR
         4'b0111: ULA_function = A & B;  // AND
         4'b1000: ULA_function = $signed(A) - $signed(B);  // SUB
-        4'b1101: ULA_function = $signed(A) >>> (B[5:0]);  // SRA
+        4'b1101: ULA_function = $signed(A) >>> (B[$clog2(`DATA_SIZE)-1:0]);  // SRA
         default: ULA_function = 0;
       endcase
     end
@@ -481,6 +481,15 @@ module Dataflow_tb ();
       pc_src,  // NotOnlyOp -1
       wr_reg_en,  // NotOnlyOp -2
       mem_wr_en, mem_rd_en, mem_byte_en} = db_df_src;
+
+  // Always to finish the simulation
+  always @(posedge mem_wr_en) begin
+    if(mem_addr == 16781308) begin // Final write addr
+      $display("End of program!");
+      $display("Write data: 0x%x", wr_data);
+      $stop;
+    end
+  end
 
   // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
   task automatic wait_mem();
@@ -643,11 +652,11 @@ module Dataflow_tb ();
           db_df_src[NotOnlyOp-1:NotOnlyOp-2] = df_src[NotOnlyOp-1:NotOnlyOp-2];
           db_df_src[DfSrcSize+1] = (funct3 != 3'b000);
           @(negedge clock);
-          if(funct3 == 3'b000) begin
+          if(funct3 === 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
           `ifdef TrapReturn
-            else if(funct7 == 7'b0011000) next_pc = mepc; // MRET
-            else if(funct7 == 7'b0001000) next_pc = sepc; // SRET
+            else if(funct7 === 7'b0011000 && privilege_mode === 2'b11) next_pc = mepc; // MRET
+            else if(funct7 === 7'b0001000 && privilege_mode[0] === 1'b1) next_pc = sepc; // SRET
           `endif
             else begin
               $display("Error SYSTEM: Invalid funct7! funct7 : %x", funct7);
@@ -655,7 +664,7 @@ module Dataflow_tb ();
             end
           end
         `ifdef ZICSR // Apenas aqui há ifdef, pois nem sempre DUT.csr_wr_data existe
-          else if(funct3 != 3'b100) begin // CSRR*
+          else if(funct3 !== 3'b100) begin // CSRR*
             reg_data = csr_rd_data;
             if(instruction[31:20] == 12'h344 || instruction[31:20] == 12'h144)
               reg_data[registradores_de_controle.SEIP] =
@@ -663,8 +672,10 @@ module Dataflow_tb ();
             if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
             else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
             // Sempre checo a leitura/escrita até se ela não acontecer
-            `ASSERT(csr_wr_data === DUT.csr_wr_data);
-            `ASSERT(reg_data === DUT.rd);
+            if(privilege_mode >= funct7[6:5]) begin
+              `ASSERT(csr_wr_data === DUT.csr_wr_data);
+              `ASSERT(reg_data === DUT.rd);
+            end
             next_pc = pc + 4;
           end
         `endif
@@ -701,6 +712,7 @@ module Dataflow_tb ();
         Execute: DoExecute;
         default: DoReset;
       endcase
+      #1;
       `ASSERT(trap === csr_trap);
       `ASSERT(privilege_mode === csr_privilege_mode);
       _trap = csr_trap;
