@@ -65,6 +65,7 @@ module Dataflow (
     output wire carry_out,
     output wire overflow,
     output wire trap,
+    output wire csr_addr_exception,
     output wire [1:0] privilege_mode
 );
   // Fios intermediários
@@ -244,6 +245,7 @@ module Dataflow (
       .trap_addr(trap_addr),
       .trap(_trap),
       .privilege_mode(_privilege_mode),
+      .addr_exception(csr_addr_exception),
       .pc(pc),
       .instruction(ir),
       // CSR RW interface

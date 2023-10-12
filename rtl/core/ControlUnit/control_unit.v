@@ -34,6 +34,7 @@ module control_unit (
     input overflow,
     input trap,
     input [1:0] privilege_mode,
+    input csr_addr_exception,
 
     // Sinais de Controle do Fluxo de Dados
     output reg alua_src,
@@ -355,6 +356,7 @@ module control_unit (
         csr_wr_en = 1'b1;
         csr_imm = funct3[2];
         csr_op  = funct3[1:0];
+        illegal_instruction = csr_addr_exception;
         pc_en = 1'b1;
         proximo_estado = Fetch;
       end

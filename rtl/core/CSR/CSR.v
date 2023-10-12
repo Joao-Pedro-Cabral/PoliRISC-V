@@ -29,6 +29,7 @@ module CSR (
     input wire mret,
     input wire sret,
     output reg [`DATA_SIZE-1:0] rd_data,
+    output reg addr_exception,
     output wire [`DATA_SIZE-1:0] mepc,
     output wire [`DATA_SIZE-1:0] sepc,
     output wire [`DATA_SIZE-1:0] trap_addr,
@@ -37,6 +38,9 @@ module CSR (
 );
 
   // Defines
+
+  // Control Logic
+  wire wr_en_, mret_, sret_;
 
   // MSTATUS
   localparam integer SIE = 1, MIE = 3, SPIE = 5, MPIE = 7, SPP = 8, MPP = 11;
@@ -92,14 +96,12 @@ module CSR (
   // MCAUSE
   // Exception Code
   localparam integer SSI = 1, MSI = 3, STI = 5, MTI = 7, SEI = 9, MEI = 11;  // Interrupts
-  localparam integer II = 2, ECU = 8, ECS = 9, ECM = 11;  // Exceptions (without ECALL)
+  localparam integer II = 2, ECU = 8, ECS = 9, ECM = 11;  // Exceptions
   reg [`DATA_SIZE-1:0] mcause;
   reg [`DATA_SIZE-1:0] cause_async, cause_sync;
   wire [`DATA_SIZE-1:0] cause;
   wire [5:0] interrupt_vector;  // If bit i is high, so interrupt 2*i + 1 happened
-  wire [1:0] exception_vector;  // 3: ECM, 2: ECS, 1: ECU, 0: II
-  wire [3:0] ecall_exception;  // {2'b10, priv}
-  wire active_trap_SI_E;  // 1: active S-Interrupt/exception
+  wire [3:0] exception_vector;  // 3: ECM, 2: ECS, 1: ECU, 0: II
   wire m_legal_write;  // check if wr_data is valid for mcause
   wire s_legal_write;  // check if wr_data is valid for scause
   // Trap signals
@@ -153,6 +155,11 @@ module CSR (
 
   // Logic
 
+  // Control Logic (Mask Inputs)
+  assign mret_ = mret & !_trap;
+  assign sret_ = sret & !mret & !_trap;
+  assign wr_en_ = wr_en & !sret & !mret & !_trap;
+
   // MSTATUS
   // Read-only 0 fields
   assign mstatus[`DATA_SIZE-1:MPP+2] = 0;  // MPP is two bits
@@ -168,11 +175,11 @@ module CSR (
       mie  <= 1'b0;
       mpie <= mie;
       mpp  <= priv;
-    end else if (!s_trap && mret) begin
+    end else if (mret_) begin
       mie  <= mpie;
       mpie <= 1'b1;
       mpp  <= 2'b00;
-    end else if (!s_trap && wr_en && (addr == 12'h300)) begin
+    end else if (wr_en_ && (addr == 12'h300)) begin
       mie  <= wr_data[MIE];
       mpie <= wr_data[MPIE];
       if (wr_data[MPP+1:MPP] != 2'b10) mpp <= wr_data[MPP+1:MPP];
@@ -188,12 +195,12 @@ module CSR (
       sie  <= 1'b0;
       spie <= sie;
       spp  <= priv[0];
-    end else if (!m_trap && sret) begin
+    end else if (sret_) begin
       sie  <= spie;
       spie <= 1'b1;
       spp  <= 1'b0;
       // Common with S-Mode
-    end else if (!m_trap && wr_en && (addr == 12'h300 || addr == 12'h100)) begin
+    end else if (wr_en_ && (addr == 12'h300 || addr == 12'h100)) begin
       sie  <= wr_data[SIE];
       spie <= wr_data[SPIE];
       spp  <= wr_data[SPP];
@@ -223,7 +230,7 @@ module CSR (
   ) mtvec_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && (addr == 12'h305)),
+      .enable(wr_en_ && (addr == 12'h305)),
       .D({wr_data[`DATA_SIZE-1:2], wr_data[0]}),
       .Q({mtvec[`DATA_SIZE-1:2], mtvec[0]})
   );
@@ -236,38 +243,37 @@ module CSR (
   ) stvec_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && (addr == 12'h105)),
+      .enable(wr_en_ && (addr == 12'h105)),
       .D({wr_data[`DATA_SIZE-1:2], wr_data[0]}),
       .Q({stvec[`DATA_SIZE-1:2], stvec[0]})
   );
 
   // MIDELEG
   // Read-only 0 fields
-  assign mideleg[`DATA_SIZE-1:MEI+1] = 0;
-  assign {mideleg[MEI-1], mideleg[SEI-1], mideleg[MTI-1],
-          mideleg[STI-1], mideleg[MSI-1], mideleg[SSI-1]} = 0;
-  // WARL fields
-  register_d #(
-      .N(6),
-      .reset_value(6'b0)
-  ) mideleg_reg (
-      .clock(clock),
-      .reset(reset),
-      .enable(!_trap && wr_en && (addr == 12'h303)),
-      .D({wr_data[MSI], wr_data[MTI], wr_data[MEI], wr_data[SSI], wr_data[STI], wr_data[SEI]}),
-      .Q({mideleg[MSI], mideleg[MTI], mideleg[MEI], mideleg[SSI], mideleg[STI], mideleg[SEI]})
-  );
-
-  // MEDELEG
-  assign {medeleg[`DATA_SIZE-1:ECM-1], medeleg[ECU-1:II+1], medeleg[II-1:0]} = 0;
+  assign mideleg[`DATA_SIZE-1:SEI+1] = 0;
+  assign {mideleg[SEI-1:STI+1], mideleg[STI-1:SSI+1], mideleg[SSI-1]} = 0;
   // WARL fields
   register_d #(
       .N(3),
-      .reset_value(4'b0)
+      .reset_value(3'b0)
+  ) mideleg_reg (
+      .clock(clock),
+      .reset(reset),
+      .enable(wr_en_ && (addr == 12'h303)),
+      .D({wr_data[SSI], wr_data[STI], wr_data[SEI]}),
+      .Q({mideleg[SSI], mideleg[STI], mideleg[SEI]})
+  );
+
+  // MEDELEG
+  assign {medeleg[`DATA_SIZE-1:ECS-1], medeleg[ECU-1:II+1], medeleg[II-1:0]} = 0;
+  // WARL fields
+  register_d #(
+      .N(3),
+      .reset_value(3'b0)
   ) medeleg_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && (addr == 12'h302)),
+      .enable(wr_en_ && (addr == 12'h302)),
       .D({wr_data[ECS], wr_data[ECU], wr_data[II]}),
       .Q({medeleg[ECS], medeleg[ECU], medeleg[II]})
   );
@@ -288,7 +294,7 @@ module CSR (
   ) mip_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && addr == 12'h344),  // only writes in M-Mode
+      .enable(wr_en_ && addr == 12'h344),  // only writes in M-Mode
       .D({wr_data[STIP], wr_data[SEIP]}),
       .Q({mip[STIP], mip[SEIP]})
   );
@@ -317,7 +323,7 @@ module CSR (
   ) mie_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && (addr == 12'h304)),
+      .enable(wr_en_ && (addr == 12'h304)),
       .D({wr_data[MSIE], wr_data[MTIE], wr_data[MEIE]}),
       .Q({mie_[MSIE], mie_[MTIE], mie_[MEIE]})
   );
@@ -329,7 +335,7 @@ module CSR (
   ) sie_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && ((addr == 12'h304) || (addr == 12'h104))),
+      .enable(wr_en_ && ((addr == 12'h304) || (addr == 12'h104))),
       .D({wr_data[SSIE], wr_data[STIE], wr_data[SEIE]}),
       .Q({mie_[SSIE], mie_[STIE], mie_[SEIE]})
   );
@@ -351,7 +357,7 @@ module CSR (
   ) mscratch_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && (addr == 12'h340)),
+      .enable(wr_en_ && (addr == 12'h340)),
       .D(wr_data),
       .Q(mscratch)
   );
@@ -363,7 +369,7 @@ module CSR (
   ) sscratch_reg (
       .clock(clock),
       .reset(reset),
-      .enable(!_trap && wr_en && (addr == 12'h140)),
+      .enable(wr_en_ && (addr == 12'h140)),
       .D(wr_data),
       .Q(sscratch)
   );
@@ -372,7 +378,7 @@ module CSR (
   always @(posedge clock, posedge reset) begin
     if (reset) mepc_ <= 0;
     else if (m_trap) mepc_ <= pc;
-    else if (!s_trap && wr_en && (addr == 12'h341)) mepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
+    else if (wr_en_ && (addr == 12'h341)) mepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
   end
   assign mepc = mepc_;
 
@@ -380,7 +386,7 @@ module CSR (
   always @(posedge clock, posedge reset) begin
     if (reset) sepc_ <= 0;
     else if (s_trap) sepc_ <= pc;
-    else if (!m_trap && wr_en && (addr == 12'h141)) sepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
+    else if (wr_en_ && (addr == 12'h141)) sepc_ <= {wr_data[`DATA_SIZE-1:2], 2'b00};
   end
   assign sepc = sepc_;
 
@@ -388,7 +394,7 @@ module CSR (
   always @(posedge clock, posedge reset) begin
     if (reset) mcause <= 0;
     else if (m_trap) mcause <= cause;
-    else if (!s_trap && m_legal_write && wr_en && (addr == 12'h342)) mcause <= wr_data;  // WLRL
+    else if (m_legal_write && wr_en_ && (addr == 12'h342)) mcause <= wr_data;  // WLRL
   end
   assign m_legal_write = check_cause_write(wr_data, 1'b1);
 
@@ -396,7 +402,7 @@ module CSR (
   always @(posedge clock, posedge reset) begin
     if (reset) scause <= 0;
     else if (s_trap) scause <= cause;
-    else if (!m_trap && s_legal_write && wr_en && (addr == 12'h142)) scause <= wr_data;  // WLRL
+    else if (s_legal_write && wr_en_ && (addr == 12'h142)) scause <= wr_data;  // WLRL
   end
   assign s_legal_write = check_cause_write(wr_data, 1'b0);
 
@@ -405,7 +411,7 @@ module CSR (
     if (reset) mtval <= 0;
     //  Store Illegal Instruction
     else if (m_trap && !async_trap && sync_trap && illegal_instruction) mtval <= instruction;
-    else if (!_trap && wr_en && (addr == 12'h343)) mtval <= wr_data;
+    else if (wr_en_ && (addr == 12'h343)) mtval <= wr_data;
   end
 
   // STVAL
@@ -413,7 +419,7 @@ module CSR (
     if (reset) stval <= 0;
     //  Store Illegal Instruction
     else if (s_trap && !async_trap && sync_trap && illegal_instruction) stval <= instruction;
-    else if (!_trap && wr_en && (addr == 12'h143)) stval <= wr_data;
+    else if (wr_en_ && (addr == 12'h143)) stval <= wr_data;
   end
 
   // PRIV
@@ -428,6 +434,8 @@ module CSR (
 
   // read data
   always @(*) begin
+    rd_data = 0;
+    addr_exception = 1'b0;
     case (addr)
       12'h100: rd_data = sstatus;
       12'h104: rd_data = sie_;
@@ -448,30 +456,32 @@ module CSR (
       12'h342: rd_data = mcause;
       12'h343: rd_data = mtval;
       12'h344: rd_data = mip;
-      default: rd_data = 0;
+      default: addr_exception = 1'b1;
     endcase
   end
 
   // Trap
-  // U: Always Enabled, S: SIE, M: MIE
-  assign active_trap_SI_E = ((!priv[1] & !priv[0]) | (!priv[1] & mstatus[SIE])
-                            | (priv[0] & priv[1] & mstatus[MIE]));
   // Interrupt Vector
   genvar i;
   generate
     // Maps interrupt code 2*i + 1 to interrupt vector bit i
     for (i = 0; i < 6; i = i + 1) begin : gen_interrupt_vector
-      if (i % 2 == 1)  // U: Always Enabled, S: MIE or SIE (mideleg[i]), M: MIE
-        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & ((!priv[1] & !priv[0]) | (!priv[1]
-                & (mideleg[2*i+1] ? mstatus[SIE] : 1'b1)) | (priv[0] & priv[1] & mstatus[MIE]));
-      else assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & active_trap_SI_E;
+      if (i % 2 == 1)  // MEI, MTI, MSI: U, S -> Always Enabled, M -> MIE
+        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] &
+            ((!priv[1]) | (priv[0] & mstatus[MIE]));
+      // SEI, STI, SSI: U -> Always Enabled, S -> SIE or !mideleg, M -> MIE
+      else
+        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & ((!priv[1] & !priv[0]) |
+            (!priv[1] & (!mideleg[2*i+1] | mstatus[SIE])) | (priv[0] & priv[1] & mstatus[MIE]));
     end
   endgenerate
   // Exception Vector
-  assign exception_vector[0] = illegal_instruction & active_trap_SI_E;
-  assign exception_vector[1] = ecall & active_trap_SI_E;
+  assign exception_vector[0] = illegal_instruction & ((!priv[1] & !priv[0]) |
+            (!priv[1] & (!mideleg[2] | mstatus[SIE])) | (priv[0] & priv[1] & mstatus[MIE])); // II
+  assign exception_vector[1] = ecall & !priv[0] & !priv[1];  // ECU
+  assign exception_vector[2] = ecall & priv[0] & !priv[1] & (!medeleg[9] | mstatus[SIE]);  // ECS
+  assign exception_vector[3] = ecall & priv[0] & priv[1] & mstatus[MIE];  // ECM
   // Trap
-  assign ecall_exception = {2'b10, priv};
   assign async_trap = |(interrupt_vector);
   assign sync_trap = |(exception_vector);
   always @(*) begin : trap_calc
@@ -480,48 +490,54 @@ module CSR (
     m_trap = 0;
     s_trap = 0;
     // 1st Priority Mux
-    // M-Trap: M-Mode OR !mi(e)deleg[i]
+    // M-Trap: M-Mode AND !mi(e)deleg[i]
     // S-Trap: !M-Mode AND mi(e)deleg[i]
     if (interrupt_vector[5]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MEI;
-      m_trap = priv[1] | !mideleg[MEI];
-      s_trap = !priv[1] & mideleg[MEI];
+      m_trap = !mideleg[MEI];
+      s_trap = mideleg[MEI];
     end else if (interrupt_vector[3]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MTI;
-      m_trap = priv[1] | !mideleg[MTI];
-      s_trap = !priv[1] & mideleg[MTI];
+      m_trap = !mideleg[MTI];
+      s_trap = mideleg[MTI];
     end else if (interrupt_vector[1]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MSI;
-      m_trap = priv[1] | !mideleg[MSI];
-      s_trap = !priv[1] & mideleg[MSI];
+      m_trap = !mideleg[MSI];
+      s_trap = mideleg[MSI];
     end else if (interrupt_vector[4]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = SEI;
-      m_trap = priv[1] | !mideleg[SEI];
-      s_trap = !priv[1] & mideleg[SEI];
+      m_trap = !mideleg[SEI];
+      s_trap = mideleg[SEI];
     end else if (interrupt_vector[2]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = STI;
-      m_trap = priv[1] | !mideleg[STI];
-      s_trap = !priv[1] & mideleg[STI];
+      m_trap = !mideleg[STI];
+      s_trap = mideleg[STI];
     end else if (interrupt_vector[0]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = SSI;
-      m_trap = priv[1] | !mideleg[SSI];
-      s_trap = !priv[1] & mideleg[SSI];
+      m_trap = !mideleg[SSI];
+      s_trap = mideleg[SSI];
     end else if (exception_vector[0]) begin
-      m_trap = priv[1] | !medeleg[II];
-      s_trap = !priv[1] & medeleg[II];
+      m_trap = !medeleg[II];
+      s_trap = medeleg[II];
     end else if (exception_vector[1]) begin
-      m_trap = priv[1] | !medeleg[ecall_exception];
-      s_trap = !priv[1] & medeleg[ecall_exception];
+      m_trap = !medeleg[ECU];
+      s_trap = medeleg[ECU];
+    end else if (exception_vector[2]) begin
+      m_trap = !medeleg[ECS];
+      s_trap = medeleg[ECS];
+    end else if (exception_vector[3]) begin
+      m_trap = !medeleg[ECM];
+      s_trap = medeleg[ECM];
     end
     // 2nd Priority Mux -> Exclusive for cause_sync -> Decrease Critical Path
     if (exception_vector[0]) cause_sync = II;
-    else if (exception_vector[1]) cause_sync = ecall_exception;
+    else if (|exception_vector[3:1]) cause_sync = {2'b10, priv};
   end
   assign cause = async_trap ? cause_async : cause_sync;  // Interrupt > Exception
   assign _trap = m_trap | s_trap;

@@ -60,6 +60,7 @@ module core (
   wire [1:0] privilege_mode;
   wire ecall;
   wire illegal_instruction;
+  wire csr_addr_exception;
 `ifdef TrapReturn
   wire mret;
   wire sret;
@@ -93,6 +94,7 @@ module core (
       .mem_addr_src(mem_addr_src),
       .ecall(ecall),
       .illegal_instruction(illegal_instruction),
+      .csr_addr_exception(csr_addr_exception),
 `ifdef TrapReturn
       .mret(mret),
       .sret(sret),
@@ -136,6 +138,7 @@ module core (
       .overflow(overflow),
       .trap(trap),
       .privilege_mode(privilege_mode),
+      .csr_addr_exception(csr_addr_exception),
       .alua_src(alua_src),
       .alub_src(alub_src),
 `ifdef RV64I

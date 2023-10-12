@@ -61,6 +61,7 @@ module control_unit_tb ();
   wire overflow;
   wire trap;
   wire [1:0] privilege_mode;
+  wire csr_addr_exception;
   // To Dataflow
   wire alua_src;
   wire alub_src;
@@ -171,7 +172,8 @@ module control_unit_tb ();
       .wr_reg_src(wr_reg_src),
       .wr_reg_en(wr_reg_en),
       .mem_addr_src(mem_addr_src),
-      .mem_wr_en(mem_wr_en)
+      .mem_wr_en(mem_wr_en),
+      .csr_addr_exception(csr_addr_exception)
   );
 
   // Dataflow
@@ -216,6 +218,7 @@ module control_unit_tb ();
       .sret(sret),
     `endif
       .illegal_instruction(illegal_instruction),
+      .csr_addr_exception(csr_addr_exception),
       .external_interrupt(external_interrupt),
       .mem_msip(msip),
       .mem_ssip(ssip),
@@ -544,6 +547,7 @@ module control_unit_tb ();
         end
         // ECALL, MRET, SRET, CSRR* (SYSTEM)
         7'b1110011: begin
+          if(funct3[1:0] !== 2'b00 && csr_addr_exception) `ASSERT(illegal_instruction === 1'b1);
           if(privilege_mode >= funct7[6:5]) begin
             `ASSERT(pc_en === (|funct3));
           end else begin

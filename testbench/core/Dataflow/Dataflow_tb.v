@@ -87,6 +87,7 @@ module Dataflow_tb ();
   wire overflow;
   wire trap;
   wire [1:0] privilege_mode;
+  wire csr_addr_exception;
   // Sinais do Barramento
   // Instruction Memory
   wire [31:0] rom_data;
@@ -123,6 +124,7 @@ module Dataflow_tb ();
   wire csr_trap;
   wire [`DATA_SIZE-1:0] trap_addr;
   wire [1:0] csr_privilege_mode;
+  wire csr_addr_exception_;
   // Sinais intermediários de teste
   reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela(google sheets)
   wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
@@ -199,6 +201,7 @@ module Dataflow_tb ();
       .carry_out(carry_out),
       .overflow(overflow),
       .trap(trap),
+      .csr_addr_exception(csr_addr_exception),
       .privilege_mode(privilege_mode)
   );
 
@@ -328,6 +331,7 @@ module Dataflow_tb ();
       .trap_addr(trap_addr),
       .trap(csr_trap),
       .privilege_mode(csr_privilege_mode),
+      .addr_exception(csr_addr_exception_),
       .pc(pc),
       .instruction(instruction),
       // CSR RW interface
@@ -672,6 +676,8 @@ module Dataflow_tb ();
             if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
             else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
             // Sempre checo a leitura/escrita até se ela não acontecer
+            if(csr_addr_exception_) db_df_src[DfSrcSize-1] = 1'b1;
+            `ASSERT(csr_addr_exception === csr_addr_exception_);
             if(privilege_mode >= funct7[6:5]) begin
               `ASSERT(csr_wr_data === DUT.csr_wr_data);
               `ASSERT(reg_data === DUT.rd);

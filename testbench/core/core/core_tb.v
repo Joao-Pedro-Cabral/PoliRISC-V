@@ -102,6 +102,7 @@ module core_tb ();
   wire [`DATA_SIZE-1:0] trap_addr;
   reg _trap;  // csr_trap antes da borda de subida do clock
   wire [1:0] csr_privilege_mode;
+  wire csr_addr_exception;
   // flags da ULA (simuladas)
   wire zero_;
   wire negative_;
@@ -260,6 +261,7 @@ module core_tb ();
       .trap_addr(trap_addr),
       .trap(csr_trap),
       .privilege_mode(csr_privilege_mode),
+      .addr_exception(csr_addr_exception),
       .pc(pc),
       // CSR RW interface
 `ifdef ZICSR
@@ -544,6 +546,7 @@ module core_tb ();
             if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
             else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
             // Sempre checo a leitura/escrita até se ela não acontecer
+            `ASSERT(csr_addr_exception === DUT.csr_addr_exception);
             if(DUT.privilege_mode >= funct7[6:5]) begin
               `ASSERT(csr_wr_data === DUT.DF.csr_wr_data);
               `ASSERT(reg_data === DUT.DF.rd);
