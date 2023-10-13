@@ -32,13 +32,13 @@ lui t1,262143             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
-jal ra,136
+jal ra,138
 add t0,x0,x0
 lui t1,262143             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Illegal Instruction
-jal ra,144
+jal ra,146
 mul x0,x0,x0
 csrrc x0,6,x0
 
@@ -48,18 +48,19 @@ lui s2,262144             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
-jal ra,116
+jal ra,118
 addi s2,x0,0b10
 csrrs x0,mip,s2
 
 ; end program
 addi sp,sp,28
 addi x1,x0,1
-sw x1,0(sp)
+sw t6,0(sp)
 addi sp,sp,4
 add x0,x0,x0
 
 csrrci x0,mstatus,0b1010
+addi t6,t6,1
 csrrs t2,mepc,x0          ; does not write to mepc
 addi t2,t2,4
 csrrw x0,mepc,t2
