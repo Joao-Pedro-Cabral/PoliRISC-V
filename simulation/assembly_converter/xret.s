@@ -22,7 +22,7 @@ lui s2,262144             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
-jal ra,54
+jal ra,60
 addi s2,x0,0b10
 csrrs x0,mip,s2
 
@@ -51,6 +51,9 @@ mret
 ori t0,x0,0b100000000000  ; SSI ISR
 sb t0,0(s0)
 csrrc x0,mip,s2
+csrrs t2,mepc,x0          ; does not write to mepc
+addi t2,t2,-4
+csrrw x0,mepc,t2
 sret
 
 ; go to supervisor mode
