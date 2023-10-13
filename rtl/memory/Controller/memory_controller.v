@@ -11,7 +11,6 @@
 module memory_controller #(
     parameter integer BYTE_AMNT = 8,
     parameter [63:0] MSIP_ADDR = 32'hFFFFFFC0,
-    parameter [63:0] SSIP_ADDR = 32'hFFFFFFD0,
     parameter [63:0] MTIME_ADDR = 32'hFFFFFFE0, // Alinhado em 8 bytes
     parameter [63:0] MTIMECMP_ADDR = 32'hFFFFFFF0 // Alinhado em 8 bytes
 ) (
@@ -76,10 +75,17 @@ module memory_controller #(
 `endif
 
   wire msip_cs = (mem_addr == MSIP_ADDR);
-  wire ssip_cs = (mem_addr == SSIP_ADDR);
-  wire mtime_cs = (mem_addr[8*BYTE_AMNT-1:3] == (MTIME_ADDR/8));
-  wire mtimecmp_cs = (mem_addr[8*BYTE_AMNT-1:3] == (MTIMECMP_ADDR/8));
-  wire csr_mem_cs = msip_cs | ssip_cs | mtime_cs | mtimecmp_cs;
+  wire mtime_cs, mtimecmp_cs;
+  `ifdef RV64I
+    assign mtime_cs = mem_addr == MTIME_ADDR;
+    assign mtimecmp_cs = mem_addr == MTIMECMP_ADDR;
+  `else
+    assign mtime_cs = (mem_addr[8*BYTE_AMNT-1:3] == MTIME_ADDR/8) &&
+            (mem_addr[1:0] == MTIME_ADDR%4);
+    assign mtimecmp_cs = mem_addr[8*BYTE_AMNT-1:3] == MTIMECMP_ADDR/8 &&
+            (mem_addr[1:0] == MTIMECMP_ADDR%4);
+  `endif
+  wire csr_mem_cs = msip_cs | mtime_cs | mtimecmp_cs;
 
   assign inst_cache_enable = s_rom_enable & mem_rd_en;
   assign ram_chip_select = s_ram_chip_select;
@@ -104,7 +110,6 @@ module memory_controller #(
 `endif
 
   assign msip_en = msip_cs;
-  assign ssip_en = ssip_cs;
   assign mtime_en = mtime_cs;
   assign mtimecmp_en = mtimecmp_cs;
 
@@ -127,9 +132,8 @@ module memory_controller #(
 `endif
 
   assign csr_mem_addr[1:0] = msip_cs ? 2'b00 :
-                            (ssip_cs ? 2'b01 :
                             (mtime_cs ? 2'b10 :
-                            (mtimecmp_cs ? 2'b11 : 2'b00)));
+                            (mtimecmp_cs ? 2'b11 : 2'b00));
   assign csr_mem_addr[2] = mem_addr[2];
   /* //// */
 

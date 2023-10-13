@@ -19,7 +19,6 @@ module CSR (
     input wire [`DATA_SIZE-1:0] wr_data,
     input wire external_interrupt,
     input wire mem_msip,
-    input wire mem_ssip,
     input wire [`DATA_SIZE-1:0] pc,
     input wire [31:0] instruction,
     input wire [63:0] mem_mtime,
@@ -283,7 +282,6 @@ module CSR (
   assign mip[`DATA_SIZE-1:MEIE+1] = 0;
   assign {mip[MEIE-1], mip[SEIE-1], mip[MTIE-1], mip[STIE-1], mip[MSIE-1], mip[SSIE-1]} = 0;
   // Read-only (memory-mapped) fields
-  assign mip[SSIP] = mem_ssip;
   assign mip[MSIP] = mem_msip;
   assign mip[MTIP] = mem_mtime >= mem_mtimecmp;
   assign mip[MEIP] = external_interrupt;
@@ -297,6 +295,16 @@ module CSR (
       .enable(wr_en_ && addr == 12'h344),  // only writes in M-Mode
       .D({wr_data[STIP], wr_data[SEIP]}),
       .Q({mip[STIP], mip[SEIP]})
+  );
+  register_d #(
+      .N(1),
+      .reset_value(2'b0)
+  ) ssip_reg (
+      .clock(clock),
+      .reset(reset),
+      .enable(wr_en_ && (addr == 12'h344 || addr == 12'h144)),  // writes in M(S)-Mode
+      .D(wr_data[SSIP]),
+      .Q(mip[SSIP])
   );
   assign mip_[`DATA_SIZE-1:SEIP+1] = mip[`DATA_SIZE-1:SEIP+1];
   assign mip_[SEIP] = mip[SEIP] | external_interrupt;

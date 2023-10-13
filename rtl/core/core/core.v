@@ -28,7 +28,6 @@ module core (
     // Interrupts from Memory
     input wire external_interrupt,
     input wire [`DATA_SIZE-1:0] mem_msip,
-    input wire [`DATA_SIZE-1:0] mem_ssip,
     input wire [63:0] mem_mtime,
     input wire [63:0] mem_mtimecmp
 );
@@ -101,7 +100,6 @@ module core (
 `endif
       .external_interrupt(external_interrupt),
       .mem_msip(mem_msip),
-      .mem_ssip(mem_ssip),
       .mem_mtime(mem_mtime),
       .mem_mtimecmp(mem_mtimecmp),
 `ifdef ZICSR

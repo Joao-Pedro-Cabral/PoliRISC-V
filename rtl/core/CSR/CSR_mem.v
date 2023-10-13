@@ -19,13 +19,11 @@ module CSR_mem #(
     output reg [`DATA_SIZE-1:0] rd_data,
     output wire busy,
     output wire [`DATA_SIZE-1:0] msip,
-    output wire [`DATA_SIZE-1:0] ssip,
     output wire [63:0] mtime,
     output wire [63:0] mtimecmp
 );
 
   wire [`DATA_SIZE-1:0] msip_;
-  wire [`DATA_SIZE-1:0] ssip_;
   wire [63:0] mtime_;
   wire [63:0] mtimecmp_;
   wire tick;
@@ -43,17 +41,6 @@ module CSR_mem #(
       .D(wr_data),
       .Q(msip_)
   );
-  // SSIP
-  register_d #(
-      .N(`DATA_SIZE),
-      .reset_value(0)
-  ) ssip_reg (
-      .clock(clock),
-      .reset(reset),
-      .enable((addr[1:0] == 2'b01) && wr_en),
-      .D(wr_data),
-      .Q(ssip_)
-  );
   // MTIMER
   sync_parallel_counter #(
       .size(64),
@@ -65,7 +52,7 @@ module CSR_mem #(
 `ifdef RV64I
       .load_value(wr_data),
 `else
-      .load_value(addr[2] ? {wr_data, 32'b0} : {32'b0, wr_data}),
+      .load_value(addr[2] ? {wr_data, mtime_[31:0]} : {mtime_[63:32], wr_data}),
 `endif
       .inc_enable(tick),
       .dec_enable(1'b0),
@@ -96,7 +83,7 @@ module CSR_mem #(
 `ifdef RV64I
       .D(wr_data),
 `else
-      .D(addr[2] ? {wr_data, 32'b0} : {32'b0, wr_data}),
+      .D(addr[2] ? {wr_data, mtimecmp_[31:0]} : {mtimecmp_[63:32], wr_data}),
 `endif
       .Q(mtimecmp_)
   );
@@ -105,19 +92,18 @@ module CSR_mem #(
   always @(*) begin
     case (addr[1:0])
       2'b00:   rd_data = msip_;
-      2'b01:   rd_data = ssip_;
 `ifdef RV64I
       2'b10:   rd_data = mtime_;
-      default: rd_data = mtimecmp_;
+      2'b11:   rd_data = mtimecmp_;
 `else
       2'b10:   rd_data = addr[2] ? mtime_[63:32] : mtime_[31:0];
-      default: rd_data = addr[2] ? mtimecmp_[63:32] : mtimecmp_[31:0];
+      2'b11:   rd_data = addr[2] ? mtimecmp_[63:32] : mtimecmp_[31:0];
 `endif
+      default: rd_data = 0;
     endcase
   end
 
   assign msip = msip_;
-  assign ssip = ssip_;
   assign mtime = mtime_;
   assign mtimecmp = mtimecmp_;
 

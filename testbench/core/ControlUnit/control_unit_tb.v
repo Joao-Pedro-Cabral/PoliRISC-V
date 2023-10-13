@@ -112,7 +112,6 @@ module control_unit_tb ();
   wire [`DATA_SIZE-1:0] csr_mem_wr_data;
   wire [`DATA_SIZE-1:0] csr_mem_rd_data;
   wire [`DATA_SIZE-1:0] msip;
-  wire [`DATA_SIZE-1:0] ssip;
   wire [63:0] mtime;
   wire [63:0] mtimecmp;
   // Dispositivos
@@ -221,7 +220,6 @@ module control_unit_tb ();
       .csr_addr_exception(csr_addr_exception),
       .external_interrupt(external_interrupt),
       .mem_msip(msip),
-      .mem_ssip(ssip),
       .mem_mtime(mtime),
       .mem_mtimecmp(mtimecmp)
   );
@@ -231,8 +229,7 @@ module control_unit_tb ();
       .BYTE_AMNT(`BYTE_NUM),
       .MTIME_ADDR({32'b0, 262142*(2**12)}),    // lui 262142
       .MTIMECMP_ADDR({32'b0, 262143*(2**12)}), // lui 262143
-      .MSIP_ADDR({32'b0, 262144*(2**12)}),     // lui 262144
-      .SSIP_ADDR({32'b0, 262145*(2**12)})      // lui 262145
+      .MSIP_ADDR({32'b0, 262144*(2**12)})      // lui 262144
   ) BUS (
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
@@ -310,7 +307,6 @@ module control_unit_tb ();
     .rd_data(csr_mem_rd_data),
     .busy(csr_mem_busy),
     .msip(msip),
-    .ssip(ssip),
     .mtime(mtime),
     .mtimecmp(mtimecmp)
   );
