@@ -23,8 +23,8 @@ sw t0,0(s2)
 
 ; Supervisor Software Interrupt
 jal ra,54
-lui s2,262145             ; ssip base address
-sw t0,0(s2)
+addi s2,x0,0b10
+csrrs x0,mip,s2
 
 ; end program
 addi sp,sp,28
@@ -50,7 +50,7 @@ sw x0,0(s2)
 mret
 ori t0,x0,0b100000000000  ; SSI ISR
 sb t0,0(s0)
-sw x0,0(s2)
+csrrc x0,mip,s2
 sret
 
 ; go to supervisor mode
