@@ -5,7 +5,7 @@ addi sp,sp,-32
 addi s0,sp,32
 
 ; writing to mtvec
-addi t0,x0,172            ; BASE address for interrupt handling
+addi t0,x0,168            ; BASE address for interrupt handling
 csrrw x0,mtvec,t0
 csrrw x0,stvec,t0
 
@@ -32,13 +32,12 @@ lui t1,262143             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
-jal ra,138
+jal ra,136
 add t0,x0,x0
 lui t1,262143             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Illegal Instruction
-jal ra,146
 mul x0,x0,x0
 csrrc x0,6,x0
 
