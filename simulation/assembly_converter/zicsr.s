@@ -86,7 +86,7 @@ sb t0,5(s0)
 mret
 ori t0,x0,0b1000          ; SEI ISR
 sb t0,4(s0)
-mret
+j 64
 ori t0,x0,0b100000        ; MTI ISR
 lui t0,-1
 lui t1,262143             ; mtimecmp base address
@@ -98,7 +98,7 @@ lui t0,-1
 lui t1,262143             ; mtimecmp base address
 sw t0,0(t1)
 sb t0,2(s0)
-mret
+j 20
 ori t0,x0,0b1000000000    ; MSI ISR
 sb t0,1(s0)
 sw x0,0(s2)
@@ -109,7 +109,7 @@ csrrc x0,mip,s2
 csrrs t2,mepc,x0          ; does not write to mepc
 addi t2,t2,-4
 csrrw x0,mepc,t2
-mret
+j 18
 
 ; go to supervisor mode
 addi t0,x0,0b1
@@ -128,4 +128,4 @@ slli t0,t0,11             ; MPP[0]
 csrrs x0,mstatus,t0       ; set MPP[0]
 csrrs x0,mstatus,t1       ; set MPP[1]
 csrrsi x0,mstatus,0b1010
-jr ra
+mret
