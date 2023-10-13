@@ -25,7 +25,6 @@ module CSR_mem_tb ();
   wire [`DATA_SIZE-1:0] rd_data;
   wire busy;
   wire [`DATA_SIZE-1:0] msip;
-  wire [`DATA_SIZE-1:0] ssip;
   wire [63:0] mtime;
   wire [63:0] mtimecmp;
 
@@ -45,11 +44,9 @@ module CSR_mem_tb ();
       .wr_en(wr_en),
       .addr(addr),
       .wr_data(wr_data),
-
       .rd_data(rd_data),
       .busy(busy),
       .msip(msip),
-      .ssip(ssip),
       .mtime(mtime),
       .mtimecmp(mtimecmp)
   );
@@ -91,15 +88,6 @@ module CSR_mem_tb ();
                   ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nmsip = 0x%x", addr, rd_data, msip))
         end
 
-        2'b01: begin
-          `ASSERT(rd_data === DUT.ssip_,
-                  ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.ssip_ = 0x%x",
-                  addr, rd_data, DUT.ssip_))
-
-          `ASSERT(rd_data === ssip,
-                  ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nssip = 0x%x", addr, rd_data, ssip))
-        end
-
 `ifdef RV64I
         2'b10: begin
           `ASSERT(rd_data === DUT.mtime_,
@@ -110,7 +98,7 @@ module CSR_mem_tb ();
               rd_data === mtime,
               ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nmtime = 0x%x", addr, rd_data, mtime))
         end
-        default: begin
+        2'b11: begin
           `ASSERT(rd_data === DUT.mtimecmp_,
                   ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.mtimecmp_ = 0x%x",
                   addr, rd_data, DUT.mtimecmp_))
@@ -139,7 +127,7 @@ module CSR_mem_tb ();
                     addr, rd_data, mtime[31:0]))
           end
         end
-        default: begin
+        2'b11: begin
           if(addr[2]) begin
             `ASSERT(rd_data === DUT.mtimecmp_[63:32],
                     ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x",
@@ -159,6 +147,11 @@ module CSR_mem_tb ();
           end
         end
 `endif
+        default: begin
+          `ASSERT(rd_data === `DATA_SIZE'b0,
+                    ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x",
+                    addr, rd_data))
+        end
       endcase
     end
   endtask
@@ -180,15 +173,6 @@ module CSR_mem_tb ();
                   ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nmsip = 0x%x", addr, wr_data, msip))
         end
 
-        2'b01: begin
-          `ASSERT(wr_data === DUT.ssip_,
-                  ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.ssip_ = 0x%x",
-                  addr, wr_data, DUT.ssip_))
-
-          `ASSERT(wr_data === ssip,
-                  ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nssip = 0x%x", addr, wr_data, ssip))
-        end
-
 `ifdef RV64I
         2'b10: begin
           if(tick_) wr_data = wr_data + 1;
@@ -201,7 +185,7 @@ module CSR_mem_tb ();
               wr_data === mtime,
               ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nmtime = 0x%x", addr, wr_data, mtime))
         end
-        default: begin
+        2'b11: begin
           `ASSERT(wr_data === DUT.mtimecmp_,
                   ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtimecmp_ = 0x%x",
                   addr, wr_data, DUT.mtimecmp_))
@@ -227,7 +211,7 @@ module CSR_mem_tb ();
                   ("[CheckWrite]\naddr = 0x%x,\nmtime_data = 0x%x,\nmtime = 0x%x",
                   addr, mtime_data, mtime))
         end
-        default: begin
+        2'b11: begin
           if(addr[2]) begin
             `ASSERT(wr_data === DUT.mtimecmp_[63:32],
                     ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x",
@@ -248,6 +232,8 @@ module CSR_mem_tb ();
           end
         end
 `endif
+        default: begin // Nothing to do (addr = 2'b01)
+        end
       endcase
     end
   endtask
