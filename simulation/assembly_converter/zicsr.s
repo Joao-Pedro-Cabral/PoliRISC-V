@@ -97,7 +97,7 @@ lui t0,-1
 lui t1,262143             ; mtimecmp base address
 sw t0,0(t1)
 sb t0,2(s0)
-j 20
+j 40
 ori t0,x0,0b1000000000    ; MSI ISR
 sb t0,1(s0)
 sw x0,0(s2)
