@@ -5,7 +5,7 @@ addi sp,sp,-32
 addi s0,sp,32
 
 ; writing to mtvec
-addi t0,x0,176            ; BASE address for interrupt handling
+addi t0,x0,168            ; BASE address for interrupt handling
 csrrw x0,mtvec,t0
 csrrw x0,stvec,t0
 
@@ -24,8 +24,6 @@ ori t0,x0,0b101010101010
 csrrw x0,mie,t0           ; enables every interrupt
 ori t1,x0,0b10101010
 csrrw x0,mstatus,t0       ; enables global interrupts
-ori t0,x0,0b1000100010
-csrrw x0,mideleg,t0       ; delegates supervisor interrupts
 ecall
 
 ; Machine Timer Interrupt

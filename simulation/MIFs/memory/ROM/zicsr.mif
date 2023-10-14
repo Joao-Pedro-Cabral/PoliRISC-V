@@ -18,10 +18,10 @@
 00000100
 00000001
 00000010
-10010011 // addi t0,x0,176            ; BASE address for interrupt handling
+10010011 // addi t0,x0,168            ; BASE address for interrupt handling
 00000010
-00000000
-00001011
+10000000
+00001010
 01110011 // csrrw x0,mtvec,t0
 10010000
 01010010
@@ -81,14 +81,6 @@
 01110011 // csrrw x0,mstatus,t0       ; enables global interrupts
 10010000
 00000010
-00110000
-10010011 // ori t0,x0,0b1000100010
-01100010
-00100000
-00100010
-01110011 // csrrw x0,mideleg,t0       ; delegates supervisor interrupts
-10010000
-00110010
 00110000
 01110011 // ecall
 00000000
