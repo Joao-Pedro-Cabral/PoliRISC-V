@@ -5,7 +5,7 @@ addi sp,sp,-32
 addi s0,sp,32
 
 ; writing to mtvec
-addi t0,x0,168            ; BASE address for interrupt handling
+addi t0,x0,176            ; BASE address for interrupt handling
 csrrw x0,mtvec,t0
 csrrw x0,stvec,t0
 
@@ -24,6 +24,8 @@ ori t0,x0,0b101010101010
 csrrw x0,mie,t0           ; enables every interrupt
 ori t1,x0,0b10101010
 csrrw x0,mstatus,t0       ; enables global interrupts
+ori t0,x0,0b1000100010
+csrrw x0,mideleg,t0       ; delegates supervisor interrupts
 ecall
 
 ; Machine Timer Interrupt
@@ -32,10 +34,10 @@ lui t1,262143             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
-jal ra,136
-add t0,x0,x0
-lui t1,262143             ; mtimecmp base address
-sw t0,0(t1)
+addi t0,x0,0b1
+slli t0,t0,5             ; STIP bit in mip
+csrrs x0,mip,t0
+jal ra,130
 
 ; Illegal Instruction
 mul x0,x0,x0
@@ -47,9 +49,9 @@ lui s2,262144             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
-jal ra,118
 addi s2,x0,0b10
 csrrs x0,mip,s2
+jal ra,114
 
 ; end program
 addi sp,sp,28
