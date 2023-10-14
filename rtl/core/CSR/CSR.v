@@ -264,7 +264,7 @@ module CSR (
   );
 
   // MEDELEG
-  assign {medeleg[`DATA_SIZE-1:ECS-1], medeleg[ECU-1:II+1], medeleg[II-1:0]} = 0;
+  assign {medeleg[`DATA_SIZE-1:ECS+1], medeleg[ECU-1:II+1], medeleg[II-1:0]} = 0;
   // WARL fields
   register_d #(
       .N(3),
@@ -485,9 +485,9 @@ module CSR (
   endgenerate
   // Exception Vector
   assign exception_vector[0] = illegal_instruction & ((!priv[1] & !priv[0]) |
-            (!priv[1] & (!mideleg[2] | mstatus[SIE])) | (priv[0] & priv[1] & mstatus[MIE])); // II
+            (!priv[1] & (!medeleg[II] | mstatus[SIE])) | (priv[0] & priv[1] & mstatus[MIE])); // II
   assign exception_vector[1] = ecall & !priv[0] & !priv[1];  // ECU
-  assign exception_vector[2] = ecall & priv[0] & !priv[1] & (!medeleg[9] | mstatus[SIE]);  // ECS
+  assign exception_vector[2] = ecall & priv[0] & !priv[1] & (!medeleg[ECS] | mstatus[SIE]);  // ECS
   assign exception_vector[3] = ecall & priv[0] & priv[1] & mstatus[MIE];  // ECM
   // Trap
   assign async_trap = |(interrupt_vector);
@@ -503,45 +503,45 @@ module CSR (
     if (interrupt_vector[5]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MEI;
-      m_trap = !mideleg[MEI];
-      s_trap = mideleg[MEI];
+      m_trap = 1'b1;
+      s_trap = 1'b0;
     end else if (interrupt_vector[3]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MTI;
-      m_trap = !mideleg[MTI];
-      s_trap = mideleg[MTI];
+      m_trap = 1'b1;
+      s_trap = 1'b0;
     end else if (interrupt_vector[1]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MSI;
-      m_trap = !mideleg[MSI];
-      s_trap = mideleg[MSI];
+      m_trap = 1'b1;
+      s_trap = 1'b0;
     end else if (interrupt_vector[4]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = SEI;
       m_trap = !mideleg[SEI];
-      s_trap = mideleg[SEI];
+      s_trap = !priv[1] & mideleg[SEI];
     end else if (interrupt_vector[2]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = STI;
       m_trap = !mideleg[STI];
-      s_trap = mideleg[STI];
+      s_trap = !priv[1] & mideleg[STI];
     end else if (interrupt_vector[0]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = SSI;
       m_trap = !mideleg[SSI];
-      s_trap = mideleg[SSI];
+      s_trap = !priv[1] & mideleg[SSI];
     end else if (exception_vector[0]) begin
       m_trap = !medeleg[II];
-      s_trap = medeleg[II];
+      s_trap = !priv[1] & medeleg[II];
     end else if (exception_vector[1]) begin
       m_trap = !medeleg[ECU];
-      s_trap = medeleg[ECU];
+      s_trap = !priv[1] & medeleg[ECU];
     end else if (exception_vector[2]) begin
       m_trap = !medeleg[ECS];
-      s_trap = medeleg[ECS];
+      s_trap = !priv[1] & medeleg[ECS];
     end else if (exception_vector[3]) begin
       m_trap = !medeleg[ECM];
-      s_trap = medeleg[ECM];
+      s_trap = !priv[1] & medeleg[ECM];
     end
     // 2nd Priority Mux -> Exclusive for cause_sync -> Decrease Critical Path
     if (exception_vector[0]) cause_sync = II;
