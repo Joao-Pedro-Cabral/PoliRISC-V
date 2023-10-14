@@ -34,9 +34,9 @@ lui t1,262143             ; mtimecmp base address
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
-addi t0,x0,0b1
-slli t0,t0,5             ; STIP bit in mip
-csrrs x0,mip,t0
+addi s2,x0,0b1
+slli s2,s2,5             ; STIP bit in mip
+csrrs x0,mip,s2
 jal ra,130
 
 ; Illegal Instruction
@@ -95,10 +95,11 @@ sw t0,0(t1)
 sb t0,3(s0)
 mret
 ori t0,x0,0b10000000      ; STI ISR
-lui t0,-1
-lui t1,262143             ; mtimecmp base address
-sw t0,0(t1)
 sb t0,2(s0)
+csrrc x0,mip,s2
+csrrs t2,mepc,x0          ; does not write to mepc
+addi t2,t2,-4
+csrrw x0,mepc,t2
 j 40
 ori t0,x0,0b1000000000    ; MSI ISR
 sb t0,1(s0)
