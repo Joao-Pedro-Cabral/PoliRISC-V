@@ -37,7 +37,7 @@ sw t0,0(t1)
 addi s2,x0,0b1
 slli s2,s2,5             ; STIP bit in mip
 csrrs x0,mip,s2
-jal ra,130
+jal ra,132
 
 ; Illegal Instruction
 mul x0,x0,x0
@@ -51,7 +51,7 @@ sw t0,0(s2)
 ; Supervisor Software Interrupt
 addi s2,x0,0b10
 csrrs x0,mip,s2
-jal ra,114
+jal ra,116
 
 ; end program
 addi sp,sp,28
@@ -78,16 +78,16 @@ beq t1,x0,28
 sub t1,t0,a4
 beq t1,x0,36
 sub t1,t0,a3
-beq t1,x0,44
+beq t1,x0,46
 sub t1,t0,a2
-beq t1,x0,48
+beq t1,x0,50
 mret
 ori t0,x0,0b10            ; MEI ISR
 sb t0,5(s0)
 mret
 ori t0,x0,0b1000          ; SEI ISR
 sb t0,4(s0)
-j 64
+j 66
 ori t0,x0,0b100000        ; MTI ISR
 lui t0,-1
 lui t1,262143             ; mtimecmp base address
