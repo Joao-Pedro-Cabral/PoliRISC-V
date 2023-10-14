@@ -246,8 +246,10 @@ module core_tb ();
       .clock(clock),
       .reset(reset),
       // Interrupt/Exception Signals
-      .ecall(DUT.ecall),
-      .illegal_instruction(DUT.illegal_instruction),
+      .ecall(check_ecall(opcode, funct3, funct7, estado)),
+      // .illegal_instruction(DUT.illegal_instruction),
+      .illegal_instruction(check_illegal_instruction(opcode, funct3, funct7, estado,
+                           csr_addr_exception, csr_privilege_mode)),
       .external_interrupt(external_interrupt),
       .mem_msip(|msip),
       .mem_mtime(mtime),
@@ -310,6 +312,7 @@ module core_tb ();
     end
   endfunction
 
+  // função que simula o comportamento do ZICSR
   function automatic [`DATA_SIZE-1:0] CSR_function(
     input reg [`DATA_SIZE-1:0] rd_data, input reg [`DATA_SIZE-1:0] mask, input reg [1:0] op);
     begin
@@ -322,12 +325,108 @@ module core_tb ();
     end
   endfunction
 
+  // função que calcula quando há um ecall
+  function automatic check_ecall(input reg [6:0] opcode, input reg [2:0] funct3,
+   input reg [6:0] funct7, input reg [3:0] estado);
+    begin
+      check_ecall = opcode === 7'b1110011 && funct3 === 0 && funct7 === 0 && estado === Execute;
+    end
+  endfunction
+
+  // função que calcula quando há um sub na ULA
+  function automatic check_sub(input reg [6:0] opcode, input reg [6:0] funct7);
+    begin
+      check_sub = (opcode === 7'b1100011) || (opcode === 7'b0110011 && funct7[5]);
+    end
+  endfunction
+
+  // função para verificar se uma instrução é inválida
+  function automatic check_illegal_instruction(input reg [6:0] opcode, input reg [2:0] funct3,
+   input reg [6:0] funct7, input reg [3:0] estado, input reg csr_addr_exception,
+   input reg [1:0] priv);
+    begin
+      check_illegal_instruction = 1'b0;
+      if(estado !== Reset && estado !== Fetch) begin
+        case(opcode)
+          7'b0100011: begin // S-Type
+            check_illegal_instruction = 1'b1;
+            if(funct3[2] === 1'b0) begin
+              check_illegal_instruction = 1'b0;
+              `ifndef RV64I
+                if(funct3[1:0] === 2'b11) check_illegal_instruction = 1'b1;
+              `endif
+            end
+          end
+          7'b0000011: begin // I-Type (Load)
+            check_illegal_instruction = 1'b1;
+            `ifdef RV64I
+              if(funct3 !== 3'b111) check_illegal_instruction = 1'b0;
+            `else
+              if(funct3 !== 3'b011 && funct3[2:1] !== 2'b11) check_illegal_instruction = 1'b0;
+            `endif
+          end
+          7'b1100011, 7'b0110111, 7'b0010111, 7'b1101111, 7'b1100111: // U-Type, B-Type, J-Type, JALR
+            check_illegal_instruction = 1'b0;
+          7'b0010011: begin // ULA I-Type
+            `ifdef RV64I
+              if(funct3 === 3'b001 && funct7[6:1] !== 0) check_illegal_instruction = 1'b1;
+              if(funct3 === 3'b101 && {funct7[6],funct7[4:1]} !== 0) check_illegal_instruction = 1'b1;
+            `else
+              if(funct3 === 3'b001 && funct7 !== 0) check_illegal_instruction = 1'b1;
+              if(funct3 === 3'b101 && {funct7[6],funct7[4:0]} !== 0) check_illegal_instruction = 1'b1;
+            `endif
+          end
+          `ifdef RV64I
+          7'b0011011: begin // ULA W I-Type
+            check_illegal_instruction = 1'b1;
+            if(funct3 === 3'b000) check_illegal_instruction = 1'b0; // ADDIW
+            if(funct3 === 3'b001 && funct7 === 0) check_illegal_instruction = 1'b0; // SLLIW
+            if(funct3 === 3'b101 && {funct7[6],funct7[4:0]} === 0) check_illegal_instruction = 1'b0;
+          end
+          `endif
+          7'b0110011: begin
+            if(funct3 === 3'b000 || funct3 === 3'b101) begin
+              if({funct7[6],funct7[4:0]} !== 0) check_illegal_instruction = 1'b1;
+            end
+            else if(funct7 !== 0) check_illegal_instruction = 1'b1;
+          end
+          `ifdef RV64I
+          7'b0111011: begin
+            check_illegal_instruction = 1'b1;
+            if(funct3 === 3'b000 || funct3 === 3'b101) begin
+              if({funct7[6],funct7[4:0]} === 0) check_illegal_instruction = 1'b0;
+            end
+            else if(funct3 === 3'b001) check_illegal_instruction = 1'b0;
+          end
+          `endif
+          7'b1110011: begin
+            check_illegal_instruction = 1'b1;
+            if(funct3 === 0) begin
+              if(funct7 === 0) check_illegal_instruction = 1'b0; // ECALL
+              `ifdef TrapReturn
+              else if(funct7 === 7'h18 && priv === 2'b11) check_illegal_instruction = 1'b0; // MRET
+              else if(funct7 === 7'h08 && priv[0]) check_illegal_instruction = 1'b0; // SRET
+              `endif
+            end
+            `ifdef ZICSR
+            else if(funct3 !== 3'b100) begin // Zicsr
+              if(csr_addr_exception && estado === Execute) check_illegal_instruction = 1'b1;
+              else if(priv >= funct7[6:5]) check_illegal_instruction = 1'b0;
+            end
+            `endif
+          end
+          default: check_illegal_instruction = 1'b1; // invalid opcode
+        endcase
+      end
+    end
+  endfunction
+
   // flags da ULA -> B-type
   assign xorB = B ^ {`DATA_SIZE{1'b1}};
   assign {carry_out_, add_sub} = A + xorB + 1;
   assign zero_ = ~(|add_sub);
   assign negative_ = add_sub[`DATA_SIZE-1];
-  assign overflow_ = (~(A[`DATA_SIZE-1] ^ B[`DATA_SIZE-1] ^ DUT.sub))
+  assign overflow_ = (~(A[`DATA_SIZE-1] ^ B[`DATA_SIZE-1] ^ check_sub(opcode, funct7)))
                      & (A[`DATA_SIZE-1] ^ add_sub[`DATA_SIZE-1]);
 
   // geração dos sinais da instrução
@@ -358,15 +457,13 @@ module core_tb ();
     end
   end
 
-  // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
+  // Não uso apenas @(negedge mem_busy), pois pode haver traps a serem tratadas!
   task automatic wait_mem();
-    reg num_edge = 1'b0;
     begin
       forever begin
         @(mem_busy, csr_trap);
-        // num_edge = 1 -> Agora é descida
-        if (csr_trap || (num_edge == 1'b1)) disable wait_mem;
-        else if (mem_busy == 1'b1) num_edge = 1'b1;  //Subida
+        if (csr_trap) disable wait_mem;
+        else if (!mem_busy) disable wait_mem;  // Descida
       end
     end
   endtask
@@ -516,11 +613,11 @@ module core_tb ();
           if(funct3 === 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
           `ifdef TrapReturn
-            else if(funct7 === 7'b0011000 && DUT.privilege_mode === 2'b11) begin
+            else if(funct7 === 7'b0011000 && csr_privilege_mode === 2'b11) begin
               mret = 1'b1;
               next_pc = mepc; // MRET
             end
-            else if(funct7 === 7'b0001000 && DUT.privilege_mode[0] === 1'b1) begin
+            else if(funct7 === 7'b0001000 && csr_privilege_mode[0] === 1'b1) begin
               sret = 1'b1;
               next_pc = sepc; // SRET
             end
@@ -541,8 +638,7 @@ module core_tb ();
             if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
             else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
             // Sempre checo a leitura/escrita até se ela não acontecer
-            `ASSERT(csr_addr_exception === DUT.csr_addr_exception);
-            if(DUT.privilege_mode >= funct7[6:5]) begin
+            if(csr_privilege_mode >= funct7[6:5]) begin
               `ASSERT(csr_wr_data === DUT.DF.csr_wr_data);
               `ASSERT(reg_data === DUT.DF.rd);
             end

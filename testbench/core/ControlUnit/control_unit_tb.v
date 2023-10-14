@@ -479,7 +479,7 @@ module control_unit_tb ();
 
   task automatic DoExecute();
     begin
-      if (opcode !== 0) begin
+      if (!csr_addr_exception) begin
         `ASSERT({1'b0, df_src[DfSrcSize-1:NotOnlyOp]} === db_df_src[DfSrcSize:NotOnlyOp]);
         `ASSERT(df_src[NotOnlyOp-3:0] === db_df_src[NotOnlyOp-3:0]);
         // Não testo pc_src para instruções do tipo B

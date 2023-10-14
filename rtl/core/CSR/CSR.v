@@ -477,10 +477,10 @@ module CSR (
       if (i % 2 == 1)  // MEI, MTI, MSI: U, S -> Always Enabled, M -> MIE
         assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] &
             ((!priv[1]) | (priv[0] & mstatus[MIE]));
-      // SEI, STI, SSI: U -> Always Enabled, S -> SIE or !mideleg, M -> MIE
+      // SEI, STI, SSI: U -> Always Enabled, S -> SIE or !mideleg, M -> Disabled
       else
         assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & ((!priv[1] & !priv[0]) |
-            (!priv[1] & (!mideleg[2*i+1] | mstatus[SIE])) | (priv[0] & priv[1] & mstatus[MIE]));
+            (!priv[1] & (!mideleg[2*i+1] | mstatus[SIE])));
     end
   endgenerate
   // Exception Vector
@@ -540,8 +540,8 @@ module CSR (
       m_trap = !medeleg[ECS];
       s_trap = !priv[1] & medeleg[ECS];
     end else if (exception_vector[3]) begin
-      m_trap = !medeleg[ECM];
-      s_trap = !priv[1] & medeleg[ECM];
+      m_trap = 1'b1;
+      s_trap = 1'b0;
     end
     // 2nd Priority Mux -> Exclusive for cause_sync -> Decrease Critical Path
     if (exception_vector[0]) cause_sync = II;

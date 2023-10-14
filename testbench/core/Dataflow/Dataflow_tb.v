@@ -490,15 +490,14 @@ module Dataflow_tb ();
     end
   end
 
-  // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!
+  // Não uso apenas @(negedge mem_busy), pois pode haver traps a serem tratadas!
   task automatic wait_mem();
     reg num_edge = 1'b0;
     begin
       forever begin
         @(mem_busy, csr_trap);
-        // num_edge = 1 -> Agora é descida
-        if(csr_trap || (num_edge == 1'b1)) disable wait_mem;
-        else if(mem_busy == 1'b1) num_edge = 1'b1; //Subida
+        if(csr_trap) disable wait_mem;
+        else if(!mem_busy) disable wait_mem;  // Descida
       end
     end
   endtask
