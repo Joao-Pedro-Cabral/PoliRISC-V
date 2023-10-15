@@ -115,7 +115,7 @@ module control_unit_tb ();
   wire [63:0] mtime;
   wire [63:0] mtimecmp;
   // Dispositivos
-  wire external_interrupt = 1'b0;
+  reg external_interrupt;
   // Sinais intermediários de teste
   reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela
   wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
@@ -128,6 +128,9 @@ module control_unit_tb ();
   integer estado = Reset;
   integer i;
   genvar j;
+  // Address
+  localparam integer FinalAddress = 16781308; // Final execution address
+  localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
 
   // DUT
   control_unit DUT (
@@ -421,11 +424,17 @@ module control_unit_tb ();
 
   // Always to finish the simulation
   always @(posedge mem_wr_en) begin
-    if(mem_addr == 16781308) begin // Final write addr
+    if(mem_addr == FinalAddress) begin // Final write addr
       $display("End of program!");
       $display("Write data: 0x%x", wr_data);
       $stop;
     end
+  end
+
+  // Always to set/reset external_interrupt
+  always @(posedge clock, posedge reset) begin
+    if(reset) external_interrupt = 1'b0;
+    else if(mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
   end
 
   // Não uso apenas @(posedge mem_busy), pois pode haver traps a serem tratadas!

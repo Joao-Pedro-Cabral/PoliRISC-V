@@ -88,7 +88,7 @@ module core_tb ();
   wire [63:0] mtime;
   wire [63:0] mtimecmp;
   // Dispositivos
-  wire external_interrupt = 1'b0;
+  reg external_interrupt;
   // CSR
   wire [`DATA_SIZE-1:0] mepc;
   wire [`DATA_SIZE-1:0] sepc;
@@ -114,6 +114,9 @@ module core_tb ();
   localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5;  // Estados
   integer estado = Reset;
   integer i;
+  // Address
+  localparam integer FinalAddress = 16781308; // Final execution address
+  localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
 
   // DUT
   core DUT (
@@ -457,6 +460,12 @@ module core_tb ();
       $display("Write data: 0x%x", wr_data);
       $stop;
     end
+  end
+
+  // Always to set/reset external_interrupt
+  always @(posedge clock, posedge reset) begin
+    if(reset) external_interrupt = 1'b0;
+    else if(mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
   end
 
   // Não uso apenas @(negedge mem_busy), pois pode haver traps a serem tratadas!
