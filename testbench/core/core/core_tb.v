@@ -365,15 +365,17 @@ module core_tb ();
               if(funct3 !== 3'b011 && funct3[2:1] !== 2'b11) check_illegal_instruction = 1'b0;
             `endif
           end
-          7'b1100011, 7'b0110111, 7'b0010111, 7'b1101111, 7'b1100111: // U-Type, B-Type, J-Type, JALR
+          7'b1100011, 7'b0110111, 7'b0010111, 7'b1101111, 7'b1100111: // U/B/J-Type, JALR
             check_illegal_instruction = 1'b0;
           7'b0010011: begin // ULA I-Type
             `ifdef RV64I
               if(funct3 === 3'b001 && funct7[6:1] !== 0) check_illegal_instruction = 1'b1;
-              if(funct3 === 3'b101 && {funct7[6],funct7[4:1]} !== 0) check_illegal_instruction = 1'b1;
+              if(funct3 === 3'b101 && {funct7[6],funct7[4:1]} !== 0)
+                check_illegal_instruction = 1'b1;
             `else
               if(funct3 === 3'b001 && funct7 !== 0) check_illegal_instruction = 1'b1;
-              if(funct3 === 3'b101 && {funct7[6],funct7[4:0]} !== 0) check_illegal_instruction = 1'b1;
+              if(funct3 === 3'b101 && {funct7[6],funct7[4:0]} !== 0)
+                check_illegal_instruction = 1'b1;
             `endif
           end
           `ifdef RV64I
@@ -384,14 +386,14 @@ module core_tb ();
             if(funct3 === 3'b101 && {funct7[6],funct7[4:0]} === 0) check_illegal_instruction = 1'b0;
           end
           `endif
-          7'b0110011: begin
+          7'b0110011: begin // ULA R-Type
             if(funct3 === 3'b000 || funct3 === 3'b101) begin
               if({funct7[6],funct7[4:0]} !== 0) check_illegal_instruction = 1'b1;
             end
             else if(funct7 !== 0) check_illegal_instruction = 1'b1;
           end
           `ifdef RV64I
-          7'b0111011: begin
+          7'b0111011: begin // ULA W R-Type
             check_illegal_instruction = 1'b1;
             if(funct3 === 3'b000 || funct3 === 3'b101) begin
               if({funct7[6],funct7[4:0]} === 0) check_illegal_instruction = 1'b0;
@@ -399,7 +401,7 @@ module core_tb ();
             else if(funct3 === 3'b001) check_illegal_instruction = 1'b0;
           end
           `endif
-          7'b1110011: begin
+          7'b1110011: begin // SYSTEM
             check_illegal_instruction = 1'b1;
             if(funct3 === 0) begin
               if(funct7 === 0) check_illegal_instruction = 1'b0; // ECALL

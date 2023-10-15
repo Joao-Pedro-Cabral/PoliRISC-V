@@ -93,7 +93,7 @@ module control_unit (
 
   reg [4:0] estado_atual, proximo_estado;
 
-  task zera_sinais;
+  task automatic zera_sinais;
     begin
       mem_wr_en   = 1'b0;
       mem_rd_en   = 1'b0;
@@ -171,48 +171,80 @@ module control_unit (
         end
       end
       Decode: begin
-        if (opcode[1:0] != 2'b11) illegal_instruction = 1'b1;
-        else if (opcode[4] == 1'b1) begin
-          if (opcode[5] == 1'b1) begin
-            if (opcode[2] == 1'b0) begin
-              if (opcode[6] == 1'b0) begin
-                if({funct7[6], funct7[4:0]} == 0) proximo_estado = RegistradorRegistrador;
-                else illegal_instruction = 1'b1;
-              end
-              else begin
-                if (funct3 == 3'b0) begin
-                  if (funct7 == 7'b0) proximo_estado = Ecall;
-                `ifdef TrapReturn
-                  else if (((funct7 == 7'h18) || (funct7 == 7'h08)) &&
-                  (privilege_mode[0] && (privilege_mode[1] | !funct7[4])))
-                    proximo_estado = Xret;
-                `endif
-                  else illegal_instruction = 1'b1;
-                end else if (funct3 == 3'b100) illegal_instruction = 1'b1;
-            `ifdef ZICSR
-              else if(privilege_mode >= funct7[6:5]) proximo_estado = Zicsr;
+        case(opcode)
+          7'b0110011: begin // ULA R-Type
+            proximo_estado = RegistradorRegistrador;
+            if(funct3 == 3'b000 || funct3 == 3'b101) begin
+              if({funct7[6],funct7[4:0]} != 0) illegal_instruction = 1'b1;
+            end else if(funct7 != 0) illegal_instruction = 1'b1;
+          end
+        `ifdef RV64I
+          7'b0111011: begin // W R-Type
+            proximo_estado = RegistradorRegistrador;
+            if(funct3 == 3'b000 || funct3 == 3'b101) begin
+                if({funct7[6],funct7[4:0]} != 0) illegal_instruction = 1'b1;
+            end else if(funct3 != 3'b001) illegal_instruction = 1'b1;
+          end
+        `endif
+          7'b0010011: begin // ULA I-Type
+            proximo_estado = RegistradorImediato;
+          `ifdef RV64I
+            if(funct3 == 3'b001 && funct7[6:1] != 0) illegal_instruction = 1'b1;
+            if(funct3 == 3'b101 && {funct7[6],funct7[4:1]} != 0)
+              illegal_instruction = 1'b1;
+          `else
+            if(funct3 == 3'b001 && funct7 != 0) illegal_instruction = 1'b1;
+            if(funct3 == 3'b101 && {funct7[6],funct7[4:0]} != 0)
+              illegal_instruction = 1'b1;
+          `endif
+          end
+          `ifdef RV64I
+          7'b0011011: begin // ULA W I-Type
+            proximo_estado = RegistradorImediato;
+            if(funct3 == 3'b101 && {funct7[6],funct7[4:0]} != 0) illegal_instruction = 1'b1; // SRIW
+            else if(funct3 == 3'b001 && funct7 != 0) illegal_instruction = 1'b1; // SLLIW
+            else if(funct3 != 3'b000) illegal_instruction = 1'b1; // ADDIW
+          end
+          `endif
+          7'b0000011: begin // I-Type (Load)
+            proximo_estado = Load;
+            `ifdef RV64I
+              if(funct3 == 3'b111) illegal_instruction = 1'b1;
+            `else
+              if(funct3 == 3'b011 || funct3[2:1] == 2'b11) illegal_instruction = 1'b1;
             `endif
-                else illegal_instruction = 1'b1;
-              end
-            end else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = Lui;
-            else illegal_instruction = 1'b1;
-          end else begin
-            if (opcode[2] == 1'b0) proximo_estado = RegistradorImediato;
-            else if (opcode[3] == 1'b0 && opcode[6] == 1'b0) proximo_estado = Auipc;
+          end
+          7'b0100011: begin // S-Type
+            proximo_estado = Store;
+            if(funct3[2]) illegal_instruction = 1'b1;
+          `ifndef RV64I
+            else if(funct3[1:0] == 2'b11) illegal_instruction = 1'b1;
+          `endif
+          end
+          7'b1100011: proximo_estado = DesvioCondicional;
+          7'b0110111: proximo_estado = Lui;
+          7'b0010111: proximo_estado = Auipc;
+          7'b1101111: proximo_estado = Jal;
+          7'b1100111: proximo_estado = Jalr;
+          7'b1110011: begin // SYSTEM
+            if(funct3 == 0) begin
+              if(funct7 == 0) proximo_estado = Ecall; // ECALL
+              `ifdef TrapReturn
+              else if(funct7 == 7'h18 && privilege_mode == 2'b11) proximo_estado = Xret; // MRET
+              else if(funct7 == 7'h08 && privilege_mode[0]) proximo_estado = Xret; // SRET
+              `endif
+              else illegal_instruction = 1'b1;
+            end
+            `ifdef ZICSR
+            else if(funct3 != 3'b100) begin // Zicsr
+              if(privilege_mode >= funct7[6:5]) proximo_estado = Zicsr;
+              else illegal_instruction = 1'b1;
+            end
+            `endif
             else illegal_instruction = 1'b1;
           end
-        end else begin
-          if (opcode[6] == 1'b1) begin
-            if (opcode[3] == 1'b1) proximo_estado = Jal;
-            else if (opcode[2] == 1'b0) proximo_estado = DesvioCondicional;
-            else if (opcode[5] == 1'b1) proximo_estado = Jalr;
-            else illegal_instruction = 1'b1;
-          end else begin
-            if (opcode[5] == 1'b0) proximo_estado = Load;
-            else if (opcode[2] == 1'b0 && opcode[3] == 1'b0) proximo_estado = Store;
-            else illegal_instruction = 1'b1;
-          end
-        end
+          default: illegal_instruction = 1'b1;
+        endcase
       end
 
       RegistradorRegistrador: begin
