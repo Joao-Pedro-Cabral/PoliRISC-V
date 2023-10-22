@@ -475,12 +475,12 @@ module CSR (
     // Maps interrupt code 2*i + 1 to interrupt vector bit i
     for (i = 0; i < 6; i = i + 1) begin : gen_interrupt_vector
       if (i % 2 == 1)  // MEI, MTI, MSI: U, S -> Always Enabled, M -> MIE
-        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] &
-            ((!priv[1]) | (priv[0] & mstatus[MIE]));
+        assign interrupt_vector[i] =  mip_[2*i+1]  &
+            ((!priv[1]) | (priv[0] & mie_[2*i+1] & mstatus[MIE]));
       // SEI, STI, SSI: U -> Always Enabled, S -> SIE or !mideleg, M -> Disabled
       else
-        assign interrupt_vector[i] = mie_[2*i+1] & mip_[2*i+1] & ((!priv[1] & !priv[0]) |
-            (!priv[1] & (!mideleg[2*i+1] | mstatus[SIE])));
+        assign interrupt_vector[i] =  mip_[2*i+1] & ((!priv[1] & !priv[0]) |
+            (!priv[1] & mstatus[SIE] & mie_[2*i+1]));
     end
   endgenerate
   // Exception Vector
@@ -531,14 +531,14 @@ module CSR (
       m_trap = !mideleg[SSI];
       s_trap = !priv[1] & mideleg[SSI];
     end else if (exception_vector[0]) begin
-      m_trap = !medeleg[II];
+      m_trap = priv[1] | !medeleg[II];
       s_trap = !priv[1] & medeleg[II];
     end else if (exception_vector[1]) begin
       m_trap = !medeleg[ECU];
-      s_trap = !priv[1] & medeleg[ECU];
+      s_trap = medeleg[ECU]; // priv = 2'b00
     end else if (exception_vector[2]) begin
       m_trap = !medeleg[ECS];
-      s_trap = !priv[1] & medeleg[ECS];
+      s_trap = medeleg[ECS]; // priv = 2'b01
     end else if (exception_vector[3]) begin
       m_trap = 1'b1;
       s_trap = 1'b0;
