@@ -1,36 +1,49 @@
 # PoliRISC-V
 
-## Descrição
+## Description
 
-Breve descrição do seu projeto.
+This project hosts the Verilog description of a RISC-V processor developed at the Polytechnic School of the University of São Paulo. The following extensions are implemented:
 
-## Estrutura do Diretório
+- RV32I
+- RV64I
+- Zicsr
 
-A estrutura do diretório do projeto é organizada da seguinte forma:
+## Directory Structure
+
+The repository's structure is organized as follows:
 
 .
-├── docs
+├── docs/
 ├── README.md
-├── rtl
-├── simulation
-├── synthesis
-├── testbench
-├── toplevel
-├── utils
+├── rtl/
+├── simulation/
+├── synthesis/
+├── testbench/
+├── toplevel/
+├── utils/
 └── verible.filelist
 
-## Como Usar
+Each directory hosts the following resources:
 
-Forneça instruções sobre como compilar, executar ou contribuir para o seu projeto. Se houver requisitos específicos, mencione-os aqui.
+- docs: documentation for the project;
+- rtl: Verilog descriptions of the processor's components;
+- simulation: simulation files and scripts;
+- synthesis: synthesis files and scripts;
+- testbench: Verilog testbenches for the processor's components;
+- toplevel: toplevel Verilog descriptions for synthesis;
+- utils: project-wide utilities
 
-## Licença
+## Basic Usage
 
-Este projeto está licenciado sob a [Sua Licença](URL da Licença).
+Provide instructions on how to compile, run, or contribute to your project. If there are specific requirements, mention them here.
 
-## Autor
+## License
 
-- [Seu Nome](URL do Perfil do Autor) - Descrição do Autor
+## Authors
 
-## Agradecimentos
+- [Igor Pontes Tresolavy](URL do Perfil do Autor) - Author description
+- [João Pedro Cabral Miranda](URL do Perfil do Autor) - Author description
 
-Aqui você pode agradecer a outras pessoas, projetos ou recursos que tenham contribuído para o seu projeto.
+## Acknowledgments
+
+Many thanks for Prof. [Dr. Bruno Albertini](URL do Perfil do Autor).
