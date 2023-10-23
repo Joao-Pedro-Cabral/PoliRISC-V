@@ -38,7 +38,7 @@ Each directory hosts the following resources:
 
 ### Pre-requisites
 
-- [Hdlmake](https://hdlmake.readthedocs.io/en/master/): Framework for organize the repository.
+- [Hdlmake](https://hdlmake.readthedocs.io/en/master/): Framework for organizing the repository.
 
 - [Modelsim](https://www.intel.com/content/www/us/en/software-kit/750666/modelsim-intel-fpgas-standard-edition-software-version-20-1-1.html?): Simulation software.
 
@@ -57,4 +57,4 @@ Edit the sim_top and mif_name variables of the file simulation/Manifest.py for c
 
 ## Acknowledgments
 
-Many thanks to Prof. [Dr. Bruno Albertini](https://www.linkedin.com/in/bruno-albertini-b7baa58/).
+Many thanks to Prof. [Dr. Bruno Albertini](https://www.linkedin.com/in/bruno-albertini-b7baa58/) for the support given during development.
