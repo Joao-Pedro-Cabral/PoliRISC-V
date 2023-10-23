@@ -11,7 +11,7 @@ This project hosts the Verilog description of a RISC-V processor developed at th
 ## Directory Structure
 
 The repository's structure is organized as follows:
-
+```
 .
 ├── docs/
 ├── README.md
@@ -22,6 +22,7 @@ The repository's structure is organized as follows:
 ├── toplevel/
 ├── utils/
 └── verible.filelist
+```
 
 Each directory hosts the following resources:
 
