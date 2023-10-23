@@ -9,6 +9,11 @@ addi t0,x0,100             ; BASE address for interrupt handling
 csrrw x0,mtvec,t0
 csrrw x0,stvec,t0
 
+; setting mtimecmp
+lui t0,-1
+lui t1,262143             ; mtimecmp base address
+sw t0,0(t1)
+
 addi a0,x0,0b1            ; SSI
 ori t0,x0,0b1010
 csrrw x0,mie,t0           ; enables software interrupts
