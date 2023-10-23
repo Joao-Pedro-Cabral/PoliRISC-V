@@ -36,15 +36,25 @@ Each directory hosts the following resources:
 
 ## Basic Usage
 
-Provide instructions on how to compile, run, or contribute to your project. If there are specific requirements, mention them here.
+### Pre-requisites
+
+- [Hdlmake](https://hdlmake.readthedocs.io/en/master/): Framework for organize the repository.
+
+- [Modelsim](https://www.intel.com/content/www/us/en/software-kit/750666/modelsim-intel-fpgas-standard-edition-software-version-20-1-1.html?): Simulation software.
+
+- [Quartus](https://www.intel.com/content/www/us/en/software-kit/785086/intel-quartus-prime-lite-edition-design-software-version-22-1-2-for-windows.html?)/[Vivado](https://www.xilinx.com/support/download.html): Synthesis software.
+
+### Simulation
+
+Edit the sim_top and mif_name variables of the file simulation/Manifest.py for configure the testbench.
 
 ## License
 
 ## Authors
 
-- [Igor Pontes Tresolavy](URL do Perfil do Autor) - Author description
-- [João Pedro Cabral Miranda](URL do Perfil do Autor) - Author description
+- [Igor Pontes Tresolavy](https://www.linkedin.com/in/ipt/)
+- [João Pedro Cabral Miranda](https://www.linkedin.com/in/jo%C3%A3o-pedro-cabral-miranda-390568212/)
 
 ## Acknowledgments
 
-Many thanks for Prof. [Dr. Bruno Albertini](URL do Perfil do Autor).
+Many thanks to Prof. [Dr. Bruno Albertini](https://www.linkedin.com/in/bruno-albertini-b7baa58/).
