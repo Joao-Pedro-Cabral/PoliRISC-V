@@ -54,7 +54,7 @@ csrrc x0,mip,s2
 csrrs t2,mepc,x0          ; does not write to mepc
 addi t2,t2,-4
 csrrw x0,mepc,t2
-sret
+j 18
 
 ; go to supervisor mode
 addi t0,x0,0b1
@@ -74,4 +74,4 @@ csrrc x0,mstatus,t0       ; clear MPP[0]
 csrrc x0,mstatus,t1       ; clear MPP[1]
 csrrw x0,sepc,ra
 csrrsi x0,mstatus,0b1010
-sret
+mret
