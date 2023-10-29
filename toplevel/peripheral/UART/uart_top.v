@@ -26,6 +26,9 @@ module uart_top (
   // Sinais para controlar o DUT
   reg         rd_en;
   reg         wr_en;
+  reg         CYC_O;
+  reg         STB_O;
+  reg         WR_O;
   reg  [ 2:0] addr;
   reg  [31:0] wr_data;
   wire [31:0] rd_data;
@@ -60,29 +63,27 @@ module uart_top (
   reg [3:0] present_state, next_state;
   localparam reg [3:0]  Idle = 4'h0,
                         ConfReceiveControl = 4'h1,
-                        EndConfReceiveControl = 4'h2,
-                        ConfTransmitControl = 4'h3,
-                        EndConfTransmitControl = 4'h4,
-                        ConfInterruptEn = 4'h5,
-                        EndConfInterruptEn = 4'h6,
-                        WaitReceivePending = 4'h7,
-                        ReadingData = 4'h8,
-                        InitWritingData = 4'h9,
-                        WritingData = 4'hA;
+                        ConfTransmitControl = 4'h2,
+                        ConfInterruptEn = 4'h3,
+                        WaitReceivePending = 4'h4,
+                        ReadingData = 4'h5,
+                        InitWritingData = 4'h6,
+                        WritingData = 4'h7;
 
   uart #(
       .CLOCK_FREQ_HZ(100000000)  // 100 MHz
   ) DUT (
-      .clock            (clock),
-      .reset            (reset),
-      .rd_en            (rd_en),
-      .wr_en            (wr_en),
-      .addr             (addr),
+      .CLK_I            (clock),
+      .RST_I            (reset),
+      .CYC_I            (CYC_O),
+      .STB_I            (STB_O),
+      .WR_I             (WR_O),
+      .ADR_I            (addr),
       .rxd              (rxd),
-      .wr_data          (wr_data),
+      .DAT_I            (wr_data),
       .txd              (txd),
-      .rd_data          (rd_data),
-      .busy             (busy),
+      .DAT_O            (rd_data),
+      .ACK_O            (ack),
       .div_             (div_),
       .p_rxwm_          (p_rxwm_),
       .p_txwm_          (p_txwm_),
@@ -107,6 +108,20 @@ module uart_top (
       .tx_watermark_reg_(tx_watermark_reg_)
   );
 
+  always @(*) begin
+    CYC_O = 1'b0;
+    STB_O = 1'b0;
+    WR_O  = 1'b0;
+    if (wr_en) begin
+      CYC_O = 1'b1;
+      STB_O = 1'b1;
+      WR_O  = 1'b1;
+    end else if (rd_en) begin
+      CYC_O = 1'b1;
+      STB_O = 1'b1;
+    end
+  end
+
   // Transição de Estado
   always @(posedge clock, posedge reset) begin
     if (reset) present_state <= Idle;
@@ -129,43 +144,23 @@ module uart_top (
         addr = 3'b011;
         wr_data[0] = 1'b1;
         wr_data[18:16] = 3'b101;
-        next_state = EndConfReceiveControl;
-      end
-      EndConfReceiveControl: begin
-        wr_en = 1'b1;
-        addr = 3'b011;
-        wr_data[0] = 1'b1;
-        wr_data[18:16] = 3'b101;
-        if (busy) next_state = EndConfReceiveControl;
-        else next_state = ConfTransmitControl;
+        if (ack) next_state = ConfTransmitControl;
+        else next_state = ConfReceiveControl;
       end
       ConfTransmitControl: begin
         wr_en = 1'b1;
         addr = 3'b010;
         wr_data[1:0] = {Nstop, 1'b1};
         wr_data[18:16] = 3'b010;
-        next_state = EndConfTransmitControl;
-      end
-      EndConfTransmitControl: begin
-        wr_en = 1'b1;
-        addr = 3'b010;
-        wr_data[1:0] = {Nstop, 1'b1};
-        wr_data[18:16] = 3'b010;
-        if (busy) next_state = EndConfTransmitControl;
-        else next_state = ConfInterruptEn;
+        if (ack) next_state = ConfInterruptEn;
+        else next_state = ConfTransmitControl;
       end
       ConfInterruptEn: begin
         wr_en = 1'b1;
         addr = 3'b100;
         wr_data[1:0] = 2'b11;
-        next_state = EndConfInterruptEn;
-      end
-      EndConfInterruptEn: begin
-        wr_en = 1'b1;
-        addr = 3'b100;
-        wr_data[1:0] = 2'b11;
-        if (busy) next_state = EndConfInterruptEn;
-        else next_state = WaitReceivePending;
+        if (ack) next_state = WaitReceivePending;
+        else next_state = ConfInterruptEn;
       end
       // Estados de Operação da UART
       // Espera p_rxwm_ = 1'b1 -> passar rd_data para wr_data
@@ -180,8 +175,8 @@ module uart_top (
       ReadingData: begin
         rd_en = 1'b1;
         addr  = 3'b001;
-        if (busy) next_state = ReadingData;
-        else next_state = InitWritingData;
+        if (ack) next_state = InitWritingData;
+        else next_state = ReadingData;
       end
       // Mandar via TX o dado recebido no RX
       InitWritingData: begin
@@ -195,10 +190,9 @@ module uart_top (
         wr_en = 1'b1;
         addr = 3'b000;
         wr_data = rd_data;
-        if (busy) next_state = WritingData;
         // Após a Escrita -> Checar rxwm denovo
-        else
-          next_state = WaitReceivePending;
+        if (ack) next_state = WaitReceivePending;
+        else next_state = WritingData;
       end
       default: begin
         next_state = Idle;
