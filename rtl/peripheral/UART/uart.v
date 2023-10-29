@@ -11,15 +11,16 @@
 module uart #(
     parameter integer CLOCK_FREQ_HZ = 10000000
 ) (
-    input  wire        clock,
-    input  wire        reset,
-    input  wire        rd_en,
-    input  wire        wr_en,
-    input  wire [ 2:0] addr,               // 0x00 a 0x18
+    input  wire        CLK_I,
+    input  wire        RST_I,
+    input  wire        CYC_I,
+    input  wire        STB_I,
+    input  wire        WR_I,
+    input  wire [ 2:0] ADR_I,              // 0x00 a 0x18
     input  wire        rxd,                // dado serial
-    input  wire [31:0] wr_data,
+    input  wire [31:0] DAT_I,
     output wire        txd,                // dado de transmissão
-    output wire [31:0] rd_data,
+    output wire [31:0] DAT_O,
 `ifdef DEBUG
     output wire [15:0] div_,
     output wire        p_rxwm_,
@@ -44,12 +45,14 @@ module uart #(
     output wire [ 2:0] rx_watermark_reg_,
     output wire [ 2:0] tx_watermark_reg_,
 `endif
-    output wire        busy
+    output reg         ACK_O
 );
 
   localparam integer DivInit = CLOCK_FREQ_HZ / (115200) - 1;
 
   // Internal interface signals
+  wire rd_en;
+  wire wr_en;
   reg _rd_en;
   reg _wr_en;
   wire [2:0] _addr;
@@ -57,7 +60,8 @@ module uart #(
   // Extra FSM signals
   reg end_rd;
   reg end_wr;
-  reg _busy;
+  reg op;
+  reg ack;
 
   // Read-only register signals
   // Receive Data Register
@@ -108,15 +112,19 @@ module uart #(
   reg rx_clock;
   wire rx_data_valid;
 
+  // Determinando o comportamento da UART pelas entradas
+  assign wr_en = CYC_I & STB_I & WR_I;
+  assign rd_en = CYC_I & STB_I & ~WR_I;
+
   // Bufferizando entradas
   register_d #(
       .N(3),
       .reset_value(0)
   ) addr_reg (
-      .clock(clock),
-      .reset(reset),
-      .enable((rd_en | wr_en) && !_busy),
-      .D(addr),
+      .clock(CLK_I),
+      .reset(RST_I),
+      .enable((rd_en | wr_en) && !op),
+      .D(ADR_I),
       .Q(_addr)
   );
 
@@ -124,10 +132,10 @@ module uart #(
       .N(32),
       .reset_value(0)
   ) wr_data_reg (
-      .clock(clock),
-      .reset(reset),
-      .enable(wr_en && !_busy),
-      .D(wr_data),
+      .clock(CLK_I),
+      .reset(RST_I),
+      .enable(wr_en && !op),
+      .D(DAT_I),
       .Q(_wr_data)
   );
 
@@ -137,8 +145,8 @@ module uart #(
       .N(8),
       .reset_value(0)
   ) transmit_data_register (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .enable(_wr_en & (_addr == 3'b0)),
       .D(_wr_data[7:0]),
       .Q(txdata)
@@ -148,8 +156,8 @@ module uart #(
       .N(8),
       .reset_value(0)
   ) receive_data_register (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .enable(end_rd),
       .D(rx_fifo_rd_data),
       .Q(rxdata)
@@ -159,8 +167,8 @@ module uart #(
       .N(1),
       .reset_value(0)
   ) receive_empty_register (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .enable(_rd_en & (_addr == 3'b001)),
       .D(rx_fifo_empty),
       .Q(rx_fifo_empty_)
@@ -170,8 +178,8 @@ module uart #(
       .N(5),
       .reset_value(0)
   ) transmit_control_register (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .enable(_wr_en & (_addr == 3'b010)),
       .D({_wr_data[18:16], _wr_data[1:0]}),
       .Q({txcnt, nstop, txen})
@@ -181,8 +189,8 @@ module uart #(
       .N(4),
       .reset_value(0)
   ) receive_control_register (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .enable(_wr_en & (_addr == 3'b011)),
       .D({_wr_data[18:16], _wr_data[0]}),
       .Q({rxcnt, rxen})
@@ -193,8 +201,8 @@ module uart #(
       .N(2),
       .reset_value(0)
   ) interrupt_enable_register (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .enable(_wr_en & (_addr == 3'b100)),
       .D(_wr_data[1:0]),
       .Q({e_rxwm, e_txwm})
@@ -207,8 +215,8 @@ module uart #(
       .N(16),
       .reset_value(DivInit)
   ) baud_rate_divisor_register (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .enable(_wr_en & (_addr == 3'b110)),
       .D(_wr_data[15:0]),
       .Q(div)
@@ -229,7 +237,7 @@ module uart #(
         {tx_fifo_full, 23'b0, txdata}
       }),
       .S(_addr),
-      .Y(rd_data)
+      .Y(DAT_O)
   );
 
   // FIFOs
@@ -238,8 +246,8 @@ module uart #(
       .DATA_SIZE(8),
       .DEPTH(8)
   ) tx_fifo (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .wr_en(end_wr),
       .rd_en(tx_fifo_rd_en),
       .watermark_level(txcnt),
@@ -258,8 +266,8 @@ module uart #(
 
   // Leitura da FIFO -> UART TX pronta (borda de subida)
   // Mantenho o rd_en ativo até que a FIFO tenha algum dado para transmitir
-  always @(posedge clock, posedge reset) begin
-    if (reset) begin
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) begin
       tx_fifo_rd_en <= 1'b0;
       tx_fifo_empty_aux <= 1'b0;
     end else if (tx_fifo_rd_en) begin
@@ -278,8 +286,8 @@ module uart #(
   // Detecto a borda de subida do tx_rdy
   // Apenas esse tem reset, pois no estado padrão do transmissor tx_rdy = 1'b1
   // Enquanto no estado padrão do receptor o rx_data_valid = 1'b0
-  always @(posedge clock, posedge reset) begin
-    if (reset) tx_rdy_aux <= 1'b0;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) tx_rdy_aux <= 1'b0;
     else tx_rdy_aux <= tx_rdy;
   end
 
@@ -288,8 +296,8 @@ module uart #(
       .DATA_SIZE(8),
       .DEPTH(8)
   ) rx_fifo (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .wr_en(rx_fifo_wr_en),
       .rd_en(rx_fifo_rd_en),
       .watermark_level(rxcnt),
@@ -310,8 +318,8 @@ module uart #(
 
   // Escrita na FIFO -> UART RX válido (borda de subida)
   // Mantenho o wr_en ativo até que a FIFO tenha espaço sobrando
-  always @(posedge clock, posedge reset) begin
-    if (reset) begin
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) begin
       rx_fifo_wr_en <= 1'b0;
       rx_fifo_full_aux <= 1'b0;
     end else if (rx_fifo_wr_en) begin
@@ -328,7 +336,7 @@ module uart #(
 
   // Para evitar múltiplas escritas por ciclo de clock da UART
   // Detecto a borda de subida do rx_data_valid
-  always @(posedge clock) begin
+  always @(posedge CLK_I) begin
     rx_data_valid_aux <= rx_data_valid;
   end
 
@@ -336,7 +344,7 @@ module uart #(
   // TX
   uart_tx tx (
       .clock(tx_clock),
-      .reset(reset),
+      .reset(RST_I),
       .tx_en(txen),
       .parity_type(2'b00),
       .nstop(nstop),
@@ -349,20 +357,20 @@ module uart #(
   // Caso o TX não esteja pronto -> Valid 0
   // Caso TX pronto e houve uma leitura na FIFO -> Valid 1
   reg tx_fifo_rd_en_aux;
-  always @(posedge clock, posedge reset) begin
-    if (reset || !tx_rdy) tx_data_valid <= 1'b0;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I || !tx_rdy) tx_data_valid <= 1'b0;
     else if (!tx_fifo_rd_en && tx_fifo_rd_en_aux) tx_data_valid <= 1'b1;
   end
 
-  always @(posedge clock, posedge reset) begin
-    if (reset) tx_fifo_rd_en_aux <= 1'b0;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) tx_fifo_rd_en_aux <= 1'b0;
     else tx_fifo_rd_en_aux <= tx_fifo_rd_en;
   end
 
   // RX
   uart_rx rx (
       .clock(rx_clock),
-      .reset(reset),
+      .reset(RST_I),
       .rx_en(rxen),
       .parity_type(2'b00),
       .nstop(nstop),
@@ -379,7 +387,7 @@ module uart #(
   wire div_change;
   reg [15:0] old_div;
   // Detector de mudança do div
-  always @(posedge clock) begin
+  always @(posedge CLK_I) begin
     old_div <= div;
   end
 
@@ -390,17 +398,17 @@ module uart #(
       .size(16),
       .init_value(0)
   ) tx_baud_rate_generator (
-      .clock(clock),
+      .clock(CLK_I),
       .load((tx_counter == div) | div_change),
       .load_value(16'b0),
-      .reset(reset),
+      .reset(RST_I),
       .inc_enable(1'b1),
       .dec_enable(1'b0),
       .value(tx_counter)
   );
 
-  always @(posedge clock, posedge reset) begin
-    if (reset | div_change) tx_clock <= 1'b0;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I | div_change) tx_clock <= 1'b0;
     else if (tx_counter == div) tx_clock <= ~tx_clock;
     else tx_clock <= 1'b0;
   end
@@ -411,17 +419,17 @@ module uart #(
       .size(12),
       .init_value(0)
   ) rx_baud_rate_generator (
-      .clock(clock),
+      .clock(CLK_I),
       .load((rx_counter == div[15:4]) | div_change),
       .load_value(12'b0),
-      .reset(reset),
+      .reset(RST_I),
       .inc_enable(1'b1),
       .dec_enable(1'b0),
       .value(rx_counter)
   );
 
-  always @(posedge clock, posedge reset) begin
-    if (reset | div_change) rx_clock <= 1'b0;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I | div_change) rx_clock <= 1'b0;
     else if (rx_counter == div[15:4]) rx_clock <= 1'b1;
     else rx_clock <= 1'b0;
   end
@@ -432,8 +440,8 @@ module uart #(
   // Estados possíveis
   localparam reg [1:0] Idle = 2'b00, Read = 2'b01, Write = 2'b10, EndOp = 2'b11;
 
-  always @(posedge clock, posedge reset) begin
-    if (reset) present_state <= Idle;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) present_state <= Idle;
     else present_state <= next_state;
   end
 
@@ -452,25 +460,31 @@ module uart #(
   end
 
   // Lógica de saída
-  always @(posedge clock, posedge reset) begin
-    _busy  <= 1'b0;
+  always @(posedge CLK_I, posedge RST_I) begin
+    ACK_O  <= 1'b0;
+    ack    <= 1'b0;
+    op     <= 1'b0;
     _rd_en <= 1'b0;
     _wr_en <= 1'b0;
     end_rd <= 1'b0;
     end_wr <= 1'b0;
-    if (reset) begin
+    if (RST_I) begin
     end else begin
+      ACK_O <= ack;
       case (next_state)
         Read: begin
-          _busy  <= 1'b1;
+          op     <= 1'b1;
+          ack    <= ADR_I != 3'b001;
           _rd_en <= 1'b1;
         end
         Write: begin
-          _busy  <= 1'b1;
+          op     <= 1'b1;
+          ack    <= ADR_I != 3'b000;
           _wr_en <= 1'b1;
         end
         EndOp: begin
-          _busy  <= 1'b1;
+          op     <= 1'b1;
+          ack    <= 1'b1;
           end_rd <= _rd_en & (_addr == 3'b001);
           end_wr <= _wr_en & (_addr == 3'b000);
         end
@@ -480,7 +494,6 @@ module uart #(
     end
   end
 
-  assign busy = _busy;
 `ifdef DEBUG
   assign div_ = div;
   assign p_rxwm_ = p_rxwm;
