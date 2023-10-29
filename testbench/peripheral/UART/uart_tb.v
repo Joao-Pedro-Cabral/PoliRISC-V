@@ -28,6 +28,9 @@ module uart_tb ();
   reg          rx_clock;
   reg          tx_clock;
   reg          reset;
+  reg          cyc_o;
+  reg          stb_o;
+  reg          wr_o;
   reg          rd_en;
   reg          wr_en;
   reg   [ 2:0] addr;
@@ -35,7 +38,7 @@ module uart_tb ();
   reg   [31:0] wr_data;
   wire         txd;
   wire  [31:0] rd_data;
-  wire         busy;
+  wire         ack_i;
   ////
 
   // Sinais Auxiliares
@@ -78,16 +81,17 @@ module uart_tb ();
   uart #(
       .CLOCK_FREQ_HZ(115200 * 32)
   ) DUT (
-      .clock  (clock),
-      .reset  (reset),
-      .rd_en  (rd_en),
-      .wr_en  (wr_en),
-      .addr   (addr),     // 0x00 a 0x18
-      .rxd    (rxd),      // dado serial
-      .wr_data(wr_data),
-      .txd    (txd),      // dado de transmissão
-      .rd_data(rd_data),
-      .busy   (busy)
+      .CLK_I(clock),
+      .RST_I(reset),
+      .CYC_I(cyc_o),
+      .STB_I(stb_o),
+      .WR_I (wr_o),
+      .ADR_I(addr),     // 0x00 a 0x18
+      .rxd  (rxd),      // dado serial
+      .DAT_I(wr_data),
+      .txd  (txd),      // dado de transmissão
+      .DAT_O(rd_data),
+      .ACK_O(ack_i)
   );
 
   // Sinais da FIFO/interrupts
@@ -194,10 +198,10 @@ module uart_tb ();
       processor_initial = 2'b00;
       // Ler Interrupt Pending Register
       addr = 3'b101;
-      @(posedge busy);
+      @(posedge clock);
       @(negedge clock);
-      {rd_en, wr_en, addr} = 5'b00100;
-      @(negedge busy);
+      {cyc_o, stb_o, wr_o, rd_en, addr} = 7'h04;
+      @(posedge ack_i);
       @(negedge clock);
 
       `ASSERT(rd_data[0] === txwm);
@@ -213,12 +217,12 @@ module uart_tb ();
       //  checa por empty antes
       //  Lê (aleatório)
       addr = 3'b001;
-      @(posedge busy);
+      @(posedge clock);
       @(negedge clock);
-      {rd_en, wr_en, addr} = 5'b00011;
+      {cyc_o, stb_o, wr_o, rd_en, addr} = 7'h03;
       @(posedge clock);
       rx_empty_ = (rx_watermark_reg == 3'b000);
-      @(negedge busy);
+      @(posedge ack_i);
       @(negedge clock);
 
       `ASSERT(rx_empty_ === rd_data[31]);
@@ -236,10 +240,10 @@ module uart_tb ();
       //  checa por full antes
       //  escreve (aleatório)
       addr = 3'b000;
-      @(posedge busy);
+      @(posedge clock);
       @(negedge clock);
-      {rd_en, wr_en, addr} = 5'b00111;
-      @(negedge busy);
+      {cyc_o, stb_o, wr_o, wr_en, addr} = 7'h07;
+      @(posedge ack_i);
       @(negedge clock);
 
       `ASSERT(tx_full === rd_data[31]);
@@ -254,7 +258,7 @@ module uart_tb ();
   // Processor's Initial Block
   initial begin
     // Inicializando
-    {clock, reset, rd_en, wr_en, addr, wr_data, tx_watermark_level,
+    {clock, reset, cyc_o, stb_o, wr_o, rd_en, wr_en, addr, wr_data, tx_watermark_level,
     tx_watermark_reg, rx_watermark_level, rx_watermark_reg, tx_write_ptr} = 0;
     rx_read_ptr = 3'b111;
 
@@ -265,34 +269,37 @@ module uart_tb ();
     reset              = 1'b0;
 
     // Configurando Receive Control Register
+    cyc_o              = 1'b1;
+    stb_o              = 1'b1;
+    wr_o               = 1'b1;
     wr_en              = 1'b1;
     addr               = 3'b011;
     wr_data[18:16]     = $urandom(Seed);
     rx_watermark_level = wr_data[18:16];
     wr_data[0]         = 1'b1;
-    @(negedge busy);
+    @(posedge ack_i);
 
     // Configurando Transmit Control Register
     addr               = 3'b010;
     wr_data[18:16]     = $urandom;
     tx_watermark_level = wr_data[18:16];
     wr_data[1:0]       = {Nstop, 1'b1};
-    @(negedge busy);
+    @(posedge ack_i);
 
     // Configurando Interrupt Enable Register
     addr    = 3'b100;
     wr_data[1:0] = 2'b11;
-    @(negedge busy);
+    @(posedge ack_i);
 
     // Configurando baud rate
     addr          = 3'b110;
     wr_data[15:0] = $urandom;
-    @(negedge busy);
+    @(posedge ack_i);
 
     // Configurando baud rate
     addr          = 3'b110;
     wr_data[15:0] = 16'h001F;
-    @(negedge busy);
+    @(posedge ack_i);
 
     ->initClocks;  // iniciar tx(rx) clock
 
@@ -303,17 +310,22 @@ module uart_tb ();
 
     @(negedge clock);
     for (i1 = 0; i1 < 25 * AmntOfTests; i1 = i1 + 1) begin
+      cyc_o   = 1'b1;
+      stb_o   = 1'b1;
+      wr_o    = 1'b0;
       rd_en   = 1'b1;
-      wr_en   = 1'b0;
       wr_data = $urandom;
 
       InterruptCheck();
 
-      wr_en = $urandom;
-      rd_en = ~wr_en;
+      cyc_o = $urandom;
+      stb_o = $urandom;
+      wr_o  = $urandom;
+      rd_en = cyc_o & stb_o & ~wr_o;
+      wr_en = cyc_o & stb_o & wr_o;
 
       if (rd_en) ReadOp();
-      else WriteOp();
+      else if (wr_en) WriteOp();
       // Atraso a execução do loop
       @(posedge rx_clock);
       @(posedge rx_clock);
