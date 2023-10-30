@@ -5,7 +5,7 @@ addi sp,sp,-32
 addi s0,sp,32
 
 ; writing to mtvec
-addi t0,x0,100             ; BASE address for interrupt handling
+addi t0,x0,112             ; BASE address for interrupt handling
 csrrw x0,mtvec,t0
 csrrw x0,stvec,t0
 
@@ -27,21 +27,19 @@ lui s2,262144             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
-jal ra,60
+jal ra,62
 addi s2,x0,0b10
 csrrs x0,mip,s2
 
 ; end program
 addi sp,sp,28
 addi x1,x0,1
-sw x1,0(sp)
+sw t6,0(sp)
 addi sp,sp,4
 add x0,x0,x0
 
 csrrci x0,mstatus,0b1010
-csrrs t2,mepc,x0          ; does not write to mepc
-addi t2,t2,4
-csrrw x0,mepc,t2
+addi t6,t6,1
 csrrs t2,sepc,x0          ; does not write to sepc
 addi t2,t2,4
 csrrw x0,sepc,t2
@@ -50,7 +48,10 @@ csrrw x0,scause,x0        ; writes to scause
 slli t0,t0,1
 srli t0,t0,1
 sub t2,t0,a0
-beq t2,x0,6
+beq t2,x0,12
+csrrs t2,mepc,x0          ; does not write to mepc
+addi t2,t2,4
+csrrw x0,mepc,t2
 sw x0,0(s2)
 mret
 ori t0,x0,0b100000000000  ; SSI ISR
