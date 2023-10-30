@@ -20,7 +20,6 @@ ori t1,x0,0b10101010
 csrrw x0,mstatus,t0       ; enables global interrupts
 ecall
 
-csrrci x0,mstatus,0b1010
 addi sp,sp,28
-addi x1,x0,1
-sw x1,0(sp)
+addi t6,t6,1
+sw t6,0(sp)
