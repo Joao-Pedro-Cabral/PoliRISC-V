@@ -27,9 +27,9 @@ lui s2,262144             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
-jal ra,60
 addi s2,x0,0b10
 csrrs x0,mip,s2
+jal ra,56
 
 ; end program
 addi sp,sp,28
