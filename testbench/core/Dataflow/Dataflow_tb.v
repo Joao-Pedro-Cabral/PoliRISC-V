@@ -405,7 +405,7 @@ module Dataflow_tb ();
                   temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
               end
               // Zicsr
-              else if(funct3 !== 3'b000 && privilege_mode >= funct7[6:5])
+              else if(funct3 !== 3'b000 && privilege_mode >= funct7[4:3])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
           end
@@ -681,7 +681,7 @@ module Dataflow_tb ();
             // Sempre checo a leitura/escrita até se ela não acontecer
             if(csr_addr_exception_) db_df_src[DfSrcSize-1] = 1'b1;
             `ASSERT(csr_addr_exception === csr_addr_exception_);
-            if(privilege_mode >= funct7[6:5]) begin
+            if(privilege_mode >= funct7[4:3]) begin
               `ASSERT(csr_wr_data === DUT.csr_wr_data);
               `ASSERT(reg_data === DUT.rd);
             end

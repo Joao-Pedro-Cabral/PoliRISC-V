@@ -416,7 +416,7 @@ module core_tb ();
             `ifdef ZICSR
             else if(funct3 !== 3'b100) begin // Zicsr
               if(csr_addr_exception && estado === Execute) check_illegal_instruction = 1'b1;
-              else if(priv >= funct7[6:5]) check_illegal_instruction = 1'b0;
+              else if(priv >= funct7[4:3]) check_illegal_instruction = 1'b0;
             end
             `endif
           end
@@ -649,7 +649,7 @@ module core_tb ();
             if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
             else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
             // Sempre checo a leitura/escrita até se ela não acontecer
-            if(csr_privilege_mode >= funct7[6:5]) begin
+            if(csr_privilege_mode >= funct7[4:3]) begin
               `ASSERT(csr_wr_data === DUT.DF.csr_wr_data);
               `ASSERT(reg_data === DUT.DF.rd);
             end

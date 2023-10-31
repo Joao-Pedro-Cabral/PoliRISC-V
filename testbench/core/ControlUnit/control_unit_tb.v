@@ -372,7 +372,7 @@ module control_unit_tb ();
                   temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
               end
               // Zicsr
-              else if(funct3 !== 3'b000 && privilege_mode >= funct7[6:5])
+              else if(funct3 !== 3'b000 && privilege_mode >= funct7[4:3])
                 temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
             end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
           end
@@ -553,7 +553,7 @@ module control_unit_tb ();
         // ECALL, MRET, SRET, CSRR* (SYSTEM)
         7'b1110011: begin
           if(funct3[1:0] !== 2'b00 && csr_addr_exception) `ASSERT(illegal_instruction === 1'b1);
-          if(privilege_mode >= funct7[6:5]) begin
+          if(privilege_mode >= funct7[4:3]) begin
             `ASSERT(pc_en === (|funct3));
           end else begin
             `ASSERT(pc_en === 1'b0);

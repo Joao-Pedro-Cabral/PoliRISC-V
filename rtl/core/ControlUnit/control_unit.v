@@ -237,7 +237,7 @@ module control_unit (
             end
             `ifdef ZICSR
             else if(funct3 != 3'b100) begin // Zicsr
-              if(privilege_mode >= funct7[6:5]) proximo_estado = Zicsr;
+              if(privilege_mode >= funct7[4:3]) proximo_estado = Zicsr;
               else illegal_instruction = 1'b1;
             end
             `endif
