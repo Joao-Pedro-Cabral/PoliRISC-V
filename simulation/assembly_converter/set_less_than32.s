@@ -2,7 +2,7 @@ lui sp,4096 ; main
 lui x5,1     
 or sp,sp,x5     
 addi sp,sp,-64
-sw s0,60(sp)
+sw s0,30(sp)
 addi s0,sp,64
 sw zero,-20(s0)
 li a5,3
