@@ -29,7 +29,7 @@ sw t0,0(s2)
 ; Supervisor Software Interrupt
 addi s2,x0,0b10
 csrrs x0,mip,s2
-jal ra,62
+jal ra,56
 
 ; end program
 addi sp,sp,28
@@ -59,9 +59,6 @@ csrrw x0,sepc,t2
 ori t0,x0,0b100000000000  ; SSI ISR
 sb t0,0(s0)
 csrrc x0,sip,s2
-csrrs t2,mepc,x0          ; does not write to mepc
-addi t2,t2,-4
-csrrw x0,mepc,t2
 sret
 
 ; go to supervisor mode
