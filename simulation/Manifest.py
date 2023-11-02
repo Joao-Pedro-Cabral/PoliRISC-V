@@ -5,10 +5,10 @@ action   = "simulation"
 sim_tool = "modelsim"
 sim_top  = "core" + "_tb"
 use_mif  = True
-mif_name = "set_less_than32" + ".mif"
+mif_name = "zicsr" + ".mif"
 rom_mif_path = "./MIFs/memory/ROM/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/" + mif_name
-lista_de_macros = ["RV64I"]
+lista_de_macros = ["ZICSR", "TrapReturn"]
 
 #gerar arquivo de macros
 macros_file = open("macros.vh", 'w')
