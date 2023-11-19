@@ -6,18 +6,15 @@
 module sd_controller_tb ();
 
   // Parâmetros do testbench
-  localparam integer AmntOfTests = 10;
-  localparam integer Clock400KPeriod = 10;
-  localparam integer Clock50MPeriod = 4;
+  localparam integer AmntOfTests = 40;
+  localparam integer Clock50MPeriod = 6;
   localparam integer Seed = 103;
   localparam integer SDSC = 1;
 
   // Sinais do DUT
-  reg clock_400K;
-  reg clock_50M;
+  reg clock;
   reg reset;
-  reg wr_en;
-  reg rd_en;
+  reg cyc, stb, wr;
   reg [31:0] addr;
   wire [4095:0] read_data;
   reg [4095:0] write_data;
@@ -25,31 +22,31 @@ module sd_controller_tb ();
   wire cs;
   wire sck;
   wire mosi;
-  wire busy;
+  wire ack;
   // Sinais do modelo do cartão
   wire cmd_error;
   // Sinais auxiliares
   reg generate_write_data;
+  reg [1:0] teste;  // 00: Reset, 01: Init, 10: Read, 11: Write
 
   integer i;
-
 
   sd_controller #(
       .SDSC(SDSC)
   ) DUT (
-      .clock_400K(clock_400K),
-      .clock_50M(clock_50M),
-      .reset(reset),
-      .wr_en(wr_en),
-      .rd_en(rd_en),
-      .addr(addr),
-      .write_data(write_data),
-      .read_data(read_data),
+      .CLK_I(clock),
+      .RST_I(reset),
+      .CYC_I(cyc),
+      .STB_I(stb),
+      .WR_I(wr),
+      .ADR_I(addr),
+      .DAT_I(write_data),
+      .DAT_O(read_data),
       .miso(miso),
       .cs(cs),
       .sck(sck),
       .mosi(mosi),
-      .busy(busy)
+      .ACK_O(ack)
   );
 
   sd_model #(
@@ -63,41 +60,40 @@ module sd_controller_tb ();
       .cmd_error(cmd_error)
   );
 
-  always #(Clock400KPeriod / 2) clock_400K = ~clock_400K;
-  always #(Clock50MPeriod / 2) clock_50M = ~clock_50M;
+  always #(Clock50MPeriod / 2) clock = ~clock;
 
-  task CheckInitialization;
+  task automatic CheckInitialization;
     begin
+      teste = 2'b01;
       // Inicialização do cartão SD
-      // Checo no clock mais rápido para não perder a mudança de estado do DUT
-      // Pois quando ele muda para Idle, o clock muda
       while (DUT.state != DUT.Idle) begin
         // Checo na subida, pois o clock do sd_card é invertido
-        @(posedge clock_50M);
+        @(posedge clock);
         // Checar se não há erro de CRC7
         `ASSERT(cmd_error === 1'b0);
-        @(negedge clock_50M);
+        @(negedge clock);
       end
     end
   endtask
 
-  task CheckRead;
+  task automatic CheckRead;
     begin
-      if (!busy) @(posedge busy);
-      @(negedge clock_50M);
-      while (busy == 1'b1) begin
+      teste = 2'b10;
+      while (!ack) begin
         // Checo na subida, pois o clock do sd_card é invertido
-        @(posedge clock_50M);
+        @(posedge clock);
         // Checar se não há erro
         `ASSERT(cmd_error === 1'b0);
-        // Confiro busy na borda de descida
-        @(negedge clock_50M);
+        // Confiro ack na borda de descida
+        @(negedge clock);
         // Enables não são mais relevantes
-        rd_en = $urandom;
-        wr_en = $urandom;
+        cyc = $urandom;
+        stb = $urandom;
+        wr  = $urandom;
       end
-      rd_en = 1'b0;
-      wr_en = 1'b0;
+      cyc = 1'b0;
+      stb = 1'b0;
+      wr  = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
       `ASSERT(cmd_error === 1'b0);
       if (!sd_card.random_error_flag) `ASSERT(read_data === sd_card.data_block);
@@ -113,22 +109,23 @@ module sd_controller_tb ();
     end
   end
 
-  task CheckWrite;
+  task automatic CheckWrite;
     begin
-      if (!busy) @(posedge busy);
-      @(negedge clock_50M);
-      while (busy == 1'b1) begin
-        @(posedge clock_50M);
+      teste = 2'b11;
+      while (!ack) begin
+        @(posedge clock);
         // Checar se não há erro
         `ASSERT(cmd_error === 1'b0);
-        // Confiro busy na borda de descida
-        @(negedge clock_50M);
+        // Confiro ack na borda de descida
+        @(negedge clock);
         // Enables não são mais relevantes
-        rd_en = $urandom;
-        wr_en = $urandom;
+        cyc = $urandom;
+        stb = $urandom;
+        wr  = $urandom;
       end
-      rd_en = 1'b0;
-      wr_en = 1'b0;
+      cyc = 1'b0;
+      stb = 1'b0;
+      wr  = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
       `ASSERT(cmd_error === 1'b0);
       if (!sd_card.random_error_flag) `ASSERT(write_data === sd_card.received_data_block);
@@ -138,17 +135,18 @@ module sd_controller_tb ();
 
   // Initial para estimular o DUT
   initial begin
-    {clock_400K, clock_50M, reset, rd_en, addr, generate_write_data} = 0;
+    {clock, reset, cyc, stb, wr, addr, generate_write_data, teste} = 0;
     // Reset inicial
-    @(negedge clock_400K);
+    @(negedge clock);
     reset = 1'b1;
-    @(negedge clock_400K);
+    @(negedge clock);
     reset = 1'b0;
-    rd_en = $urandom(Seed);
-    wr_en = ~rd_en;
-    addr  = $urandom;
+    cyc = $urandom(Seed);
+    stb = $urandom;
+    wr = $urandom;
+    addr = $urandom;
     ->write_data_event;
-    @(negedge clock_400K);
+    @(negedge clock);
 
     $display(" SOT: [%0t]", $time);
 
@@ -156,24 +154,26 @@ module sd_controller_tb ();
 
     $display(" Initialization Complete: [%0t]", $time);
 
-    @(negedge clock_50M);
+    @(negedge clock);
 
     // Realizar leituras
     for (i = 0; i < AmntOfTests; i = i + 1) begin
-      if (rd_en) begin
+      if (cyc && stb && !wr) begin
         CheckRead;  // Confere a leitura
-      end else begin
+      end else if (cyc && stb && wr) begin
         CheckWrite;  // Confere a escrita
       end
 
-      rd_en = $urandom;
-      wr_en = ~rd_en;
-      addr  = $urandom;
-      if (wr_en) begin
+      cyc  = $urandom;
+      stb  = $urandom;
+      wr   = $urandom;
+      addr = $urandom;
+      if (cyc && stb && wr) begin
         ->write_data_event;
       end
-
-      @(negedge clock_50M);
+      teste = 2'b00;
+      wait (DUT.state == DUT.Idle);  // Wait handshake between controller and sd card
+      @(negedge clock);
     end
 
     $display("EOT: [%0t]", $time);
