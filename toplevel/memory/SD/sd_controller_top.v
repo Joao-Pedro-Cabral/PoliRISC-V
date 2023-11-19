@@ -43,14 +43,10 @@ module sd_controller_top (
   wire wr_en;
   wire [31:0] addr;
   wire [15:0] tester_state;
+  wire [15:0] tester_state_return;
   wire [4:0] sd_controller_state;
   wire [1:0] sd_receiver_state;
   wire sd_sender_state;
-  reg clock_50M;
-  reg clock_400K;
-  wire [7:0] clock_400K_cnt;
-  wire [4:0] clock_50M_cnt;
-  wire [4:0] clock_50M_cnt_2;
   wire [12:0] bits_received_dbg;
   wire [7:0] check_cmd_0_dbg;
   wire [7:0] check_cmd_8_dbg;
@@ -68,8 +64,7 @@ module sd_controller_top (
   wire [15:0] crc16_dbg;
 
   sd_controller_test_driver tester (
-      /* .clock(clock_50M), */
-      .clock(clock_400K),
+      .clock(clock_100M),
       .reset(reset),
       .read_data(read_data),
       .busy(busy),
@@ -77,13 +72,13 @@ module sd_controller_top (
       .wr_en(wr_en),
       .addr(addr),
       .write_data(write_data),
-      .test_driver_state(tester_state)
+      .test_driver_state(tester_state),
+      .test_driver_state_return(tester_state_return)
   );
 
   sd_controller DUT (
-      .clock_400K(clock_400K),
-      /* .clock_50M(clock_50M), */
-      .clock_50M(clock_400K),
+      .clock_400K(clock_100M),
+      .clock_50M(clock_100M),
       .reset(reset),
       .rd_en(rd_en),
       .wr_en(wr_en),
@@ -115,45 +110,6 @@ module sd_controller_top (
       .crc16_dbg(crc16_dbg)
   );
 
-  // Gerar clock de 12,5 MHz
-  sync_parallel_counter #(
-      .size(5),
-      .init_value(0)
-  ) clock_50M_gen (
-      .clock(clock_100M),
-      .reset(reset),
-      .load(clock_50M_cnt == 16),  // Carrega a cada nova transmissão
-      .load_value(5'b0),
-      .inc_enable(1'b1),
-      .dec_enable(1'b0),
-      .value(clock_50M_cnt)
-  );
-
-  always @(posedge clock_100M) begin
-    if (reset) clock_50M <= 1'b0;
-    else if (clock_50M_cnt == 16) clock_50M <= ~clock_50M;
-    else clock_50M <= clock_50M;
-  end
-
-  // Gerar clock de 400 KHz
-  sync_parallel_counter #(
-      .size(8),
-      .init_value(0)
-  ) clock_400K_gen (
-      .clock(clock_100M),
-      .reset(reset),
-      .load(clock_400K_cnt == 125),  // Carrega a cada nova transmissão
-      .load_value(8'b0),
-      .inc_enable(1'b1),
-      .dec_enable(1'b0),
-      .value(clock_400K_cnt)
-  );
-
-  always @(posedge clock_100M) begin
-    if (reset) clock_400K <= 1'b0;
-    else if (clock_400K_cnt == 125) clock_400K <= ~clock_400K;
-    else clock_400K <= clock_400K;
-  end
 
 `ifdef NEXYS4
   always @(*) begin
@@ -182,7 +138,7 @@ module sd_controller_top (
       5'b10101: led = read_data[3951:3936];
       5'b10110: led = read_data[3967:3952];
       5'b10111: led = read_data[3983:3968];
-      5'b11000: led = read_data[3999:3984];
+      5'b11000: led = tester_state_return;
       5'b11001: led = read_data[4015:4000];
       5'b11010: led = read_data[4031:4016];
       5'b11011: led = read_data[4047:4032];
