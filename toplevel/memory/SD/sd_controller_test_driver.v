@@ -42,8 +42,6 @@ module sd_controller_test_driver (
     Test3          = 16'h0003,
     ReadDataBlock  = 16'h0004,
     WriteDataBlock = 16'h0005,
-    WaitRead       = 16'h0006,
-    WaitWrite      = 16'h0007,
     TestRead       = 16'h0008,
     ReadError      = 16'hFFFE,
     TestEnd        = 16'hFFFF;
@@ -95,11 +93,11 @@ module sd_controller_test_driver (
       end
 
       Test1: begin
-        next_state               = ReadDataBlock;
+        next_state               = WriteDataBlock;
         state_vars_enable        = 1'b1;
         next_state_return        = Test2;
-        next_addr_reg            = Address0;
-        next_expected_data_block = DataBlock0;
+        next_addr_reg            = Address1;
+        next_expected_data_block = DataBlock1;
       end
 
       Test2: begin
@@ -111,11 +109,11 @@ module sd_controller_test_driver (
       end
 
       Test3: begin
-        next_state               = ReadDataBlock;
+        next_state               = WriteDataBlock;
         state_vars_enable        = 1'b1;
         next_state_return        = TestEnd;
-        next_addr_reg            = Address2;
-        next_expected_data_block = DataBlock2;
+        next_addr_reg            = Address3;
+        next_expected_data_block = DataBlock3;
       end
 
       WriteDataBlock: begin
@@ -124,7 +122,7 @@ module sd_controller_test_driver (
         wr         = 1'b1;
         write_data = expected_data_block;
         addr       = addr_reg;
-        if (ack) next_state = WaitWrite;
+        if (ack) next_state = ReadDataBlock;
         else next_state = state;
       end
 
@@ -133,17 +131,8 @@ module sd_controller_test_driver (
         stb  = 1'b1;
         wr   = 1'b0;
         addr = addr_reg;
-        if (ack) next_state = WaitRead;
+        if (ack) next_state = TestRead;
         else next_state = state;
-      end
-
-      WaitWrite: begin
-        write_data = expected_data_block;
-        next_state = state_return;
-      end
-
-      WaitRead: begin
-        next_state = TestRead;
       end
 
       TestRead: begin

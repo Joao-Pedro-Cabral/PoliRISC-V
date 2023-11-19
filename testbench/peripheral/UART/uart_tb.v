@@ -85,7 +85,7 @@ module uart_tb ();
       .RST_I(reset),
       .CYC_I(cyc_o),
       .STB_I(stb_o),
-      .WR_I (wr_o),
+      .WE_I (wr_o),
       .ADR_I(addr),     // 0x00 a 0x18
       .rxd  (rxd),      // dado serial
       .DAT_I(wr_data),

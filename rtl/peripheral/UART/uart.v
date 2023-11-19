@@ -15,7 +15,7 @@ module uart #(
     input  wire        RST_I,
     input  wire        CYC_I,
     input  wire        STB_I,
-    input  wire        WR_I,
+    input  wire        WE_I,
     input  wire [ 2:0] ADR_I,              // 0x00 a 0x18
     input  wire        rxd,                // dado serial
     input  wire [31:0] DAT_I,
@@ -113,8 +113,8 @@ module uart #(
   wire rx_data_valid;
 
   // Determinando o comportamento da UART pelas entradas
-  assign wr_en = CYC_I & STB_I & WR_I;
-  assign rd_en = CYC_I & STB_I & ~WR_I;
+  assign wr_en = CYC_I & STB_I & WE_I;
+  assign rd_en = CYC_I & STB_I & ~WE_I;
 
   // Bufferizando entradas
   register_d #(

@@ -80,7 +80,7 @@ module sd_controller_top (
       .RST_I(reset),
       .CYC_I(cyc),
       .STB_I(stb),
-      .WR_I(wr),
+      .WE_I(wr),
       .ADR_I(addr),
       .DAT_I(write_data),
       .DAT_O(read_data),

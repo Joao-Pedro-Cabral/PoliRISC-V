@@ -77,7 +77,7 @@ module uart_top (
       .RST_I            (reset),
       .CYC_I            (CYC_O),
       .STB_I            (STB_O),
-      .WR_I             (WR_O),
+      .WE_I             (WR_O),
       .ADR_I            (addr),
       .rxd              (rxd),
       .DAT_I            (wr_data),
