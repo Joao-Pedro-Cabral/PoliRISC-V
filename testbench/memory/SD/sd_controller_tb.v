@@ -38,7 +38,7 @@ module sd_controller_tb ();
       .RST_I(reset),
       .CYC_I(cyc),
       .STB_I(stb),
-      .WR_I(wr),
+      .WE_I(wr),
       .ADR_I(addr),
       .DAT_I(write_data),
       .DAT_O(read_data),
@@ -123,8 +123,8 @@ module sd_controller_tb ();
         stb = $urandom;
         wr  = $urandom;
       end
-      cyc = 1'b0;
-      stb = 1'b0;
+      cyc = 1'b1;
+      stb = 1'b1;
       wr  = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
       `ASSERT(cmd_error === 1'b0);
@@ -160,13 +160,17 @@ module sd_controller_tb ();
     for (i = 0; i < AmntOfTests; i = i + 1) begin
       if (cyc && stb && !wr) begin
         CheckRead;  // Confere a leitura
+        cyc = $urandom;
+        stb = $urandom;
+        wr  = $urandom;
       end else if (cyc && stb && wr) begin
         CheckWrite;  // Confere a escrita
+      end else begin
+        cyc = $urandom;
+        stb = $urandom;
+        wr  = $urandom;
       end
 
-      cyc  = $urandom;
-      stb  = $urandom;
-      wr   = $urandom;
       addr = $urandom;
       if (cyc && stb && wr) begin
         ->write_data_event;
