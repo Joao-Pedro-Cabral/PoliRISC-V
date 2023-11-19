@@ -38,9 +38,7 @@ module sd_controller_top (
 
   wire [4095:0] read_data;
   wire [4095:0] write_data;
-  wire busy;
-  wire rd_en;
-  wire wr_en;
+  wire ack, cyc, stb, wr;
   wire [31:0] addr;
   wire [15:0] tester_state;
   wire [15:0] tester_state_return;
@@ -67,9 +65,10 @@ module sd_controller_top (
       .clock(clock_100M),
       .reset(reset),
       .read_data(read_data),
-      .busy(busy),
-      .rd_en(rd_en),
-      .wr_en(wr_en),
+      .ack(ack),
+      .cyc(cyc),
+      .stb(stb),
+      .wr(wr),
       .addr(addr),
       .write_data(write_data),
       .test_driver_state(tester_state),
@@ -77,19 +76,19 @@ module sd_controller_top (
   );
 
   sd_controller DUT (
-      .clock_400K(clock_100M),
-      .clock_50M(clock_100M),
-      .reset(reset),
-      .rd_en(rd_en),
-      .wr_en(wr_en),
-      .addr(addr),
-      .write_data(write_data),
-      .read_data(read_data),
+      .CLK_I(clock_100M),
+      .RST_I(reset),
+      .CYC_I(cyc),
+      .STB_I(stb),
+      .WR_I(wr),
+      .ADR_I(addr),
+      .DAT_I(write_data),
+      .DAT_O(read_data),
       .miso(miso),
       .cs(cs),
       .sck(sck),
       .mosi(mosi),
-      .busy(busy),
+      .ACK_O(ack),
       /* .bits_received_dbg(bits_received_dbg), */
       .sd_controller_state(sd_controller_state),
       .sd_receiver_state(sd_receiver_state),
@@ -173,8 +172,8 @@ module sd_controller_top (
       5'b10001: led = read_data[3965:3956];
       5'b10010: led = read_data[3975:3966];
       5'b10011: led = read_data[3985:3976];
-      5'b10100: led = read_data[3995:3986];
-      5'b10101: led = read_data[4005:3996];
+      5'b10100: led = tester_state_return[9:0];
+      5'b10101: led = {read_data[3999:3996], tester_state_return[15:10]};
       5'b10110: led = read_data[4015:4006];
       5'b10111: led = read_data[4025:4016];
       5'b11000: led = read_data[4035:4026];
