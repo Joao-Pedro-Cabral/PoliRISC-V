@@ -166,7 +166,7 @@ module uart_top (
       // Espera p_rxwm_ = 1'b1 -> passar rd_data para wr_data
       WaitReceivePending: begin
         addr = 3'b001;
-        if (p_rxwm_) begin
+        if (rx_watermark_reg_ != 0) begin
           rd_en = 1'b1;
           next_state = ReadingData;
         end else next_state = WaitReceivePending;
