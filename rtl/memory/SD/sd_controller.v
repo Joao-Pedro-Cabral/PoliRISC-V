@@ -18,7 +18,7 @@ module sd_controller #(
     // interface com a pseudocache
     input wire CYC_I,
     input wire STB_I,
-    input wire WR_I,
+    input wire WE_I,
     input wire [31:0] ADR_I,
     input wire [4095:0] DAT_I,
     output wire [4095:0] DAT_O,
@@ -53,8 +53,8 @@ module sd_controller #(
 `endif
 );
 
-  wire wr_en = CYC_I & STB_I & WR_I;
-  wire rd_en = CYC_I & STB_I & ~WR_I;
+  wire wr_en = CYC_I & STB_I & WE_I;
+  wire rd_en = CYC_I & STB_I & ~WE_I;
 
   reg [31:0] addr_reg;
   reg [4095:0] write_data_reg;
@@ -99,7 +99,8 @@ module sd_controller #(
     CheckWrite = 5'h15,
     SendCmd13 = 5'h16,
     CheckCmd13 = 5'h17,
-    CheckErrorToken = 5'h18;
+    CheckErrorToken = 5'h18,
+    Final = 5'h1F;
 
   reg [4:0]
       new_state,
@@ -153,7 +154,8 @@ module sd_controller #(
       check_cmd_13_dbg_en,
       check_cmd_17_dbg_en,
       check_read_dbg_en,
-      check_error_token_dbg_en;
+      check_error_token_dbg_en,
+      clear_dbg;
 `endif
 
   always @(posedge CLK_I, posedge RST_I) begin
@@ -195,11 +197,17 @@ module sd_controller #(
       if (check_acmd_41_dbg_en) check_acmd_41_dbg <= received_data[7:0];
       if (check_cmd_16_dbg_en) check_cmd_16_dbg <= received_data[7:0];
       if (check_cmd_24_dbg_en) check_cmd_24_dbg <= received_data[7:0];
+      else if (clear_dbg) check_cmd_24_dbg <= 8'd24;
       if (check_write_dbg_en) check_write_dbg <= received_data[7:0];
+      else if (clear_dbg) check_write_dbg <= 8'd10;
       if (check_cmd_13_dbg_en) check_cmd_13_dbg <= received_data[15:0];
+      else if (clear_dbg) check_cmd_13_dbg <= 16'd13;
       if (check_cmd_17_dbg_en) check_cmd_17_dbg <= received_data[7:0];
+      else if (clear_dbg) check_cmd_17_dbg <= 8'd17;
       if (check_read_dbg_en) check_read_dbg <= {7'b0, crc_error};
+      else if (clear_dbg) check_read_dbg <= 8'b11110000;
       if (check_error_token_dbg_en) check_error_token_dbg <= received_data[7:0];
+      else if (clear_dbg) check_error_token_dbg <= 8'b10101010;
 `endif
     end
   end
@@ -232,6 +240,7 @@ module sd_controller #(
       check_cmd_17_dbg_en = 1'b0;
       check_read_dbg_en = 1'b0;
       check_error_token_dbg_en = 1'b0;
+      clear_dbg = 1'b0;
 `endif
     end
   endtask
@@ -405,6 +414,9 @@ module sd_controller #(
       end
 
       SendCmd24: begin
+      `ifdef DEBUG
+        clear_dbg = 1'b1;
+      `endif
         cmd_index = 6'd24;
         argument = addr_reg;
         new_response_type = 3'b000;
@@ -500,7 +512,7 @@ module sd_controller #(
 `endif
         new_cs = 1'b0;
         new_ack = 1'b1;
-        new_state = Idle;
+        new_state = Final;
       end
 
       CheckErrorToken: begin
@@ -509,6 +521,10 @@ module sd_controller #(
 `endif
         new_cs = 1'b0;
         new_ack = 1'b1;
+        new_state = Final;
+      end
+
+      Final: begin // wait for ACK falling edge
         new_state = Idle;
       end
 
