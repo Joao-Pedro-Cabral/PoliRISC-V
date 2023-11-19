@@ -12,16 +12,16 @@ module sd_controller #(
   parameter integer SDSC = 0
 )(
     // sinais de sistema
-    input clock_400K,
-    input clock_50M,
-    input reset,
+    input wire CLK_I,
+    input wire RST_I,
 
     // interface com a pseudocache
-    input rd_en,
-    input wr_en,
-    input [31:0] addr,
-    input wire [4095:0] write_data,
-    output wire [4095:0] read_data,
+    input wire CYC_I,
+    input wire STB_I,
+    input wire WR_I,
+    input wire [31:0] ADR_I,
+    input wire [4095:0] DAT_I,
+    output wire [4095:0] DAT_O,
 
     // interface com o cartão SD
     input miso,
@@ -30,8 +30,7 @@ module sd_controller #(
     output wire mosi,
 
     // sinal de status
-    output reg busy
-
+    output wire ACK_O
 `ifdef DEBUG
     ,
     output wire [4:0] sd_controller_state,
@@ -54,10 +53,12 @@ module sd_controller #(
 `endif
 );
 
-  wire clock;
+  wire wr_en = CYC_I & STB_I & WR_I;
+  wire rd_en = CYC_I & STB_I & ~WR_I;
+
   reg [31:0] addr_reg;
   reg [4095:0] write_data_reg;
-  reg busy_en, new_busy;
+  reg new_ack, ack;
 
   reg [5:0] cmd_index;
   reg [31:0] argument;
@@ -68,8 +69,6 @@ module sd_controller #(
   wire response_received;
   wire crc_error;
   reg new_cs;
-  reg new_sck_50M;
-  reg sck_50M;
   reg sck_en;
 
   reg sender_valid, receiver_valid;
@@ -110,8 +109,8 @@ module sd_controller #(
   reg state_return_en, response_type_en;
 
   sd_sender sender (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .cmd_index(cmd_index),
       .argument(argument),
       .cmd_or_data(cmd_or_data),
@@ -127,8 +126,8 @@ module sd_controller #(
   );
 
   sd_receiver receiver (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .response_type((state != CheckCmd17) ? response_type : new_response_type),
       .received_data(received_data),
       .ready(receiver_ready),
@@ -157,14 +156,13 @@ module sd_controller #(
       check_error_token_dbg_en;
 `endif
 
-  always @(posedge clock, posedge reset) begin
-    if (reset) begin
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) begin
       cs    <= 1'b1;
-      sck_50M <= 1'b0;
       state <= InitBegin;
       state_return <= InitBegin;
       response_type <= 3'b000;
-      busy <= 1'b0;
+      ack <= 1'b0;
 `ifdef DEBUG
       check_cmd_0_dbg <= 8'h00;
       check_cmd_8_dbg <= 8'd8;
@@ -186,10 +184,9 @@ module sd_controller #(
       else state_return <= state_return;
       if (response_type_en) response_type <= new_response_type;
       else response_type <= response_type;
-      if (new_sck_50M) sck_50M <= 1'b1;
-      else sck_50M <= sck_50M;
-      if (busy_en) busy <= new_busy;
-      else busy <= busy;
+      if (ack) ack <= 1'b0;
+      else if (new_ack) ack <= 1'b1;
+      else ack <= ack;
 `ifdef DEBUG
       if (check_cmd_0_dbg_en) check_cmd_0_dbg <= received_data[7:0];
       if (check_cmd_8_dbg_en) check_cmd_8_dbg <= received_data[39:32];
@@ -217,13 +214,11 @@ module sd_controller #(
       sender_valid = 1'b0;
       receiver_valid = 1'b0;
       new_response_type = 3'b000;
-      new_sck_50M = 1'b0;
       new_state = InitBegin;
       new_state_return = InitBegin;
       state_return_en = 1'b0;
       response_type_en = 1'b0;
-      new_busy = 1'b0;
-      busy_en = 1'b0;
+      new_ack = 1'b0;
 `ifdef DEBUG
       check_cmd_0_dbg_en = 1'b0;
       check_cmd_8_dbg_en = 1'b0;
@@ -245,8 +240,6 @@ module sd_controller #(
     reset_signals;
     case(state)
       InitBegin: begin
-        new_busy = 1'b0;
-        busy_en = 1'b1;
         new_state = SendCmd0;
       end
 
@@ -371,7 +364,6 @@ module sd_controller #(
           if(SDSC) new_state = SendCmd16;
           else begin
             new_cs = 1'b0;
-            new_sck_50M = 1'b1;
             new_state = Idle;
           end
         end else new_state = SendCmd55;
@@ -397,7 +389,6 @@ module sd_controller #(
         if (received_data[7:0] != 8'h00) new_state = SendCmd16;
         else begin
           new_cs = 1'b0;
-          new_sck_50M = 1'b1;
           new_state = Idle;
         end
       end
@@ -407,12 +398,8 @@ module sd_controller #(
         if (~miso) begin
           new_state = state;
         end else if (wr_en) begin
-          new_busy = 1'b1;
-          busy_en = 1'b1;
           new_state = SendCmd24;
         end else if (rd_en) begin
-          new_busy = 1'b1;
-          busy_en = 1'b1;
           new_state = SendCmd17;
         end else new_state = state;
       end
@@ -450,8 +437,7 @@ module sd_controller #(
         check_write_dbg_en = 1'b1;
 `endif
         new_cs = 1'b0;
-        new_busy = 1'b0;
-        busy_en = 1'b1;
+        new_ack = 1'b1;
         new_state = SendCmd13;
       end
 
@@ -513,8 +499,7 @@ module sd_controller #(
         check_read_dbg_en = 1'b1;
 `endif
         new_cs = 1'b0;
-        new_busy = 1'b0;
-        busy_en = 1'b1;
+        new_ack = 1'b1;
         new_state = Idle;
       end
 
@@ -523,8 +508,7 @@ module sd_controller #(
         check_error_token_dbg_en = 1'b1;
 `endif
         new_cs = 1'b0;
-        new_busy = 1'b0;
-        busy_en = 1'b1;
+        new_ack = 1'b1;
         new_state = Idle;
       end
 
@@ -533,13 +517,13 @@ module sd_controller #(
     endcase
   end
 
-  always @(posedge clock, posedge reset) begin
-    if (reset) begin
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) begin
       addr_reg <= 32'h0;
       write_data_reg <= 4096'h0;
     end else if ((state == Idle) & (rd_en | wr_en)) begin
-      addr_reg <= addr;
-      write_data_reg <= write_data;
+      addr_reg <= ADR_I;
+      write_data_reg <= DAT_I;
     end else begin
       addr_reg <= addr_reg;
       write_data_reg <= write_data_reg;
@@ -551,10 +535,9 @@ module sd_controller #(
   assign crc_error_dbg = crc_error;
 `endif
 
-  assign read_data = received_data;
+  assign DAT_O = received_data;
+  assign ACK_O = ack;
 
-  // Antes do Idle: Inicialização (400KHz), Após: Leitura(50MHz)
-  assign clock = sck_50M ? clock_50M : clock_400K;
-  assign sck   = sck_en & ~clock;
+  assign sck   = sck_en & ~CLK_I;
 
 endmodule
