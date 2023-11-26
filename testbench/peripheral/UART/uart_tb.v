@@ -318,6 +318,8 @@ module uart_tb ();
 
       InterruptCheck();
 
+      @(negedge clock);
+
       cyc_o = $urandom;
       stb_o = $urandom;
       wr_o  = $urandom;
@@ -429,6 +431,8 @@ module uart_tb ();
   task automatic TxStart;
     begin
       tx_initial = 2'b0;
+      @(negedge clock);
+      @(negedge clock);
       @(negedge tx_clock);
 
       `ASSERT(txd === 1'b0);
