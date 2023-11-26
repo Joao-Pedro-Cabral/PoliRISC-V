@@ -45,7 +45,7 @@ module uart #(
     output wire [ 2:0] rx_watermark_reg_,
     output wire [ 2:0] tx_watermark_reg_,
 `endif
-    output reg         ACK_O
+    output wire        ACK_O
 );
 
   localparam integer DivInit = CLOCK_FREQ_HZ / (115200) - 1;
@@ -435,10 +435,10 @@ module uart #(
   end
 
   // FSM
-  reg [1:0] present_state, next_state;  // Estado da transmissão
+  reg [2:0] present_state, next_state;  // Estado da transmissão
 
   // Estados possíveis
-  localparam reg [1:0] Idle = 2'b00, Read = 2'b01, Write = 2'b10, EndOp = 2'b11;
+  localparam reg [2:0] Idle = 3'b000, Read = 3'b001, Write = 3'b010, EndOp = 3'b011, Final = 3'b100;
 
   always @(posedge CLK_I, posedge RST_I) begin
     if (RST_I) present_state <= Idle;
@@ -453,15 +453,21 @@ module uart #(
         if (rd_en) next_state = Read;
         else if (wr_en) next_state = Write;
       end
-      Read: if (_addr == 3'b001) next_state = EndOp;
-      Write: if (_addr == 3'b000) next_state = EndOp;
-      default: next_state = Idle;  // EndOp
+      Read: begin
+        if (_addr == 3'b001) next_state = EndOp;
+        else next_state = Final;
+      end
+      Write: begin
+        if (_addr == 3'b000) next_state = EndOp;
+        else next_state = Final;
+      end
+      EndOp:   next_state = Final;
+      default: next_state = Idle;  // Final
     endcase
   end
 
   // Lógica de saída
   always @(posedge CLK_I, posedge RST_I) begin
-    ACK_O  <= 1'b0;
     ack    <= 1'b0;
     op     <= 1'b0;
     _rd_en <= 1'b0;
@@ -470,29 +476,30 @@ module uart #(
     end_wr <= 1'b0;
     if (RST_I) begin
     end else begin
-      ACK_O <= ack;
       case (next_state)
         Read: begin
           op     <= 1'b1;
-          ack    <= ADR_I != 3'b001;
           _rd_en <= 1'b1;
         end
         Write: begin
           op     <= 1'b1;
-          ack    <= ADR_I != 3'b000;
           _wr_en <= 1'b1;
         end
         EndOp: begin
           op     <= 1'b1;
-          ack    <= 1'b1;
           end_rd <= _rd_en & (_addr == 3'b001);
           end_wr <= _wr_en & (_addr == 3'b000);
+        end
+        Final: begin
+          ack <= 1'b1;
         end
         default: begin  // Nothing to do (Idle)
         end
       endcase
     end
   end
+
+  assign ACK_O = ack;
 
 `ifdef DEBUG
   assign div_ = div;
