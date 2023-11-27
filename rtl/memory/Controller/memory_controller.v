@@ -15,21 +15,21 @@ module memory_controller #(
     parameter [63:0] MTIMECMP_ADDR = 32'hFFFFFFF0 // Alinhado em 8 bytes
 ) (
     /* Interface com o cache de instruções */
-    input  [8*BYTE_AMNT-1:0] inst_cache_DAT_I,
-    input  inst_cache_ACK_I,
-    output inst_cache_CYC_O,
-    output [8*BYTE_AMNT-1:0] inst_cache_ADR_O,
+    input [8*BYTE_AMNT-1:0] inst_cache_data,
+    input inst_cache_busy,
+    output inst_cache_enable,
+    output [8*BYTE_AMNT-1:0] inst_cache_addr,
     /* //// */
 
     /* Interface com a memória RAM */
-    output [8*BYTE_AMNT-1:0] ram_ADR_O,
-    output [8*BYTE_AMNT-1:0] ram_DAT_O,
-    output ram_TGC_O,
-    output ram_WE_O,
-    output ram_STB_O,
-    output [BYTE_AMNT-1:0] ram_SEL_O,
-    input  [8*BYTE_AMNT-1:0] ram_DAT_I,
-    input  ram_ACK_I,
+    input [8*BYTE_AMNT-1:0] ram_read_data,
+    input ram_busy,
+    output [8*BYTE_AMNT-1:0] ram_address,
+    output [8*BYTE_AMNT-1:0] ram_write_data,
+    output ram_output_enable,
+    output ram_write_enable,
+    output ram_chip_select,
+    output [BYTE_AMNT-1:0] ram_byte_enable,
     /* //// */
 
     /* Registradores do CSR mapeados em memória */
@@ -42,36 +42,35 @@ module memory_controller #(
 
     /* Interface com a UART */
 `ifdef UART_0
-    input [8*BYTE_AMNT-1:0] uart_0_DAT_I,
-    input uart_0_ACK_I,
+    input [8*BYTE_AMNT-1:0] uart_0_rd_data,
+    input uart_0_busy,
     output uart_0_rd_en,
-    output uart_0_WE_O,
-    output [4:0] uart_0_ADR_O,
-    output [8*BYTE_AMNT-1:0] uart_0_DAT_O,
+    output uart_0_wr_en,
+    output [4:0] uart_0_addr,
+    output [8*BYTE_AMNT-1:0] uart_0_wr_data,
 `endif
     /* //// */
 
     /* Interface com o processador */
-    input WE_I,
-    input CYC_I,
-    input TGC_I,
-    input [BYTE_AMNT-1:0] SEL_I,
-    input [8*BYTE_AMNT-1:0] DAT_I,
-    input [8*BYTE_AMNT-1:0] ADR_I,
+    input mem_rd_en,
+    input mem_wr_en,
+    input [BYTE_AMNT-1:0] mem_byte_en,
+    input [8*BYTE_AMNT-1:0] wr_data,
+    input [8*BYTE_AMNT-1:0] mem_addr,
 
-    output [8*BYTE_AMNT-1:0] DAT_O,
-    output ACK_O
+    output [8*BYTE_AMNT-1:0] rd_data,
+    output mem_busy
     /* //// */
 );
 
   /* Sinais de controle */
-  wire s_rom_enable = ADR_I[8*BYTE_AMNT-1:24] == 0 ? 1'b1 : 1'b0;  // 16 MiB para a ROM
+  wire s_rom_enable = mem_addr[8*BYTE_AMNT-1:24] == 0 ? 1'b1 : 1'b0;  // 16 MiB para a ROM
   wire s_ram_chip_select =
-    ADR_I[8*BYTE_AMNT-1:24] <= 'b100 && ADR_I[8*BYTE_AMNT-1:24] >= 'b1 ? 1'b1
+    mem_addr[8*BYTE_AMNT-1:24] <= 'b100 && mem_addr[8*BYTE_AMNT-1:24] >= 'b1 ? 1'b1
     : 1'b0;  // 64 MiB para a RAM
 `ifdef UART_0
   wire uart_0_cs =
-    ADR_I[8*BYTE_AMNT-1:12] >= 'h10013 && ADR_I[8*BYTE_AMNT-1:0] <= 'h10013018 ? 1'b1
+    mem_addr[8*BYTE_AMNT-1:12] >= 'h10013 && mem_addr[8*BYTE_AMNT-1:0] <= 'h10013018 ? 1'b1
     : 1'b0;
 `endif
 
@@ -91,11 +90,12 @@ module memory_controller #(
   assign inst_cache_enable = s_rom_enable & mem_rd_en;
   assign ram_chip_select = s_ram_chip_select;
 
-  assign ACK_O =
-    s_rom_enable ? inst_cache_ACK_I
-    : s_ram_chip_select ? ram_ACK_I
+  // Trocar por OR invés de mux?
+  assign mem_busy =
+    s_rom_enable ? inst_cache_busy
+    : s_ram_chip_select ? ram_busy
     `ifdef UART_0
-        : uart_0_cs ? uart_0_ACK_I
+        : uart_0_cs ? uart_0_busy
     `endif
     : csr_mem_cs ? csr_mem_busy
     : 1'b0;
@@ -105,8 +105,8 @@ module memory_controller #(
   assign ram_byte_enable = s_ram_chip_select ? mem_byte_en : 0;
 
 `ifdef UART_0
-  assign uart_0_rd_en = uart_0_cs ? (CYC_I & ~WE_I) : 1'b0;
-  assign uart_0_WE_O = uart_0_cs ? (CYC_I & WE_I) : 1'b0;
+  assign uart_0_rd_en = uart_0_cs ? mem_rd_en : 1'b0;
+  assign uart_0_wr_en = uart_0_cs ? mem_wr_en : 1'b0;
 `endif
 
   assign msip_en = msip_cs;
@@ -118,17 +118,17 @@ module memory_controller #(
   /* //// */
 
   /* Endereçamento */
-  assign inst_cache_ADR_O[23:0] = ADR_I[23:0];
-  assign inst_cache_ADR_O[8*BYTE_AMNT-1:24] = 'b0;
+  assign inst_cache_addr[23:0] = mem_addr[23:0];
+  assign inst_cache_addr[8*BYTE_AMNT-1:24] = 'b0;
 
-  wire ram_address24 = (~ADR_I[24]) & (ADR_I[26] ^ ADR_I[25]);
+  wire ram_address24 = (~mem_addr[24]) & (mem_addr[26] ^ mem_addr[25]);
   wire ram_address25 =
-    (~ADR_I[26])&(ADR_I[25]&ADR_I[24])|ADR_I[26]&(~ADR_I[25])&(~ADR_I[24]);
-  assign ram_ADR_O[25:0] = {ram_address25, ram_address24, ADR_I[23:0]};
-  assign ram_ADR_O[8*BYTE_AMNT-1:26] = 'b0;
+    (~mem_addr[26])&(mem_addr[25]&mem_addr[24])|mem_addr[26]&(~mem_addr[25])&(~mem_addr[24]);
+  assign ram_address[25:0] = {ram_address25, ram_address24, mem_addr[23:0]};
+  assign ram_address[8*BYTE_AMNT-1:26] = 'b0;
 
 `ifdef UART_0
-  assign uart_0_ADR_O = ADR_I[4:0];
+  assign uart_0_addr = mem_addr[4:0];
 `endif
 
   assign csr_mem_addr[1:0] = msip_cs ? 2'b00 :
