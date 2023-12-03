@@ -29,7 +29,7 @@ sw t0,0(s2)
 ; Supervisor Software Interrupt
 addi s2,x0,0b10
 csrrs x0,mip,s2
-jal ra,56
+jal ra,112
 
 ; end program
 addi sp,sp,28
@@ -47,7 +47,7 @@ csrrw x0,scause,x0        ; writes to scause
 slli t0,t0,1
 srli t0,t0,1
 sub t2,t0,a0
-beq t2,x0,12
+beq t2,x0,24
 csrrs t2,mepc,x0          ; does not write to mepc
 addi t2,t2,4
 csrrw x0,mepc,t2

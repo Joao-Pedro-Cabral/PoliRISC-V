@@ -10,13 +10,13 @@ sw   x28,16(s0)  ; configuring interrupt enable register
 or   x28,x0,x0   ; infinite loop initialization
 lw   x29,0(s0)   ; infinite loop
 srli x29,x29,31  ; tx fifo full
-bne  x29,x0,-4   ; if fifo full, check again
+bne  x29,x0,-8   ; if fifo full, check again
 sw   x28,0(s0)   ; store word
 lui  x30,-524288 ; bit mask for rx fifo's empty flag
 lw   x29,4(s0)   ; read rx fifo
 and  x31,x29,x30 ; apply mask
-bne  x31,x0,-4   ; if fifo empty, check again
+bne  x31,x0,-8   ; if fifo empty, check again
 sub  x6,x28,x29  ; if equal to 0, value sent and received are the same
 sw   x6,0(sp)    ; stores result in RAM
 addi x28,x28,1   ; loop increment
-jal  x0,-22      ; loop
+jal  x0,-44      ; loop

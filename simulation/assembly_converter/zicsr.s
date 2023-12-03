@@ -35,7 +35,7 @@ sw t0,0(t1)
 addi s2,x0,0b1
 slli s2,s2,5             ; STIP bit in mip
 csrrs x0,mip,s2
-jal ra,132
+jal ra,264
 
 ; Illegal Instruction
 mul x0,x0,x0
@@ -49,7 +49,7 @@ sw t0,0(s2)
 ; Supervisor Software Interrupt
 addi s2,x0,0b10
 csrrs x0,mip,s2
-jal ra,116
+jal ra,232
 
 ; end program
 addi sp,sp,28
@@ -68,24 +68,24 @@ csrrw x0,mcause,x0        ; writes to mcause
 slli t0,t0,1
 srli t0,t0,1
 sub t1,t0,a7
-beq t1,x0,24
+beq t1,x0,48
 sub t1,t0,a6
-beq t1,x0,26
+beq t1,x0,52
 sub t1,t0,a5
-beq t1,x0,28
+beq t1,x0,56
 sub t1,t0,a4
-beq t1,x0,36
+beq t1,x0,72
 sub t1,t0,a3
-beq t1,x0,46
+beq t1,x0,92
 sub t1,t0,a2
-beq t1,x0,50
+beq t1,x0,100
 mret
 ori t0,x0,0b10            ; MEI ISR
 sb t0,5(s0)
 mret
 ori t0,x0,0b1000          ; SEI ISR
 sb t0,4(s0)
-j 66
+j 132
 ori t0,x0,0b100000        ; MTI ISR
 lui t0,-1
 lui t1,262143             ; mtimecmp base address
@@ -98,7 +98,7 @@ csrrc x0,mip,s2
 csrrs t2,mepc,x0          ; does not write to mepc
 addi t2,t2,-4
 csrrw x0,mepc,t2
-j 40
+j 80
 ori t0,x0,0b1000000000    ; MSI ISR
 sb t0,1(s0)
 sw x0,0(s2)
@@ -109,7 +109,7 @@ csrrc x0,mip,s2
 csrrs t2,mepc,x0          ; does not write to mepc
 addi t2,t2,-4
 csrrw x0,mepc,t2
-j 18
+j 36
 
 ; go to supervisor mode
 addi t0,x0,0b1

@@ -16,7 +16,7 @@ lh a4,-18(s0)
 lh a5,-20(s0)
 sext.w a4,a4
 sext.w a5,a5
-bne a4,a5,24
+bne a4,a5,48
 lhu a5,-18(s0)
 addiw a5,a5,1
 slli a5,a5,48
@@ -26,7 +26,7 @@ lh a4,-20(s0)
 lh a5,-18(s0)
 sext.w a4,a4
 sext.w a5,a5
-blt a4,a5,24
+blt a4,a5,48
 lhu a5,-20(s0)
 addiw a5,a5,1
 slli a5,a5,48
@@ -37,7 +37,7 @@ mv a4,a5
 lwu a5,-28(s0)
 sext.w a4,a4
 sext.w a5,a5
-bltu a4,a5,16
+bltu a4,a5,32
 lwu a5,-24(s0)
 addiw a5,a5,1
 sw a5,-28(s0)
@@ -45,7 +45,7 @@ lh a4,-20(s0)
 lh a5,-18(s0)
 sext.w a4,a4
 sext.w a5,a5
-bge a4,a5,12
+bge a4,a5,24
 lhu a5,-18(s0)
 sh a5,-20(s0)
 lwu a5,-24(s0)
@@ -53,7 +53,7 @@ mv a4,a5
 lwu a5,-28(s0)
 sext.w a4,a4
 sext.w a5,a5
-bgeu a4,a5,16
+bgeu a4,a5,32
 lwu a5,-28(s0)
 addiw a5,a5,1
 sw a5,-24(s0)
@@ -62,7 +62,7 @@ mv a4,a5
 lwu a5,-28(s0)
 sext.w a4,a4
 sext.w a5,a5
-beq a4,a5,12
+beq a4,a5,24
 lwu a5,-28(s0)
 sw a5,-24(s0)
 li a5,0

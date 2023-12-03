@@ -9,9 +9,9 @@ sw   x28,16(s0)  ; configuring interrupt enable register
 or   x28,x0,x0   ; infinite loop initialization
 lw   x29,0(s0)   ; infinite loop
 srli x29,x29,31  ; tx fifo full
-bne  x29,x0,8    ; if fifo full, end loop
+bne  x29,x0,16    ; if fifo full, end loop
 sw   x28,0(s0)   ; store word
 addi x28,x28,1   ; loop increment
-jal  x0,-10      ; loop
+jal  x0,-20      ; loop
 or   x28,x0,x0   ; writes zero to RAM
 sw   x28,0(sp)   

@@ -1,4 +1,4 @@
-j 92
+j 184
 addi sp,sp,-64 ; power
 sd ra,56(sp)
 sd s0,48(sp)
@@ -10,9 +10,9 @@ mv a5,a4
 sw a5,-56(s0)
 lw a5,-56(s0)
 sext.w a5,a5
-bne a5,zero,6  ; 6 --> L2
+bne a5,zero,12  ; 12 --> L2
 li a5,1
-j 54           ; 54 --> L3
+j 108           ; 54 --> L3
 lw a5,-56(s0)  ; L2
 addiw a5,a5,-1
 sext.w a4,a5
@@ -24,7 +24,7 @@ jalr x1,-80(x1) ; watch out!
 sd a0,-40(s0)
 sd zero,-24(s0)
 sw zero,-28(s0)
-j 16           ; 16 --> L4
+j 32           ; 16 --> L4
 ld a4,-24(s0)  ; L5
 ld a5,-40(s0) 
 add a5,a4,a5
@@ -37,7 +37,7 @@ mv a4,a5
 lw a5,-52(s0) 
 sext.w a4,a4
 sext.w a5,a5
-blt a4,a5,-24  ; -24 --> L5
+blt a4,a5,-48  ; -48 --> L5
 ld a5,-24(s0) 
 mv a0,a5       ; L3
 ld ra,56(sp)
