@@ -34,11 +34,11 @@
 00101000
 11000100
 00000001
-00110011 // or   x28,x0,x0   ; inicialização do loop infinito
+00110011 // or   x28,x0,x0   ; infinite loop initialization
 01101110
 00000000
 00000000
-10000011 // lw   x29,0(s0)   ; loop infinito
+10000011 // lw   x29,0(s0)   ; infinite loop
 00101110
 00000100
 00000000
@@ -46,8 +46,8 @@
 11011110
 11111110
 00000001
-11100011 // bne  x29,x0,-4   ; if fifo full, check again
-10011110
+11100011 // bne  x29,x0,-8   ; if fifo full, check again
+10011100
 00001110
 11111110
 00100011 // sw   x28,0(s0)   ; store word
@@ -66,8 +66,8 @@
 11111111
 11101110
 00000001
-11100011 // bne  x31,x0,-4   ; if fifo empty, check again
-10011110
+11100011 // bne  x31,x0,-8   ; if fifo empty, check again
+10011100
 00001111
 11111110
 00110011 // sub  x6,x28,x29  ; if equal to 0, value sent and received are the same
@@ -82,7 +82,7 @@
 00001110
 00011110
 00000000
-01101111 // jal  x0,-22      ; loop
+01101111 // jal  x0,-44      ; loop
 11110000
-10111111
-11111110
+01011111
+11111101

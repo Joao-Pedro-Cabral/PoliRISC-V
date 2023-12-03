@@ -65,6 +65,7 @@ brave_path = "/usr/bin/brave-browser"
 
 option = webdriver.ChromeOptions()
 option.add_argument("--port=11000")
+option.add_argument("--headless=new")
 option.binary_location = brave_path
 browser = webdriver.Chrome(options=option)
 
