@@ -21,9 +21,10 @@ module core (
     input wire [`DATA_SIZE-1:0] rd_data,
     output wire [`DATA_SIZE-1:0] wr_data,
     output wire [`DATA_SIZE-1:0] mem_addr,
-    input wire mem_busy,
-    output wire mem_rd_en,
-    output wire mem_wr_en,
+    input wire mem_ack,
+    output wire mem_cyc_i,
+    output wire mem_stb_i,
+    output wire mem_we_i,
     output wire [`DATA_SIZE/8-1:0] mem_byte_en,
     // Interrupts from Memory
     input wire external_interrupt,
@@ -69,6 +70,9 @@ module core (
   wire [1:0] csr_op;
   wire csr_imm;
 `endif
+
+  // Wishbone
+  wire mem_rd_en, mem_wr_en;
 
   // Dataflow
   Dataflow DF (
@@ -123,7 +127,7 @@ module core (
   control_unit UC (
       .clock(clock),
       .reset(reset),
-      .mem_busy(mem_busy),
+      .mem_ack(mem_ack),
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
       .mem_byte_en(mem_byte_en),
@@ -164,5 +168,10 @@ module core (
       .illegal_instruction(illegal_instruction),
       .ecall(ecall)
   );
+
+  // Wishbone
+  assign mem_cyc_i = mem_rd_en | mem_wr_en;
+  assign mem_stb_i = mem_cyc_i;
+  assign mem_wr_en = mem_we_i;
 
 endmodule

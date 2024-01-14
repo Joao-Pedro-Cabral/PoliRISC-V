@@ -19,7 +19,7 @@ module control_unit (
     input reset,
 
     // Memory
-    input                      mem_busy,
+    input                      mem_ack,
     output reg                 mem_rd_en,
     output reg                 mem_wr_en,
     output reg [`BYTE_NUM-1:0] mem_byte_en,
@@ -69,26 +69,23 @@ module control_unit (
 
   localparam reg [4:0]
         Fetch = 5'h00,
-        Fetch2 = 5'h01,
-        Decode = 5'h02,
-        RegistradorRegistrador = 5'h03,
-        Lui = 5'h04,
-        RegistradorImediato = 5'h05,
-        Auipc = 5'h06,
-        Jal = 5'h07,
-        DesvioCondicional = 5'h08,
-        Jalr = 5'h09,
-        Load = 5'h0A,
-        Load2 = 5'h0B,
-        Store = 5'h0C,
-        Store2 = 5'h0D,
-        Ecall = 5'h0E,
-        Idle = 5'h0F;
+        Decode = 5'h01,
+        RegistradorRegistrador = 5'h02,
+        Lui = 5'h03,
+        RegistradorImediato = 5'h04,
+        Auipc = 5'h05,
+        Jal = 5'h06,
+        DesvioCondicional = 5'h07,
+        Jalr = 5'h08,
+        Load = 5'h09,
+        Store = 5'h0A,
+        Ecall = 5'h0B,
+        Idle = 5'h0C;
 `ifdef TrapReturn
-  localparam reg [4:0] Xret = 5'h10; // MRET, SRET
+  localparam reg [4:0] Xret = 5'h0D; // MRET, SRET
 `endif
 `ifdef ZICSR
-  localparam reg [4:0] Zicsr = 5'h11;
+  localparam reg [4:0] Zicsr = 5'h0E;
 `endif
 
   reg [4:0] estado_atual, proximo_estado;
@@ -157,17 +154,9 @@ module control_unit (
       Fetch: begin
         mem_byte_en = 'hF;
         mem_rd_en   = 1'b1;
-        if (mem_busy) proximo_estado = Fetch2;
-      end
-      Fetch2: begin
-        mem_byte_en = 'hF;
-        if (!mem_busy) begin
-          mem_rd_en = 1'b0;
+        if (mem_ack) begin
           ir_en = 1'b1;
           proximo_estado = Decode;
-        end else begin
-          mem_rd_en = 1'b1;
-          proximo_estado = Fetch2;
         end
       end
       Decode: begin
@@ -326,23 +315,12 @@ module control_unit (
         alub_src = 1'b1;
         wr_reg_src = 2'b10;
         mem_rd_en = 1'b1;
-        if (mem_busy) proximo_estado = Load2;
-        else proximo_estado = Load;
-      end
-      Load2: begin
-        mem_addr_src = 1'b1;
-        mem_byte_en = byte_en;
-        alub_src = 1'b1;
-        wr_reg_src = 2'b10;
-        if (!mem_busy) begin
-          mem_rd_en = 1'b0;
+        if (mem_ack) begin
           pc_en = 1'b1;
           wr_reg_en = 1'b1;
           proximo_estado = Fetch;
-        end else begin
-          mem_rd_en = 1'b1;
-          proximo_estado = Load2;
         end
+        else proximo_estado = Load;
       end
 
       Store: begin
@@ -350,21 +328,10 @@ module control_unit (
         mem_byte_en = byte_en;
         alub_src = 1'b1;
         mem_wr_en = 1'b1;
-        if (mem_busy) proximo_estado = Store2;
-        else proximo_estado = Store;
-      end
-      Store2: begin
-        mem_addr_src = 1'b1;
-        mem_byte_en = byte_en;
-        alub_src = 1'b1;
-        if (!mem_busy) begin
-          mem_wr_en = 1'b0;
+        if (mem_ack) begin
           pc_en = 1'b1;
-          proximo_estado = Fetch;
-        end else begin
-          mem_wr_en = 1'b1;
-          proximo_estado = Store2;
         end
+        else proximo_estado = Store;
       end
 
       Ecall: begin
