@@ -10,14 +10,15 @@
 module CSR_mem #(
     parameter integer ClockCycles = 100
 ) (
-    input wire clock,
-    input wire reset,
-    input wire rd_en,
-    input wire wr_en,
-    input wire [2:0] addr,
-    input wire [`DATA_SIZE-1:0] wr_data,
-    output reg [`DATA_SIZE-1:0] rd_data,
-    output wire busy,
+    input wire CLK_I,
+    input wire RST_I,
+    input wire CYC_I,
+    input wire STB_I,
+    input wire WE_I,
+    input wire [2:0] ADR_I,
+    input wire [`DATA_SIZE-1:0] DAT_I,
+    output reg [`DATA_SIZE-1:0] DAT_O,
+    output reg ACK_O,
     output wire [`DATA_SIZE-1:0] msip,
     output wire [63:0] mtime,
     output wire [63:0] mtimecmp
@@ -28,6 +29,11 @@ module CSR_mem #(
   wire [63:0] mtimecmp_;
   wire tick;
   wire [$clog2(ClockCycles)-1:0] cycles;
+  wire rd_en, wr_en;
+
+  // Wishbone
+  assign rd_en = CYC_I & STB_I & ~WE_I;
+  assign wr_en = CYC_I & STB_I &  WE_I;
 
   // Registradores mapeados em memória
   // MSIP
@@ -35,10 +41,10 @@ module CSR_mem #(
       .N(`DATA_SIZE),
       .reset_value(0)
   ) msip_reg (
-      .clock(clock),
-      .reset(reset),
-      .enable((addr[1:0] == 2'b00) && wr_en),
-      .D(wr_data),
+      .clock(CLK_I),
+      .reset(RST_I),
+      .enable((ADR_I[1:0] == 2'b00) && wr_en),
+      .D(DAT_I),
       .Q(msip_)
   );
   // MTIMER
@@ -46,13 +52,13 @@ module CSR_mem #(
       .size(64),
       .init_value(0)
   ) mtime_counter (
-      .clock(clock),
-      .reset(reset),
-      .load((addr[1:0] == 2'b10) && wr_en),
+      .clock(CLK_I),
+      .reset(RST_I),
+      .load((ADR_I[1:0] == 2'b10) && wr_en),
 `ifdef RV64I
-      .load_value(wr_data),
+      .load_value(DAT_I),
 `else
-      .load_value(addr[2] ? {wr_data, mtime_[31:0]} : {mtime_[63:32], wr_data}),
+      .load_value(ADR_I[2] ? {DAT_I, mtime_[31:0]} : {mtime_[63:32], DAT_I}),
 `endif
       .inc_enable(tick),
       .dec_enable(1'b0),
@@ -62,8 +68,8 @@ module CSR_mem #(
       .size($clog2(ClockCycles)),
       .init_value(0)
   ) tick_counter (
-      .clock(clock),
-      .reset(reset),
+      .clock(CLK_I),
+      .reset(RST_I),
       .load(tick),
       .load_value({$clog2(ClockCycles) {1'b0}}),
       .inc_enable(1'b1),
@@ -77,29 +83,29 @@ module CSR_mem #(
       .N(64),
       .reset_value(0)
   ) mtimecmp_reg (
-      .clock(clock),
-      .reset(reset),
-      .enable((addr[1:0] == 2'b11) && wr_en),
+      .clock(CLK_I),
+      .reset(RST_I),
+      .enable((ADR_I[1:0] == 2'b11) && wr_en),
 `ifdef RV64I
-      .D(wr_data),
+      .D(DAT_I),
 `else
-      .D(addr[2] ? {wr_data, mtimecmp_[31:0]} : {mtimecmp_[63:32], wr_data}),
+      .D(ADR_I[2] ? {DAT_I, mtimecmp_[31:0]} : {mtimecmp_[63:32], DAT_I}),
 `endif
       .Q(mtimecmp_)
   );
 
   // Lógica de leitura
   always @(*) begin
-    case (addr[1:0])
-      2'b00:   rd_data = msip_;
+    case (ADR_I[1:0])
+      2'b00:   DAT_O = msip_;
 `ifdef RV64I
-      2'b10:   rd_data = mtime_;
-      2'b11:   rd_data = mtimecmp_;
+      2'b10:   DAT_O = mtime_;
+      2'b11:   DAT_O = mtimecmp_;
 `else
-      2'b10:   rd_data = addr[2] ? mtime_[63:32] : mtime_[31:0];
-      2'b11:   rd_data = addr[2] ? mtimecmp_[63:32] : mtimecmp_[31:0];
+      2'b10:   DAT_O = ADR_I[2] ? mtime_[63:32] : mtime_[31:0];
+      2'b11:   DAT_O = ADR_I[2] ? mtimecmp_[63:32] : mtimecmp_[31:0];
 `endif
-      default: rd_data = 0;
+      default: DAT_O = 0;
     endcase
   end
 
@@ -107,13 +113,16 @@ module CSR_mem #(
   assign mtime = mtime_;
   assign mtimecmp = mtimecmp_;
 
-  // Lógica de busy
-  reg _busy;
-  always @(posedge clock, posedge reset) begin
-    if (reset || _busy) _busy <= 1'b0;
-    else if (rd_en || wr_en) _busy <= 1'b1;
+  // Lógica de ACK
+  reg _ack;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I || _ack) _ack <= 1'b0;
+    else if (rd_en || wr_en) _ack <= 1'b1;
   end
 
-  assign busy = _busy;
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (RST_I) ACK_O <= 1'b0;
+    else if (_ack) ACK_O <= 1'b1;
+  end
 
 endmodule
