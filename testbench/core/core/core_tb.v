@@ -568,7 +568,7 @@ module core_tb ();
           else $display("Error B-type: Invalid funct3! Funct3 : %b", funct3);
           // Habilito o pc
           pc_4      = pc + 4;
-          pc_imm    = pc + (immediate << 1);
+          pc_imm    = pc + immediate;
           wr_reg_en = 1'b0;
           // Confiro se a memória está inativada
           `ASSERT(db_mem_en === 0);
@@ -594,7 +594,7 @@ module core_tb ();
           wr_reg_en = 1'b1;
           reg_data  = pc + 4;  // escrever pc + 4 no banco -> Link
           // Decido o novo valor de pc a partir do opcode da instrução (salto incondicional)
-          if (opcode[3]) pc_imm = mem_addr + (immediate << 1);  // JAL
+          if (opcode[3]) pc_imm = mem_addr + immediate;  // JAL
           else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
           // Confiro a escrita no banco
           `ASSERT(DUT.DF.rd === reg_data);

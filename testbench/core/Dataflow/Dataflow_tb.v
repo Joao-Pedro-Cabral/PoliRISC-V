@@ -601,7 +601,7 @@ module Dataflow_tb ();
             $stop;
           end
           pc_4                   = pc + 4;
-          pc_imm                 = pc + (immediate << 1);
+          pc_imm                 = pc + immediate;
           db_df_src[DfSrcSize+1] = 1'b1;
           db_df_src[NotOnlyOp-2] = 1'b0;
           // Decido o próximo valor de pc
@@ -632,7 +632,7 @@ module Dataflow_tb ();
           db_df_src[DfSrcSize+1] = 1'b1;
           reg_data = pc + 4;  // escrever pc + 4 no banco -> Link
           @(negedge clock);
-          if (opcode[3]) pc_imm = pc + (immediate << 1);  // JAL
+          if (opcode[3]) pc_imm = pc + immediate;  // JAL
           else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
           next_pc = pc_imm;
           // Confiro a escrita no banco

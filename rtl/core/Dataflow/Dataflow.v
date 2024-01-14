@@ -179,7 +179,7 @@ module Dataflow (
       .INPUT_SIZE(`DATA_SIZE)
   ) pc_immediate (
       .A(alupc_src ? {rs1[`DATA_SIZE-1:1], 1'b0} : pc),
-      .B(alupc_src ? {immediate[`DATA_SIZE-1:1], 1'b0} : {immediate[`DATA_SIZE-2:0], 1'b0}),
+      .B({immediate[`DATA_SIZE-1:1], 1'b0}),
       .c_in(1'b0),
       .c_out(),
       .S(pc_plus_immediate)
