@@ -16,6 +16,7 @@ module CSR_mem_tb ();
   // Inputs
   reg clock;
   reg reset;
+  wire cyc_i, stb_i, we_i;
   reg rd_en;
   reg wr_en;
   reg [2:0] addr;
@@ -23,7 +24,7 @@ module CSR_mem_tb ();
 
   // Outputs
   wire [`DATA_SIZE-1:0] rd_data;
-  wire busy;
+  wire ack;
   wire [`DATA_SIZE-1:0] msip;
   wire [63:0] mtime;
   wire [63:0] mtimecmp;
@@ -38,18 +39,24 @@ module CSR_mem_tb ();
   CSR_mem #(
       .ClockCycles(100)
   ) DUT (
-      .clock(clock),
-      .reset(reset),
-      .rd_en(rd_en),
-      .wr_en(wr_en),
-      .addr(addr),
-      .wr_data(wr_data),
-      .rd_data(rd_data),
-      .busy(busy),
+      .CLK_I(clock),
+      .RST_I(reset),
+      .CYC_I(cyc_i),
+      .STB_I(stb_i),
+      .WE_I(we_i),
+      .ADR_I(addr),
+      .DAT_I(wr_data),
+      .DAT_O(rd_data),
+      .ACK_O(ack),
       .msip(msip),
       .mtime(mtime),
       .mtimecmp(mtimecmp)
   );
+
+  // Wishbone
+  assign cyc_i = rd_en | wr_en;
+  assign stb_i = rd_en | wr_en;
+  assign we_i = wr_en;
 
   sync_parallel_counter #(
       .size(7),
@@ -77,7 +84,7 @@ module CSR_mem_tb ();
     begin
       rd_en = 1'b0;
       @(negedge clock);
-      `ASSERT(busy === 1'b0, ("[CheckRead]\nbusy = 0b%d", busy))
+      `ASSERT(ack === 1'b1, ("[CheckRead]\nack = 0b%d", ack))
       case (addr[1:0])
         2'b00: begin
           `ASSERT(rd_data === DUT.msip_,
@@ -162,7 +169,7 @@ module CSR_mem_tb ();
       tick_ = tick;
       mtime_ = mtime;
       @(negedge clock);
-      `ASSERT(busy === 1'b0, ("[CheckWrite]\nbusy = 0b%d", busy))
+      `ASSERT(ack === 1'b1, ("[CheckWrite]\nack = 0b%d", ack))
       case (addr[1:0])
         2'b00: begin
           `ASSERT(wr_data === DUT.msip_,
