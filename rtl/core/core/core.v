@@ -18,13 +18,13 @@ module core (
     input wire reset,
 
     // Bus Interface
-    input wire [`DATA_SIZE-1:0] rd_data,
-    output wire [`DATA_SIZE-1:0] wr_data,
-    output wire [`DATA_SIZE-1:0] mem_addr,
-    input wire mem_ack,
-    output wire mem_cyc_i,
-    output wire mem_stb_i,
-    output wire mem_we_i,
+    input wire [`DATA_SIZE-1:0] DAT_I,
+    output wire [`DATA_SIZE-1:0] DAT_O,
+    output wire [`DATA_SIZE-1:0] mem_ADR_O,
+    input wire mem_ACK_I,
+    output wire mem_CYC_O,
+    output wire mem_STB_O,
+    output wire mem_WE_O,
     output wire [`DATA_SIZE/8-1:0] mem_byte_en,
     // Interrupts from Memory
     input wire external_interrupt,
@@ -78,9 +78,9 @@ module core (
   Dataflow DF (
       .clock(clock),
       .reset(reset),
-      .rd_data(rd_data),
-      .wr_data(wr_data),
-      .mem_addr(mem_addr),
+      .rd_data(DAT_I),
+      .wr_data(DAT_O),
+      .mem_addr(mem_ADR_O),
       .alua_src(alua_src),
       .alub_src(alub_src),
       .alu_src(alu_src),
@@ -127,7 +127,7 @@ module core (
   control_unit UC (
       .clock(clock),
       .reset(reset),
-      .mem_ack(mem_ack),
+      .mem_ack(mem_ACK_I),
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
       .mem_byte_en(mem_byte_en),
@@ -170,8 +170,8 @@ module core (
   );
 
   // Wishbone
-  assign mem_cyc_i = mem_rd_en | mem_wr_en;
-  assign mem_stb_i = mem_cyc_i;
-  assign mem_wr_en = mem_we_i;
+  assign mem_CYC_O = mem_rd_en | mem_wr_en;
+  assign mem_STB_O = mem_CYC_O;
+  assign mem_WE_O  = mem_wr_en;
 
 endmodule
