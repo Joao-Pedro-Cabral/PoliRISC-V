@@ -18,14 +18,14 @@ module single_port_ram_tb;
   reg [31:0] tb_data;
   reg [31:0] tb_mem[AMOUNT_OF_TESTS-1:0];
   wire ACK_O;
-  reg TAG_I;
+  reg CYC_I;
   reg WE_I;
   reg STB_I;
   reg [3:0] SEL_I;
 
   single_port_ram #(
-      .RAM_INIT_FILE("./RAM.mif"),
-      .ADDR_SIZE(4),
+      .RAM_INIT_FILE("./MIFs/memory/RAM/ram_init_file.mif"),
+      .ADDR_SIZE(6),
       .BYTE_SIZE(8),
       .DATA_SIZE(32),
       .BUSY_CYCLES(6)
@@ -33,8 +33,8 @@ module single_port_ram_tb;
       .CLK_I(CLK_I),
       .ADR_I(ADR_I),
       .DAT_I(DAT_I),
-      .TAG_I(TAG_I),
-      .WE_I(WE_I),
+      .CYC_I(CYC_I),
+      .WE_I (WE_I),
       .STB_I(STB_I),
       .SEL_I(SEL_I),
       .DAT_O(DAT_O),
@@ -46,58 +46,60 @@ module single_port_ram_tb;
 
   integer i;
   initial begin
-    {CLK_I, ADR_I, tb_data, TAG_I, STB_I, SEL_I} = 0;
+    {CLK_I, ADR_I, tb_data, CYC_I, STB_I, WE_I, SEL_I} = 0;
 
     // gerando valores aleatórios
     for (i = 0; i < AMOUNT_OF_TESTS; i = i + 1) begin
-      tb_mem[i] = $random;
+      tb_mem[i] = $urandom;
       $display("dado %d: 0x%h", i, tb_mem[i]);
     end
 
-    // aciona memória
-    STB_I = 1'b1;
-
     // escreve e testa leitura
     for (i = 0; i < AMOUNT_OF_TESTS - 1; i = i + 1) begin
-      ADR_I      = 4 * i;
-      tb_data      = tb_mem[i];
-      STB_I  = 1'b1;
-      WE_I = 1'b1;
-      SEL_I  = 4'hF;
-      @(posedge CLK_I);
-      WE_I  = 1'b0;
+      @(negedge CLK_I);
+      ADR_I   = 4 * i;
+      tb_data = tb_mem[i];
+      STB_I   = 1'b1;
+      CYC_I   = 1'b1;
+      WE_I    = 1'b1;
       SEL_I   = 4'hF;
-      TAG_I = 1'b1;
-      @(negedge ACK_O);
+      @(posedge CLK_I);
+      WE_I = 1'b0;
       @(posedge ACK_O);
+      @(negedge ACK_O);
+      STB_I = 1'b0;
+      CYC_I = 1'b0;
+      SEL_I = 4'h0;
       if (DAT_O != tb_data) begin
         $display("ERRO NA LEITURA: recebeu: 0x%h --- esperava: 0x%h", DAT_O, tb_data);
       end else begin
         $display("teste %d correto: 0x%h", i + 1, DAT_O);
       end
-      TAG_I = 1'b0;
+      @(negedge CLK_I);
     end
 
     // testa leitura e escrita desalinhada
-    tb_data      = 0;
-    ADR_I      = 4 * 3 + 2;
-    WE_I = 1'b1;
-    SEL_I  = 4'hF;
+    tb_data = 0;
+    ADR_I   = 4 * 3 + 2;
+    STB_I   = 1'b1;
+    CYC_I   = 1'b1;
+    WE_I    = 1'b1;
+    SEL_I   = 4'hF;
     @(posedge CLK_I);
     WE_I  = 1'b0;
-    SEL_I   = 4'hF;
-    TAG_I = 1'b1;
-    @(negedge ACK_O);
+    CYC_I = 1'b1;
     @(posedge ACK_O);
+    @(negedge ACK_O);
     if (DAT_O != tb_data) begin
       $display("ERRO NA LEITURA: recebeu: 0x%h --- esperava: 0x%h", DAT_O, tb_mem[4*3+2]);
     end else begin
       $display("teste %d correto: 0x%h", AMOUNT_OF_TESTS, DAT_O);
     end
-    TAG_I = 1'b0;
 
     // desativa memória
-    STB_I   = 1'b0;
+    STB_I = 1'b0;
+    CYC_I = 1'b0;
+    SEL_I = 4'h0;
     $display("EOT!");
     $stop;
   end

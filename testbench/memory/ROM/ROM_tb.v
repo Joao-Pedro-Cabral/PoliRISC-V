@@ -5,6 +5,8 @@
 //! @date   2023-02-22
 //
 
+`define ASSERT(condition) if (!(condition)) $stop
+
 `timescale 1 ns / 100 ps
 
 module ROM_tb ();
@@ -12,6 +14,7 @@ module ROM_tb ();
   // sinais do DUT
   reg CLK_I;
   reg CYC_I;
+  reg STB_I;
   reg [5:0] ADR_I;
   wire [31:0] DAT_O;
   wire ACK_O;
@@ -27,11 +30,12 @@ module ROM_tb ();
       .offset(2),
       .busy_cycles(2)
   ) DUT (
-      .CLK_I (CLK_I),
-      .CYC_I (CYC_I),
-      .ADR_I (ADR_I),
-      .DAT_O (DAT_O),
-      .ACK_O (ACK_O)
+      .CLK_I(CLK_I),
+      .CYC_I(CYC_I),
+      .STB_I(STB_I),
+      .ADR_I(ADR_I),
+      .DAT_O(DAT_O),
+      .ACK_O(ACK_O)
   );
 
   // geração do CLK_I
@@ -44,22 +48,23 @@ module ROM_tb ();
 
   // testar o DUT
   initial begin : Testbench
-    $readmemb("./ROM.mif", memory);  // instanciar a memória do tb
+    $readmemb("./MIFs/memory/ROM/rom_init_file_tb.mif", memory);  // instanciar a memória do tb
     $display("SOT!");
-    #8;
-    for (i = 0; i < 128; i = i + 1) begin
+    @(negedge CLK_I);
+    for (i = 0; i < 256; i = i + 1) begin
       $display("Test: %d", i);
       CYC_I = i % 2;
-      ADR_I   = i / 2;
-      /* #2; */
-      if (CYC_I === 1) begin
-        @(negedge ACK_O) CYC_I = 0;
-        if (ACK_O !== 0) $display("Error ACK_O !== 0: CYC_I = %b, ACK_O = %b", CYC_I, ACK_O);
-        @(posedge ACK_O)
-        if (ACK_O !== 1 || DAT_O !== memory[ADR_I/4])
-          $display("Error: CYC_I = %b, ADR_I = %b, DAT_O = %b, ACK_O = %b", CYC_I, ADR_I, DAT_O, ACK_O);
-      end else if (ACK_O !== 1) $display("Error ACK_O !== 1: CYC_I = %b, ACK_O = %b", CYC_I, ACK_O);
-      #4;
+      STB_I = (i % 4) / 2;
+      ADR_I = i / 4;
+      `ASSERT(ACK_O === 1'b0);
+      if (CYC_I && STB_I) begin
+        @(negedge CLK_I);
+        @(negedge CLK_I);
+        @(negedge CLK_I);
+        `ASSERT(ACK_O === 1'b1);
+        `ASSERT(DAT_O === memory[ADR_I/4]);
+      end
+      @(negedge CLK_I);
     end
     $display("EOT!");
     $stop;
