@@ -12,13 +12,13 @@ module single_port_ram #(
     parameter DATA_SIZE = 4,
     parameter BUSY_CYCLES = 3
 ) (
-    input CLK_I,
-    input [DATA_SIZE-1:0] ADR_I,
-    input [DATA_SIZE-1:0] DAT_I,
-    input TGC_I,
-    input WE_I,
-    input STB_I,
-    input [DATA_SIZE/BYTE_SIZE-1:0] SEL_I,
+    input wire CLK_I,
+    input wire [DATA_SIZE-1:0] ADR_I,
+    input wire [DATA_SIZE-1:0] DAT_I,
+    input wire CYC_I,
+    input wire WE_I,
+    input wire STB_I,
+    input wire [DATA_SIZE/BYTE_SIZE-1:0] SEL_I,
     output reg [DATA_SIZE-1:0] DAT_O,
     output reg ACK_O
 
@@ -34,13 +34,14 @@ module single_port_ram #(
 
   initial begin
     $readmemb(RAM_INIT_FILE, ram);
-    ACK_O = 1'b1;
+    ACK_O = 1'b0;
+    busy_flag = 1'b0;
   end
 
   integer i;
   always @(posedge CLK_I) begin
     for (i = 0; i < DATA_SIZE / BYTE_SIZE; i = i + 1) begin
-      if (STB_I && SEL_I[i] && WE_I) begin
+      if (STB_I && CYC_I && SEL_I[i] && WE_I) begin
         ram[offset_and_truncate_address(ADR_I, i)] <= DAT_I[(i+1)*BYTE_SIZE-1-:BYTE_SIZE];
       end
     end
@@ -49,10 +50,10 @@ module single_port_ram #(
   integer j;
   always @(posedge CLK_I) begin
     for (j = 0; j < DATA_SIZE / BYTE_SIZE; j = j + 1) begin
-      if (STB_I && TGC_I && SEL_I[j]) begin
+      if (STB_I && CYC_I && SEL_I[j]) begin
         DAT_O[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= ram[offset_and_truncate_address(ADR_I, j)];
       end else begin
-        if (STB_I && SEL_I[j] && WE_I) begin
+        if (STB_I && CYC_I && SEL_I[j] && WE_I) begin
           DAT_O[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= DAT_I[(i+1)*BYTE_SIZE-1-:BYTE_SIZE];
         end else begin
           DAT_O[(j+1)*BYTE_SIZE-1-:BYTE_SIZE] <= 0;
@@ -62,13 +63,13 @@ module single_port_ram #(
   end
 
   always @* begin
-    if (STB_I === 1'b1) if (TGC_I === 1'b1 || WE_I !== 0) busy_flag <= 1'b1;
+    if (STB_I === 1'b1 && CYC_I === 1'b1) busy_flag <= 1'b1;
   end
 
   integer k;
   always @(posedge CLK_I) begin
+    ACK_O = 1'b0;
     if (busy_flag === 1'b1) begin
-      ACK_O = 1'b0;
       for (k = 0; k < BUSY_CYCLES; k = k + 1) begin
         wait (CLK_I == 1'b0);
         wait (CLK_I == 1'b1);
