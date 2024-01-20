@@ -121,7 +121,7 @@ module CSR_mem #(
   end
 
   always @(posedge CLK_I, posedge RST_I) begin
-    if (RST_I) ACK_O <= 1'b0;
+    if (RST_I || ACK_O) ACK_O <= 1'b0;
     else if (_ack) ACK_O <= 1'b1;
   end
 
