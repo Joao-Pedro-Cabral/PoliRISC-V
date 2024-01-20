@@ -6,39 +6,40 @@
 //
 
 module instruction_cache_path #(
-    parameter integer L2_CACHE_SIZE = 8,  // log_2(tamanho da cache em bytes)
-    parameter integer L2_BLOCK_SIZE = 6,  // log_2(tamanho do bloco em bytes)
-    parameter integer L2_ADDR_SIZE  = 5,  // log2(bits de endereço)
-    parameter integer L2_DATA_SIZE  = 2   // log2(bytes de dados)
+    parameter integer L2_CACHE_SIZE = 8,  // log2(tamanho da cache em bytes)
+    parameter integer L2_BLOCK_SIZE = 6,  // log2(tamanho do bloco em bytes)
+    parameter integer L2_ADDR_SIZE  = 32, // log2(tamanho do endereço em bits)
+    parameter integer L2_DATA_SIZE  = 2   // log2(tamanho do dados em bytes)
 ) (
     /* Sinais do sistema */
-    input RST_I,
+    input wire RST_I,
+    input wire CLK_I,
     /* //// */
 
     /* Interface com a memória de instruções */
-    input [2**(L2_BLOCK_SIZE+3)-1:0] inst_DAT_I,
-    output [2**L2_ADDR_SIZE-1:0] inst_ADR_O,
+    input  wire [2**(L2_BLOCK_SIZE+3)-1:0] inst_DAT_I,
+    output wire [L2_ADDR_SIZE-1:0] inst_ADR_O,
     /* //// */
 
     /* Interface com o controlador de memória */
-    input [2**L2_ADDR_SIZE-1:0] inst_cache_ADR_I,
-    output [2**(L2_DATA_SIZE+3)-1:0] inst_cache_DAT_O,
+    input  wire  [L2_ADDR_SIZE-1:0] inst_cache_ADR_I,
+    output wire  [2**(L2_DATA_SIZE+3)-1:0] inst_cache_DAT_O,
     /* //// */
 
     /* Interface com o Fluxo de Dados */
-    input  cache_WE_I,
-    output TGC_O
+    input  wire cache_WE_I,
+    output wire TGC_O
     /* //// */
 );
   /* Quantidade de bits para cada campo dos sinais */
   localparam integer OFFSET = L2_BLOCK_SIZE;
   localparam integer BYTE_OFFSET = L2_DATA_SIZE;
   localparam integer BLOCK_OFFSET = L2_BLOCK_SIZE - L2_DATA_SIZE;
-  localparam integer INDEX = L2_CACHE_SIZE - OFFSET;
-  localparam integer TAG = 2 ** (L2_DATA_SIZE + 3) - OFFSET - INDEX;
+  localparam integer INDEX = L2_CACHE_SIZE - L2_BLOCK_SIZE; // Simple associativity
+  localparam integer TAG = L2_ADDR_SIZE - INDEX - OFFSET;
   localparam integer DEPTH = 2 ** (L2_CACHE_SIZE - L2_BLOCK_SIZE);
 
-  reg [2**(OFFSET+3)-1:0] cache_data[DEPTH-1:0];
+  reg [2**(OFFSET+3)-1:0] cache_data[DEPTH-1:0]; // OFFSET in bytes
   reg [TAG-1:0] cache_tag[DEPTH-1:0];
   reg [DEPTH-1:0] cache_valid;
 
@@ -53,9 +54,9 @@ module instruction_cache_path #(
 
   wire [(INDEX>0 ? INDEX-1 : 0):0] index = INDEX > 0 ? inst_cache_ADR_I[INDEX+OFFSET-1:OFFSET] : 0;
 
-  wire [TAG-1:0] tag = inst_cache_ADR_I[2**L2_ADDR_SIZE-1:INDEX+OFFSET];
+  wire [TAG-1:0] tag = inst_cache_ADR_I[L2_ADDR_SIZE-1:INDEX+OFFSET];
 
-  assign inst_cache_DAT_O = cache_data[index][(block_offset+1)*(2**(BYTE_OFFSET+3))-1-:(2**(BYTE_OFFSET+3))];
+  assign inst_cache_DAT_O = cache_data[index][block_offset*(2**(BYTE_OFFSET+3))+:(2**(BYTE_OFFSET+3))];
 
   genvar i;
   generate
@@ -68,16 +69,12 @@ module instruction_cache_path #(
 
   assign inst_ADR_O = inst_cache_ADR_I;
 
-  always @(posedge cache_WE_I, posedge RST_I) begin
+  always @(posedge CLK_I, posedge RST_I) begin
     if (RST_I) cache_valid <= 'b0;
     else if (cache_WE_I) begin
       cache_data[index]  <= inst_DAT_I;
       cache_tag[index]   <= tag;
       cache_valid[index] <= 1'b1;
-    end else begin
-      cache_data[index]  <= cache_data[index];
-      cache_tag[index]   <= cache_tag[index];
-      cache_valid[index] <= cache_valid[index];
     end
   end
 endmodule

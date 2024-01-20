@@ -7,22 +7,24 @@
 
 module instruction_cache_control (
     /* Sinais do sistema */
-    input CLK_I,
-    input RST_I,
+    input wire CLK_I,
+    input wire RST_I,
     /* //// */
 
     /* Interface com a memória de instruções */
-    input  inst_ACK_I,
-    output inst_CYC_O,
+    input  wire inst_ACK_I,
+    output reg inst_CYC_O,
+    output wire inst_STB_O,
     /* //// */
 
     /* Interface com o controlador de memória */
-    input inst_cache_CYC_I,
+    input wire inst_cache_CYC_I,
+    input wire inst_cache_STB_I,
     output reg inst_cache_ACK_O,
     /* //// */
 
     /* Interface com o Fluxo de Dados */
-    input TGC_I,
+    input wire TGC_I,
     output reg cache_WE_O
     /* //// */
 
@@ -37,30 +39,33 @@ module instruction_cache_control (
     else if (CLK_I == 1'b1) current_state <= next_state;
   end
 
-  assign inst_CYC_O = TGC_I ? 1'b0 : inst_cache_CYC_I;
+  assign inst_STB_O = inst_CYC_O;
 
   always @(*) begin
+    inst_cache_ACK_O = 1'b0;
+    inst_CYC_O = 1'b0;
+    cache_WE_O = 1'b0;
     case (current_state)  // synthesis parallel_case
       default: begin
-        inst_cache_ACK_O = 1'b1;
-        cache_WE_O = 1'b0;
 
-        if (inst_cache_CYC_I) begin
+        if (inst_cache_CYC_I && inst_cache_STB_I) begin // read-only
           if (TGC_I) next_state = HitState;
-          else next_state = MissState;
+          else begin
+            inst_CYC_O = 1'b1;
+            next_state = MissState;
+          end
         end else next_state = DefaultState;
       end
 
       HitState: begin
-        inst_cache_ACK_O = 1'b0;
-        cache_WE_O = 1'b0;
+        inst_cache_ACK_O = 1'b1;
         next_state = DefaultState;
       end
 
       MissState: begin
-        inst_cache_ACK_O = 1'b0;
+        inst_CYC_O = ~inst_ACK_I;
         cache_WE_O = inst_ACK_I;
-        next_state = (~inst_ACK_I) ? MissState : DefaultState;
+        next_state = inst_ACK_I ? HitState : MissState;
       end
     endcase
   end
