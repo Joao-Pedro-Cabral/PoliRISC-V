@@ -1,6 +1,6 @@
 //
 //! @file   ROM.v
-//! @brief  Memória ROM com 2**addr_size palavras de tamanho word_size, com offset
+//! @brief  Memória ROM com 2**ADDR_SIZE palavras de tamanho WORD_SIZE, com OFFSET
 //! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
 //! @date   2023-02-22
 //
@@ -14,21 +14,21 @@ module ROM (
     ACK_O
 );
 
-  parameter rom_init_file = "rom_init_file.mif";
-  parameter word_size = 8;
-  parameter addr_size = 8;
-  parameter offset = 2;
-  parameter busy_cycles = 3;  // numero de ciclos que ACK_O está ativo
+  parameter ROM_INIT_FILE = "rom_init_file.mif";
+  parameter WORD_SIZE = 8;
+  parameter ADDR_SIZE = 8;
+  parameter OFFSET = 2;
+  parameter BUSY_CYCLES = 3;  // numero de ciclos que ACK_O está ativo
   input wire CLK_I;
   input wire CYC_I;
   input wire STB_I;
-  input wire [addr_size - 1:0] ADR_I;
-  output wire [word_size*(2**offset) - 1 : 0] DAT_O;
+  input wire [ADDR_SIZE - 1:0] ADR_I;
+  output wire [WORD_SIZE*(2**OFFSET) - 1 : 0] DAT_O;
   output reg ACK_O;
 
   reg busy_flag;
-  reg [word_size - 1:0] memory[2**addr_size - 1:0];  // memória ROM
-  wire [word_size*(2**addr_size)-1:0] linear_memory;  // linearização da memória
+  reg [WORD_SIZE - 1:0] memory[2**ADDR_SIZE - 1:0];  // memória ROM
+  wire [WORD_SIZE*(2**ADDR_SIZE)-1:0] linear_memory;  // linearização da memória
 
   // variáveis de iteração
   genvar i;
@@ -36,25 +36,25 @@ module ROM (
 
   // inicializando a memória
   initial begin
-    $readmemb(rom_init_file, memory);
+    $readmemb(ROM_INIT_FILE, memory);
     ACK_O = 1'b0;
     busy_flag = 1'b0;
   end
 
   // Particionando a memória de acordo com os offsets
   generate
-    for (i = 0; i < 2 ** addr_size; i = i + 1) begin : linear
-      assign linear_memory[word_size*(i+1)-1:word_size*i] = memory[i];
+    for (i = 0; i < 2 ** ADDR_SIZE; i = i + 1) begin : linear
+      assign linear_memory[WORD_SIZE*(i+1)-1:WORD_SIZE*i] = memory[i];
     end
   endgenerate
 
   // Leitura da ROM
   gen_mux #(
-      .size(word_size * (2 ** offset)),
-      .N(addr_size - offset)
+      .size(WORD_SIZE * (2 ** OFFSET)),
+      .N(ADDR_SIZE - OFFSET)
   ) addr_mux (
       .A(linear_memory),
-      .S(ADR_I[addr_size-1:offset]),
+      .S(ADR_I[ADDR_SIZE-1:OFFSET]),
       .Y(DAT_O)
   );
 
@@ -65,7 +65,7 @@ module ROM (
   always @(posedge CLK_I) begin : busy_enable
     ACK_O = 1'b0;
     if (busy_flag === 1'b1) begin
-      for (j = 0; j < busy_cycles; j = j + 1) begin
+      for (j = 0; j < BUSY_CYCLES; j = j + 1) begin
         wait (CLK_I == 1'b0);
         wait (CLK_I == 1'b1);
       end

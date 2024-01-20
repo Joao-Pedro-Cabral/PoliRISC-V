@@ -79,11 +79,11 @@ module RV32I_uart_tb ();
 
   // Instruction Memory
   ROM #(
-      .rom_init_file("./ROM.mif"),
-      .word_size(8),
-      .addr_size(10),
-      .offset(2),
-      .busy_cycles(2)
+      .ROM_INIT_FILE("./ROM.mif"),
+      .WORD_SIZE(8),
+      .ADDR_SIZE(10),
+      .OFFSET(2),
+      .BUSY_CYCLES(2)
   ) Instruction_Memory (
       .clock (clock),
       .enable(rom_enable),

@@ -37,7 +37,7 @@ module CSR_mem_tb ();
   reg [63:0] mtime_;
 
   CSR_mem #(
-      .ClockCycles(100)
+      .CLOCK_CYCLES(100)
   ) DUT (
       .CLK_I(clock),
       .RST_I(reset),
@@ -56,7 +56,7 @@ module CSR_mem_tb ();
   // Wishbone
   assign cyc_i = rd_en | wr_en;
   assign stb_i = rd_en | wr_en;
-  assign we_i = wr_en;
+  assign we_i  = wr_en;
 
   sync_parallel_counter #(
       .size(7),
@@ -116,14 +116,14 @@ module CSR_mem_tb ();
         end
 `else
         2'b10: begin
-          if(addr[2]) begin
-            `ASSERT(rd_data === DUT.mtime_[63:32],
-                    ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x",
-                    addr, rd_data, DUT.mtime_[63:32]))
+          if (addr[2]) begin
+            `ASSERT(
+                rd_data === DUT.mtime_[63:32],
+                ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x", addr, rd_data, DUT.mtime_[63:32]))
 
-            `ASSERT(rd_data === mtime[63:32],
-                    ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nmtime[63:32] = 0x%x",
-                    addr, rd_data, mtime[63:32]))
+            `ASSERT(
+                rd_data === mtime[63:32],
+                ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nmtime[63:32] = 0x%x", addr, rd_data, mtime[63:32]))
           end else begin
             `ASSERT(rd_data === DUT.mtime_[31:0],
                     ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.mtime_[31:0] = 0x%x",
@@ -135,14 +135,14 @@ module CSR_mem_tb ();
           end
         end
         2'b11: begin
-          if(addr[2]) begin
-            `ASSERT(rd_data === DUT.mtimecmp_[63:32],
-                    ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x",
-                    addr, rd_data, DUT.mtimecmp_[63:32]))
+          if (addr[2]) begin
+            `ASSERT(
+                rd_data === DUT.mtimecmp_[63:32],
+                ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x", addr, rd_data, DUT.mtimecmp_[63:32]))
 
-            `ASSERT(rd_data === mtimecmp[63:32],
-                    ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nmtimecmp[63:32] = 0x%x",
-                    addr, rd_data, mtimecmp[63:32]))
+            `ASSERT(
+                rd_data === mtimecmp[63:32],
+                ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nmtimecmp[63:32] = 0x%x", addr, rd_data, mtimecmp[63:32]))
           end else begin
             `ASSERT(rd_data === DUT.mtimecmp_[31:0],
                     ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x,\nDUT.mtime_[31:0] = 0x%x",
@@ -156,8 +156,7 @@ module CSR_mem_tb ();
 `endif
         default: begin
           `ASSERT(rd_data === `DATA_SIZE'b0,
-                    ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x",
-                    addr, rd_data))
+                  ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x", addr, rd_data))
         end
       endcase
     end
@@ -165,8 +164,8 @@ module CSR_mem_tb ();
 
   task automatic CheckWrite;
     begin
-      wr_en = 1'b0;
-      tick_ = tick;
+      wr_en  = 1'b0;
+      tick_  = tick;
       mtime_ = mtime;
       @(negedge clock);
       `ASSERT(ack === 1'b1, ("[CheckWrite]\nack = 0b%d", ack))
@@ -182,7 +181,7 @@ module CSR_mem_tb ();
 
 `ifdef RV64I
         2'b10: begin
-          if(tick_) wr_data = wr_data + 1;
+          if (tick_) wr_data = wr_data + 1;
           else wr_data = wr_data;
           `ASSERT(wr_data === DUT.mtime_,
                   ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtime_ = 0x%x",
@@ -203,11 +202,11 @@ module CSR_mem_tb ();
         end
 `else
         2'b10: begin
-          if(tick_) begin
-            if(addr[2]) mtime_data = {wr_data, mtime_[31:0]} + 1;
+          if (tick_) begin
+            if (addr[2]) mtime_data = {wr_data, mtime_[31:0]} + 1;
             else mtime_data = {mtime_[63:32], wr_data} + 1;
           end else begin
-            if(addr[2]) mtime_data = {wr_data, mtime_[31:0]};
+            if (addr[2]) mtime_data = {wr_data, mtime_[31:0]};
             else mtime_data = {mtime_[63:32], wr_data};
           end
           `ASSERT(mtime_data === DUT.mtime_,
@@ -219,16 +218,15 @@ module CSR_mem_tb ();
                   addr, mtime_data, mtime))
         end
         2'b11: begin
-          if(addr[2]) begin
-            `ASSERT(wr_data === DUT.mtimecmp_[63:32],
-                    ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x",
-                    addr, wr_data, DUT.mtimecmp_[63:32]))
+          if (addr[2]) begin
+            `ASSERT(
+                wr_data === DUT.mtimecmp_[63:32],
+                ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x", addr, wr_data, DUT.mtimecmp_[63:32]))
 
-            `ASSERT(wr_data === mtimecmp[63:32],
-                    ("[CheckWrite]\naddr = 0x%x,\nrd_data = 0x%x,\nmtimecmp[63:32] = 0x%x",
-                    addr, rd_data, mtimecmp[63:32]))
-          end
-          else begin
+            `ASSERT(
+                wr_data === mtimecmp[63:32],
+                ("[CheckWrite]\naddr = 0x%x,\nrd_data = 0x%x,\nmtimecmp[63:32] = 0x%x", addr, rd_data, mtimecmp[63:32]))
+          end else begin
             `ASSERT(wr_data === DUT.mtimecmp_[31:0],
                     ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtime_[31:0] = 0x%x",
                     addr, wr_data, DUT.mtimecmp_[31:0]))
@@ -239,7 +237,7 @@ module CSR_mem_tb ();
           end
         end
 `endif
-        default: begin // Nothing to do (addr = 2'b01)
+        default: begin  // Nothing to do (addr = 2'b01)
         end
       endcase
     end

@@ -8,7 +8,7 @@
 `endif
 
 module CSR_mem #(
-    parameter integer ClockCycles = 100
+    parameter integer CLOCK_CYCLES = 100
 ) (
     input wire CLK_I,
     input wire RST_I,
@@ -28,12 +28,12 @@ module CSR_mem #(
   wire [63:0] mtime_;
   wire [63:0] mtimecmp_;
   wire tick;
-  wire [$clog2(ClockCycles)-1:0] cycles;
+  wire [$clog2(CLOCK_CYCLES)-1:0] cycles;
   wire rd_en, wr_en;
 
   // Wishbone
   assign rd_en = CYC_I & STB_I & ~WE_I;
-  assign wr_en = CYC_I & STB_I &  WE_I;
+  assign wr_en = CYC_I & STB_I & WE_I;
 
   // Registradores mapeados em memória
   // MSIP
@@ -65,19 +65,19 @@ module CSR_mem #(
       .value(mtime_)
   );
   sync_parallel_counter #(
-      .size($clog2(ClockCycles)),
+      .size($clog2(CLOCK_CYCLES)),
       .init_value(0)
   ) tick_counter (
       .clock(CLK_I),
       .reset(RST_I),
       .load(tick),
-      .load_value({$clog2(ClockCycles) {1'b0}}),
+      .load_value({$clog2(CLOCK_CYCLES) {1'b0}}),
       .inc_enable(1'b1),
       .dec_enable(1'b0),
       .value(cycles)
   );
   // timer roda numa frequência menor -> tick
-  assign tick = (cycles == ClockCycles - 1);
+  assign tick = (cycles == CLOCK_CYCLES - 1);
   //MTIMERCMP
   register_d #(
       .N(64),

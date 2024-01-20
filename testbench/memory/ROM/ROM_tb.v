@@ -24,11 +24,11 @@ module ROM_tb ();
 
   // instanciar o DUT
   ROM #(
-      .rom_init_file("./MIFs/memory/ROM/rom_init_file.mif"),
-      .word_size(8),
-      .addr_size(6),
-      .offset(2),
-      .busy_cycles(2)
+      .ROM_INIT_FILE("./MIFs/memory/ROM/rom_init_file.mif"),
+      .WORD_SIZE(8),
+      .ADDR_SIZE(6),
+      .OFFSET(2),
+      .BUSY_CYCLES(2)
   ) DUT (
       .CLK_I(CLK_I),
       .CYC_I(CYC_I),
