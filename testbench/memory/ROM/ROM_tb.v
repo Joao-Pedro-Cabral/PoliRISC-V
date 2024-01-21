@@ -5,9 +5,9 @@
 //! @date   2023-02-22
 //
 
-`define ASSERT(condition) if (!(condition)) $stop
+`include "macros.vh"
 
-`timescale 1 ns / 100 ps
+`define ASSERT(condition) if (!(condition)) $stop
 
 module ROM_tb ();
 

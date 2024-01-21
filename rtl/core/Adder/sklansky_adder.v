@@ -5,14 +5,16 @@
 //! @date   2023-02-21
 //
 
+`include "macros.vh"
+
 module sklansky_adder #(
     // quantidade de bits em cada número
     parameter integer INPUT_SIZE = 4
 ) (
-    input [INPUT_SIZE-1:0] A,
-    input [INPUT_SIZE-1:0] B,
-    input c_in,  // carry in
-    output c_out,  // carry out
+    input wire [INPUT_SIZE-1:0] A,
+    input wire [INPUT_SIZE-1:0] B,
+    input wire c_in,  // carry in
+    output wire c_out,  // carry out
     output wire [INPUT_SIZE-1:0] S  // resultado da soma
 );
 
@@ -37,7 +39,7 @@ module sklansky_adder #(
 
     for (
         i = 0; i < $clog2(INPUT_SIZE); i = i + 1
-    ) begin : levels  // camadas de computação dos prefixos
+    ) begin : g_levels  // camadas de computação dos prefixos
       for (
           m = 2 ** i - 1; m < INPUT_SIZE; m = m + 2 ** (i + 1)
       ) begin : g_blocks  // blocos de prefixos
@@ -55,7 +57,7 @@ module sklansky_adder #(
       end
     end
 
-    for (i = 0; i < INPUT_SIZE; i = i + 1) begin : result
+    for (i = 0; i < INPUT_SIZE; i = i + 1) begin : g_result
       xor (S[i], A[i], B[i], G[i][0]);
     end
   endgenerate

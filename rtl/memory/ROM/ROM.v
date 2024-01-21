@@ -5,6 +5,8 @@
 //! @date   2023-02-22
 //
 
+`include "macros.vh"
+
 module ROM (
     CLK_I,
     CYC_I,
@@ -15,10 +17,10 @@ module ROM (
 );
 
   parameter ROM_INIT_FILE = "rom_init_file.mif";
-  parameter WORD_SIZE = 8;
-  parameter ADDR_SIZE = 8;
-  parameter OFFSET = 2;
-  parameter BUSY_CYCLES = 3;  // numero de ciclos que ACK_O está ativo
+  parameter integer WORD_SIZE = 8;
+  parameter integer ADDR_SIZE = 8;
+  parameter integer OFFSET = 2;
+  parameter integer BUSY_CYCLES = 3;  // numero de ciclos que ACK_O está ativo
   input wire CLK_I;
   input wire CYC_I;
   input wire STB_I;
@@ -43,7 +45,7 @@ module ROM (
 
   // Particionando a memória de acordo com os offsets
   generate
-    for (i = 0; i < 2 ** ADDR_SIZE; i = i + 1) begin : linear
+    for (i = 0; i < 2 ** ADDR_SIZE; i = i + 1) begin : g_linear
       assign linear_memory[WORD_SIZE*(i+1)-1:WORD_SIZE*i] = memory[i];
     end
   endgenerate

@@ -6,9 +6,9 @@
 //! @date   2023-05-02
 //
 
-`define ASSERT(cond, message) if (!(cond)) begin $display (message) ; $stop; end
+`include "macros.vh"
 
-`timescale 1 ns / 100 ps
+`define ASSERT(cond, message) if (!(cond)) begin $display (message) ; $stop; end
 
 module instruction_cache_tb ();
 
@@ -74,32 +74,29 @@ module instruction_cache_tb ();
       /* //// */
 
       /* Interface com a memória de instruções */
-      .inst_DAT_I  (inst_DAT_I),
-      .inst_ACK_I  (inst_ACK_I),
-      .inst_CYC_O  (inst_CYC_O),
-      .inst_STB_O  (inst_STB_O),
-      .inst_ADR_O  (inst_ADR_O),
+      .inst_DAT_I(inst_DAT_I),
+      .inst_ACK_I(inst_ACK_I),
+      .inst_CYC_O(inst_CYC_O),
+      .inst_STB_O(inst_STB_O),
+      .inst_ADR_O(inst_ADR_O),
       /* //// */
 
       /* Interface com o controlador de memória */
-      .inst_cache_CYC_I  (inst_cache_CYC_I),
-      .inst_cache_STB_I  (inst_cache_STB_I),
-      .inst_cache_ADR_I  (inst_cache_ADR_I),
-      .inst_cache_DAT_O  (inst_cache_DAT_O),
-      .inst_cache_ACK_O  (inst_cache_ACK_O)
+      .inst_cache_CYC_I(inst_cache_CYC_I),
+      .inst_cache_STB_I(inst_cache_STB_I),
+      .inst_cache_ADR_I(inst_cache_ADR_I),
+      .inst_cache_DAT_O(inst_cache_DAT_O),
+      .inst_cache_ACK_O(inst_cache_ACK_O)
       /* //// */
   );
 
-  task automatic assert_dut(input reg [2**(L2DataSize+3)-1:0] data,
-    input reg [Tag-1:0] tag, input reg valid, input reg cyc_stb, input reg we, input reg ack);
+  task automatic assert_dut(input reg [2**(L2DataSize+3)-1:0] data, input reg [Tag-1:0] tag,
+                            input reg valid, input reg cyc_stb, input reg we, input reg ack);
     begin
       `ASSERT(inst_cache_ACK_O === ack, "\tinst_cache_ack !== ack")
-      `ASSERT(inst_cache_DAT_O === data,
-          "\tinst_cache_DAT_O !== data")
-      `ASSERT(tag === DUT.path.cache_tag[index],
-              "\tDUT.path.cache_tag[index] !== index")
-      `ASSERT(valid === DUT.path.cache_valid[index],
-              "\tDUT.path.cache_valid[index] !== valid")
+      `ASSERT(inst_cache_DAT_O === data, "\tinst_cache_DAT_O !== data")
+      `ASSERT(tag === DUT.path.cache_tag[index], "\tDUT.path.cache_tag[index] !== index")
+      `ASSERT(valid === DUT.path.cache_valid[index], "\tDUT.path.cache_valid[index] !== valid")
       `ASSERT(inst_CYC_O === cyc_stb, "\tinst_CYC_O !== cyc_stb")
       `ASSERT(inst_STB_O === cyc_stb, "\tinst_STB_O !== cyc_stb")
       `ASSERT(DUT.control.cache_WE_O === we, "\tDUT.control.cache_WE_O !== we")
@@ -149,7 +146,7 @@ module instruction_cache_tb ();
   endtask
 
 
-  always #(ClockPeriod/2) CLK_I = ~CLK_I;
+  always #(ClockPeriod / 2) CLK_I = ~CLK_I;
   integer i;
   initial begin
     {CLK_I, RST_I, inst_DAT_I, inst_cache_CYC_I, inst_cache_STB_I,

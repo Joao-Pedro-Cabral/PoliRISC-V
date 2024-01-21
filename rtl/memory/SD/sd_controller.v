@@ -24,7 +24,7 @@ module sd_controller #(
     output wire [4095:0] DAT_O,
 
     // interface com o cartão SD
-    input miso,
+    input wire miso,
     output reg cs,
     output wire sck,
     output wire mosi,

@@ -191,7 +191,11 @@ module Dataflow (
   ) pc_register (
       .clock(clock),
       .reset(reset),
+    `ifdef TrapReturn
       .enable(pc_en | mret | sret | _trap),
+    `else
+      .enable(pc_en | _trap),
+    `endif
       .D(new_pc),
       .Q(pc)
   );

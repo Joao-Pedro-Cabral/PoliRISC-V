@@ -10,18 +10,19 @@
 
 module sd_receiver (
     // Comum
-    input clock,
-    input reset,
+    input wire clock,
+    input wire reset,
 
     // Controlador
-    input [2:0] response_type,  // 000: R1, 001: R3/R7, 010: data_token, 011: Data Block, 1XX: R2
+    // 000: R1, 001: R3/R7, 010: data_token, 011: Data Block, 1XX: R2
+    input wire [2:0] response_type,
     output wire [4095:0] received_data,
     output wire ready,
-    input valid,
+    input wire valid,
     output wire crc_error,
 
     // SD
-    input miso
+    input wire miso
 
 `ifdef DEBUG
     ,
@@ -99,7 +100,7 @@ module sd_receiver (
     else state <= new_state;
   end
 
-  task reset_signals;
+  task automatic reset_signals;
     begin
       _ready = 1'b0;
       init_transmission = 1'b0;

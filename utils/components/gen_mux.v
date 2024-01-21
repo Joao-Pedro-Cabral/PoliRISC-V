@@ -5,13 +5,15 @@
 //! @date   2023-02-12
 //
 
+`include "macros.vh"
+
 module gen_mux (
     A,
     S,
     Y
 );
-  parameter size = 4;  // tamanho dos vetores
-  parameter N = 8;
+  parameter integer size = 4;  // tamanho dos vetores
+  parameter integer N = 8;
   input wire [size*(2**N) - 1:0] A;  // verilog não suporta array como input -> 
                                      // -> linearizar array(2**N vetores de tamanho size)
   input wire [N - 1:0] S;

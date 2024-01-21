@@ -6,9 +6,9 @@
 //! @date   2023-04-24
 //
 
-`define ASSERT(condition) if (!(condition)) $stop
+`include "macros.vh"
 
-`timescale 1 ns / 100 ps
+`define ASSERT(condition) if (!(condition)) $stop
 
 module memory_controller_tb;
 

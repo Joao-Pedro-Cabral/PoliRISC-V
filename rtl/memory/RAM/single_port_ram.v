@@ -5,6 +5,8 @@
 //! @date   2023-02-22
 //
 
+`include "macros.vh"
+
 module single_port_ram #(
     parameter RAM_INIT_FILE = "ram_init_file.mif",
     parameter ADDR_SIZE = 2,

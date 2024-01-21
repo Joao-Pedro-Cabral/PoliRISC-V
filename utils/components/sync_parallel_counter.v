@@ -1,4 +1,6 @@
 
+`include "macros.vh"
+
 module sync_parallel_counter (
     clock,
     reset,
@@ -8,10 +10,10 @@ module sync_parallel_counter (
     load_value,
     value
 );
-  parameter size = 4;  // número de bits da contagem
+  parameter integer size = 4;  // número de bits da contagem
   parameter [size - 1:0] init_value = 0;  // inicio da contagem
   input wire clock, reset, inc_enable, dec_enable, load;
-  input wire [size - 1:0] load_value;  // valor para carga 
+  input wire [size - 1:0] load_value;  // valor para carga
   output wire [size - 1:0] value;
   wire [size - 1:0] enable_vector;  // vetor de enable dos registradores T
   wire [size - 1:0] enable_aux;  // vetor auxiliar para a formação dos enables
@@ -21,7 +23,7 @@ module sync_parallel_counter (
 
   // gero o contador
   generate
-    for (i = 0; i < size; i = i + 1) begin : count_gen
+    for (i = 0; i < size; i = i + 1) begin : g_count
       // gero os size registradores T usando registradores D
       register_d #(
           .N(1),

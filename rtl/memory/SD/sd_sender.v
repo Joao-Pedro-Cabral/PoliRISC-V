@@ -9,16 +9,16 @@
 `include "macros.vh"
 
 module sd_sender (
-    input clock,
-    input reset,
+    input wire clock,
+    input wire reset,
 
     // interface com o controlador
-    input [5:0] cmd_index,
-    input [31:0] argument,
-    input cmd_or_data,  // 0: cmd; 1: data
+    input wire [5:0] cmd_index,
+    input wire [31:0] argument,
+    input wire cmd_or_data,  // 0: cmd; 1: data
     output wire ready,
-    input valid,
-    input [4095:0] data,
+    input wire valid,
+    input wire [4095:0] data,
 
     // interface com o cartão SD
     output wire mosi
@@ -79,7 +79,7 @@ module sd_sender (
     end
   end
 
-  task reset_signals;
+  task automatic reset_signals;
     begin
       _ready = 1'b0;
       sending = 1'b0;

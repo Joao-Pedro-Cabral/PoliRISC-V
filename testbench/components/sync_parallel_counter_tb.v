@@ -5,7 +5,7 @@
 //! @date   2023-04-29
 //
 
-`timescale 1ns / 100ps
+`include "macros.vh"
 
 module sync_parallel_counter_tb ();
   // DUT
@@ -48,7 +48,7 @@ module sync_parallel_counter_tb ();
       dec_enable = $urandom;
       load       = $urandom;
       load_value = $urandom;
-      #0.1;
+      #1;
       // A partir das novas entradas, gero o novo j
       if (reset) j = 2;
       else if (load) j = load_value;
@@ -56,7 +56,7 @@ module sync_parallel_counter_tb ();
         if (inc_enable) j = (j + 1) % 8;
         if (dec_enable) j = (j + 7) % 8;  // j - 1 = j + 7 (mod 8)
       end
-      #4.9;
+      #4;
       if (value !== j) begin
         $display("Error(teste: %d) value = %d, j = %d", i, value, j);
         $stop;

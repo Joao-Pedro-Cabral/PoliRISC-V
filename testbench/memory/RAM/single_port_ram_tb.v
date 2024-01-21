@@ -5,7 +5,7 @@
 //! @date   2023-03-01
 //
 
-`timescale 1ns / 100ps
+`include "macros.vh"
 
 module single_port_ram_tb;
 

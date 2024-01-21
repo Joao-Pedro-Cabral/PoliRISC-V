@@ -5,6 +5,8 @@
 //! @date   2023-02-12
 //
 
+`include "macros.vh"
+
 module mux2to1 (
     A,
     B,

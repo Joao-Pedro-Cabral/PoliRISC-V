@@ -15,26 +15,26 @@
 
 module control_unit (
     // Common
-    input clock,
-    input reset,
+    input wire clock,
+    input wire reset,
 
     // Memory
-    input                      mem_ack,
+    input  wire                mem_ack,
     output reg                 mem_rd_en,
     output reg                 mem_wr_en,
     output reg [`BYTE_NUM-1:0] mem_byte_en,
 
     // Vindo do Fluxo de Dados
-    input [6:0] opcode,
-    input [2:0] funct3,
-    input [6:0] funct7,
-    input zero,
-    input negative,
-    input carry_out,
-    input overflow,
-    input trap,
-    input [1:0] privilege_mode,
-    input csr_addr_exception,
+    input wire [6:0] opcode,
+    input wire [2:0] funct3,
+    input wire [6:0] funct7,
+    input wire zero,
+    input wire negative,
+    input wire carry_out,
+    input wire overflow,
+    input wire trap,
+    input wire [1:0] privilege_mode,
+    input wire csr_addr_exception,
 
     // Sinais de Controle do Fluxo de Dados
     output reg alua_src,

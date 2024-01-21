@@ -6,6 +6,8 @@
 //! @date   2023-05-21
 //
 
+`include "macros.vh"
+
 module uart_rx (
     input wire clock,
     input wire reset,
