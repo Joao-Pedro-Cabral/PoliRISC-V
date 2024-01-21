@@ -20,11 +20,11 @@ module memory_controller #(
     parameter [63:0] MTIMECMP_ADDR = 32'hFFFFFFF0  // Alinhado em 8 bytes
 ) (
     /* Interface com o cache de instruções */
-    input  wire [8*BYTE_AMNT-1:0] inst_cache_DAT_I,
-    input  wire inst_cache_ACK_I,
-    output wire inst_cache_CYC_O,
-    output wire inst_cache_STB_O,
-    output wire [8*BYTE_AMNT-1:0] inst_cache_ADR_O,
+    input  wire [8*BYTE_AMNT-1:0] rom_DAT_I,
+    input  wire rom_ACK_I,
+    output wire rom_CYC_O,
+    output wire rom_STB_O,
+    output wire [8*BYTE_AMNT-1:0] rom_ADR_O,
     /* //// */
 
     /* Interface com a memória RAM */
@@ -95,7 +95,7 @@ module memory_controller #(
   /* CPU ACK */
   // Trocar por OR invés de mux?
   assign cpu_ACK_O =
-    rom_cs ? inst_cache_ACK_I
+    rom_cs ? rom_ACK_I
     : ram_cs ? ram_ACK_I
     `ifdef UART_0
         : uart_0_cs ? uart_0_ACK_I
@@ -104,7 +104,7 @@ module memory_controller #(
     : 1'b0;
 
   /* CYC */
-  assign inst_cache_CYC_O = rom_cs & cpu_CYC_I;
+  assign rom_CYC_O = rom_cs & cpu_CYC_I;
   assign ram_CYC_O = ram_cs & cpu_CYC_I;
   assign csr_mem_CYC_O = csr_mem_cs & cpu_CYC_I;
 `ifdef UART_0
@@ -112,7 +112,7 @@ module memory_controller #(
 `endif
 
   /* STB */
-  assign inst_cache_STB_O = rom_cs & cpu_STB_I;
+  assign rom_STB_O = rom_cs & cpu_STB_I;
   assign ram_STB_O = ram_cs & cpu_STB_I;
   assign csr_mem_STB_O = csr_mem_cs & cpu_STB_I;
 `ifdef UART_0
@@ -133,7 +133,7 @@ module memory_controller #(
 
   /* Endereçamento */
   /* ADR */
-  assign inst_cache_ADR_O = cpu_ADR_I;
+  assign rom_ADR_O = cpu_ADR_I;
   assign ram_ADR_O = cpu_ADR_I;
 `ifdef UART_0
   assign uart_0_ADR_O = cpu_ADR_I[4:0];
@@ -147,7 +147,7 @@ module memory_controller #(
   /* Dados */
   /* DAT_O */
   assign cpu_DAT_O =
-    rom_cs ? inst_cache_DAT_I
+    rom_cs ? rom_DAT_I
     : ram_cs ? ram_DAT_I
     `ifdef UART_0
        : uart_0_cs ? uart_0_DAT_I
