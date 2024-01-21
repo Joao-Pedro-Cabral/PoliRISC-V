@@ -14,8 +14,6 @@
 // Para isso irei verificar as saídas do DF (principalmente pc e reg_data,
 // pois elas determinam o contexto)
 
-`timescale 1 ns / 1 ns
-
 `include "macros.vh"
 
 `ifdef RV64I
@@ -703,9 +701,7 @@ module Dataflow_tb ();
           end
         end
         default: begin
-          // Fim do programa -> última instrução 0000000
-          if (pc === `program_size - 4) $display("End of program!");
-          else $display("Error pc: pc = %x", pc);
+          $display("Error pc: pc = %x", pc);
           @(negedge clock);
           $stop;
         end
@@ -715,7 +711,6 @@ module Dataflow_tb ();
 
   // testar o DUT
   initial begin
-    $display("Program  size: %d", `program_size);
   `ifdef RV64I
     $readmemb("./MIFs/core/core/RV64I.mif", LUT_uc);
   `else

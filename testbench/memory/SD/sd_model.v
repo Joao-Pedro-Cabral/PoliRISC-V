@@ -1,10 +1,13 @@
+
+`include "macros.vh"
+
 module sd_model #(
     parameter integer SDSC = 0
 ) (
-    input sck,
-    input cs,
-    input mosi,
-    input [31:0] expected_addr,
+    input wire sck,
+    input wire cs,
+    input wire mosi,
+    input wire [31:0] expected_addr,
 
     output wire miso,
     output reg  cmd_error

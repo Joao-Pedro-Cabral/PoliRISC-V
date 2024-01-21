@@ -1,8 +1,11 @@
+
+`include "macros.vh"
+
 module prefix_operator (
-    input g_i,
-    input g_j,
-    input p_i,
-    input p_j,
+    input  wire g_i,
+    input  wire g_j,
+    input  wire p_i,
+    input  wire p_j,
     output wire g,
     output wire p
 );

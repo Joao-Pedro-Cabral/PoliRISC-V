@@ -4,6 +4,9 @@
 //! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
 //! @date   2023-05-03
 //
+
+`include "macros.vh"
+
 module edge_detector #(
     parameter integer RESET_VALUE = 0,
     // 0: borda de subida; 1: borda de descida; 2: qualquer borda

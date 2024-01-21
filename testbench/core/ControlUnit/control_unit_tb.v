@@ -14,8 +14,6 @@
 // a partir dos sinais de entrada provenientes da RAM, ROM, CSR_mem e DF.
 // Para isso irei verificar as saídas da UC
 
-`timescale 1 ns / 1 ns
-
 `include "macros.vh"
 
 `ifdef RV64I
@@ -568,9 +566,7 @@ module control_unit_tb ();
           end
         end
         default: begin
-          // Fim do programa -> última instrução 0000000
-          if (DF.pc === `program_size - 4) $display("End of program!");
-          else $display("Error pc: pc = %x", DF.pc);
+          $display("Error pc: pc = %x", DF.pc);
           $stop;
         end
       endcase
@@ -579,7 +575,6 @@ module control_unit_tb ();
 
   // testar o DUT
   initial begin : Testbench
-    $display("Program  size: %d", `program_size);
   `ifdef RV64I
     $readmemb("./MIFs/core/core/RV64I.mif", LUT_uc);
   `else

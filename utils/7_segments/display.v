@@ -1,6 +1,9 @@
+
+`include "macros.vh"
+
 module display (
-    input [7:0] ascii,
-    output reg [6:0] hexa
+    input  wire [7:0] ascii,
+    output reg  [6:0] hexa
 );
 
   always @(*) begin

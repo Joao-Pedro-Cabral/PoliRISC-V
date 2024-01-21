@@ -5,12 +5,14 @@
 //! @date   2023-02-12
 //
 
+`include "macros.vh"
+
 module decoderN (
     A,
     enable,
     Y
 );
-  parameter N = 5;
+  parameter integer N = 5;
   input wire [N - 1:0] A;
   input wire enable;
   output reg [2**N - 1:0] Y;

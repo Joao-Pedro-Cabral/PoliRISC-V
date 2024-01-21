@@ -14,6 +14,7 @@
 // Segundo TB (uart_tx_full_test.mif)
 // Checar o comportamento do processador ao escrever no TX
 // Observar como o processador ve o tx_full
+// Legado!
 
 `timescale 1 ns / 1 ns
 

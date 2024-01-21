@@ -13,8 +13,6 @@
 // corretamente e se o comportamento desses componentes está sincronizado
 // Para isso irei verificar as saídas do toplevel
 
-`timescale 1 ns / 1 ns
-
 `include "macros.vh"
 
 `ifdef RV64I
@@ -680,9 +678,7 @@ module core_tb ();
           `ASSERT(db_mem_en === 0);
         end
         default: begin
-          // Fim do programa -> último opcode: 0000000
-          if (pc === `program_size - 4) $display("End  of program!");
-          else $display("Error pc: pc = %x", pc);
+          $display("Error pc: pc = %x", pc);
           $stop;
         end
       endcase
@@ -691,7 +687,6 @@ module core_tb ();
 
   // testar o DUT
   initial begin : Testbench
-    $display("Program  size: %d", `program_size);
     $display("SOT!");
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);

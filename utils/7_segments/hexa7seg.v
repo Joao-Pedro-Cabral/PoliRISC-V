@@ -5,6 +5,8 @@
 //! @date 2023-05-03
 //
 
+`include "macros.vh"
+
 module hexa7seg (
     input  wire [3:0] hexa,
     output reg  [6:0] sseg

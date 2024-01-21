@@ -5,11 +5,13 @@
 //! @date   2023-05-02
 //
 
+`include "macros.vh"
+
 module instruction_cache #(
-    parameter integer L2_CACHE_SIZE = 8,  // log2(tamanho da cache em bytes)
-    parameter integer L2_BLOCK_SIZE = 6,  // log2(tamanho do bloco em bytes)
-    parameter integer L2_ADDR_SIZE  = 32, // log2(tamanho do endereço em bits)
-    parameter integer L2_DATA_SIZE  = 2   // log2(tamanho do dados em bytes)
+    parameter integer L2_CACHE_SIZE = 8,   // log2(tamanho da cache em bytes)
+    parameter integer L2_BLOCK_SIZE = 6,   // log2(tamanho do bloco em bytes)
+    parameter integer L2_ADDR_SIZE  = 32,  // log2(tamanho do endereço em bits)
+    parameter integer L2_DATA_SIZE  = 2    // log2(tamanho do dados em bytes)
 ) (
     /* Sinais do sistema */
     input wire CLK_I,
@@ -17,17 +19,17 @@ module instruction_cache #(
     /* //// */
 
     /* Interface com a memória de instruções */
-    input  wire [2**(L2_BLOCK_SIZE+3)-1:0] inst_DAT_I,
-    input  wire inst_ACK_I,
+    input wire [2**(L2_BLOCK_SIZE+3)-1:0] inst_DAT_I,
+    input wire inst_ACK_I,
     output wire inst_CYC_O,
     output wire inst_STB_O,
     output wire [L2_ADDR_SIZE-1:0] inst_ADR_O,
     /* //// */
 
     /* Interface com o controlador de memória */
-    input  wire inst_cache_CYC_I,
-    input  wire inst_cache_STB_I,
-    input  wire [L2_ADDR_SIZE-1:0] inst_cache_ADR_I,
+    input wire inst_cache_CYC_I,
+    input wire inst_cache_STB_I,
+    input wire [L2_ADDR_SIZE-1:0] inst_cache_ADR_I,
     output wire [2**(L2_DATA_SIZE+3)-1:0] inst_cache_DAT_O,
     output wire inst_cache_ACK_O
     /* //// */

@@ -5,11 +5,13 @@
 //! @date   2023-02-20
 //
 
+`include "macros.vh"
+
 module ImmediateExtender (
     instruction,
     immediate
 );
-  parameter N = 64;  // N >= 32, preferencialmente apenas 64 ou 32
+  parameter integer N = 64;  // N >= 32, preferencialmente apenas 64 ou 32
   input wire [31:0] instruction;
   output wire [N-1:0] immediate;
 
