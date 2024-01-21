@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# create or remove
+command=$1
+
 # run this file in root directory of the project
 root_dir="."
 
@@ -29,10 +32,10 @@ is_leaf() {
 }
 
 # Function to check if a directory doesn't contain "macros.vh"
-does_not_contain_macros_vh() {
+contain_macros_vh() {
     local dir="$1"
     # Check if the "macros.vh" file is not present in the directory
-    [ ! -e "$dir/macros.vh" ]
+    [ -e "$dir/macros.vh" ]
 }
 
 # Iterate through all subdirectories
@@ -47,10 +50,13 @@ find "$root_dir" -type d | while read -r sub_dir; do
         continue
     fi
 
-    if [ -d "$sub_dir" ] && is_leaf "$sub_dir" && does_not_contain_macros_vh "$sub_dir"; then
-        echo "Processing leaf directory without macros.vh: $sub_dir"
-
-        # Create a symbolic link to macros.vh in the subdirectory
-        ln -s "$macros_file" "$sub_dir/macros.vh"
+    if [ -d "$sub_dir" ] && is_leaf "$sub_dir"; then
+        if ! contain_macros_vh "$sub_dir" && [ "$command" == "create" ]; then
+          echo "Creating macros.vh from leaf directory: $sub_dir"
+          ln -s "$macros_file" "$sub_dir/macros.vh"
+        elif contain_macros_vh "$sub_dir" && [ "$command" == "remove" ]; then
+          echo "Removing macros.vh from leaf directory: $sub_dir"
+          rm "$sub_dir/macros.vh"
+        fi
     fi
 done
