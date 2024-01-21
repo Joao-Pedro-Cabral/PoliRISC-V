@@ -152,12 +152,13 @@ module control_unit (
       end
 
       Fetch: begin
-        mem_byte_en = 'hF;
+        mem_byte_en = 4'hF;
         mem_rd_en   = 1'b1;
         if (mem_ack) begin
           ir_en = 1'b1;
+          mem_rd_en = 1'b0;
           proximo_estado = Decode;
-        end
+        end else proximo_estado = Fetch;
       end
       Decode: begin
         case(opcode)
@@ -318,6 +319,7 @@ module control_unit (
         if (mem_ack) begin
           pc_en = 1'b1;
           wr_reg_en = 1'b1;
+          mem_rd_en = 1'b0;
           proximo_estado = Fetch;
         end
         else proximo_estado = Load;
@@ -330,6 +332,8 @@ module control_unit (
         mem_wr_en = 1'b1;
         if (mem_ack) begin
           pc_en = 1'b1;
+          mem_wr_en = 1'b0;
+          proximo_estado = Fetch;
         end
         else proximo_estado = Store;
       end

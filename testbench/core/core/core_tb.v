@@ -35,9 +35,10 @@ module core_tb ();
   wire [`DATA_SIZE-1:0] rd_data;
   wire [`DATA_SIZE-1:0] wr_data;
   wire [`DATA_SIZE-1:0] mem_addr;
-  wire mem_busy;
-  wire mem_rd_en;
+  wire mem_ack;
   wire mem_wr_en;
+  wire mem_CYC_O;
+  wire mem_STB_O;
   wire [`BYTE_NUM-1:0] mem_byte_en;
   // Sinais intermediários de teste
   wire [6:0] opcode;  // opcode simulado pelo TB
@@ -49,6 +50,8 @@ module core_tb ();
   reg wr_reg_en;  // write enable do banco de registradores
   wire [`BYTE_NUM-1:0] mem_byte_en_;  // data mem byte write enable simulado pelo TB
   wire mem_rd_en_;  // data mem read enable simulado pelo TB
+  wire mem_CYC_O_;  // data mem CYC O simulado pelo TB
+  wire mem_STB_O_;  // data mem STB O simulado pelo TB
   wire mem_wr_en_;  // data mem write enable simulado pelo TB
   reg [`DATA_SIZE-1:0] reg_data;  // write data do banco de registradores
   wire [`DATA_SIZE-1:0] A;  // read data 1 do banco de registradores
@@ -60,30 +63,32 @@ module core_tb ();
   reg [`DATA_SIZE-1:0] pc_imm;  // pc + imediato
   reg [`DATA_SIZE-1:0] pc_4;  // pc + 4
   wire mem_op;  // 1, caso esteja sendo executado um S* ou L*
-  wire [`BYTE_NUM+1:0] mem_en;  // Concatenação dos sinais de enable gerados pelo tb
-  wire [`BYTE_NUM+1:0] db_mem_en;  // Concatenação dos sinais de enable gerados pelo dut
+  wire [`BYTE_NUM+2:0] mem_en;  // Concatenação dos sinais de enable gerados pelo tb
+  wire [`BYTE_NUM+2:0] db_mem_en;  // Concatenação dos sinais de enable gerados pelo dut
   // Sinais do Barramento
   // Instruction Memory
-  wire [31:0] rom_data;
-  wire [`DATA_SIZE-1:0] rom_addr;
-  wire rom_enable;
-  wire rom_busy;
+  wire [31:0] rom_DAT_I;
+  wire [`DATA_SIZE-1:0] rom_ADR_O;
+  wire rom_CYC_O;
+  wire rom_STB_O;
+  wire rom_ACK_I;
   // Data Memory
-  wire [`DATA_SIZE-1:0] ram_address;
-  wire [`DATA_SIZE-1:0] ram_write_data;
-  wire [`DATA_SIZE-1:0] ram_read_data;
-  wire ram_output_enable;
-  wire ram_write_enable;
-  wire ram_chip_select;
-  wire [`BYTE_NUM-1:0] ram_byte_enable;
-  wire ram_busy;
+  wire [`DATA_SIZE-1:0] ram_ADR_O;
+  wire [`DATA_SIZE-1:0] ram_DAT_O;
+  wire [`DATA_SIZE-1:0] ram_DAT_I;
+  wire ram_CYC_O;
+  wire ram_STB_O;
+  wire ram_WE_O;
+  wire [`BYTE_NUM-1:0] ram_SEL_O;
+  wire ram_ACK_I;
   // Registradores do CSR mapeados em memória
-  wire csr_mem_rd_en;
-  wire csr_mem_wr_en;
-  wire csr_mem_busy;
-  wire [2:0] csr_mem_addr;
-  wire [`DATA_SIZE-1:0] csr_mem_wr_data;
-  wire [`DATA_SIZE-1:0] csr_mem_rd_data;
+  wire csr_mem_CYC_O;
+  wire csr_mem_STB_O;
+  wire csr_mem_WE_O;
+  wire csr_mem_ACK_I;
+  wire [2:0] csr_mem_ADR_O;
+  wire [`DATA_SIZE-1:0] csr_mem_DAT_O;
+  wire [`DATA_SIZE-1:0] csr_mem_DAT_I;
   wire [`DATA_SIZE-1:0] msip;
   wire [63:0] mtime;
   wire [63:0] mtimecmp;
@@ -122,13 +127,14 @@ module core_tb ();
   core DUT (
       .clock(clock),
       .reset(reset),
-      .rd_data(rd_data),
-      .wr_data(wr_data),
-      .mem_addr(mem_addr),
-      .mem_busy(mem_busy),
-      .mem_rd_en(mem_rd_en),
-      .mem_byte_en(mem_byte_en),
-      .mem_wr_en(mem_wr_en),
+      .DAT_I(rd_data),
+      .DAT_O(wr_data),
+      .mem_ADR_O(mem_addr),
+      .mem_ACK_I(mem_ack),
+      .mem_CYC_O(mem_CYC_O),
+      .mem_STB_O(mem_STB_O),
+      .mem_SEL_O(mem_byte_en),
+      .mem_WE_O(mem_wr_en),
       .external_interrupt(external_interrupt),
       .mem_msip(msip),
       .mem_mtime(mtime),
@@ -143,11 +149,12 @@ module core_tb ();
       .OFFSET(2),
       .BUSY_CYCLES(2)
   ) Instruction_Memory (
-      .clock (clock),
-      .enable(rom_enable),
-      .addr  (rom_addr[9:0]),
-      .data  (rom_data),
-      .busy  (rom_busy)
+      .CLK_I(clock),
+      .CYC_I(rom_CYC_O),
+      .STB_I(rom_STB_O),
+      .ADR_I(rom_ADR_O[9:0]),
+      .DAT_O(rom_DAT_I),
+      .ACK_O(rom_ACK_I)
   );
 
   // Data Memory
@@ -158,68 +165,76 @@ module core_tb ();
       .DATA_SIZE(`DATA_SIZE),
       .BUSY_CYCLES(2)
   ) Data_Memory (
-      .clk(clock),
-      .address(ram_address),
-      .write_data(ram_write_data),
-      .output_enable(ram_output_enable),
-      .write_enable(ram_write_enable),
-      .chip_select(ram_chip_select),
-      .byte_enable(ram_byte_enable),
-      .read_data(ram_read_data),
-      .busy(ram_busy)
+      .CLK_I(clock),
+      .ADR_I(ram_ADR_O),
+      .DAT_I(ram_DAT_O),
+      .CYC_I(ram_CYC_O),
+      .STB_I(ram_STB_O),
+      .WE_I (ram_WE_O),
+      .SEL_I(ram_SEL_O),
+      .DAT_O(ram_DAT_I),
+      .ACK_O(ram_ACK_I)
   );
 
   // Registradores em memória do CSR
   CSR_mem mem_csr (
-      .clock(clock),
-      .reset(reset),
-      .rd_en(csr_mem_rd_en),
-      .wr_en(csr_mem_wr_en),
-      .addr(csr_mem_addr),
-      .wr_data(csr_mem_wr_data),
-      .rd_data(csr_mem_rd_data),
-      .busy(csr_mem_busy),
-      .msip(msip),
-      .mtime(mtime),
-      .mtimecmp(mtimecmp)
+    .CLK_I(clock),
+    .RST_I(reset),
+    .ADR_I(csr_mem_ADR_O),
+    .DAT_I(csr_mem_DAT_O),
+    .CYC_I(csr_mem_CYC_O),
+    .STB_I(csr_mem_STB_O),
+    .WE_I(csr_mem_WE_O),
+    .DAT_O(csr_mem_DAT_I),
+    .ACK_O(csr_mem_ACK_I),
+    .msip(msip),
+    .mtime(mtime),
+    .mtimecmp(mtimecmp)
   );
 
   // Instanciação do barramento
   memory_controller #(
       .BYTE_AMNT(`BYTE_NUM),
+      .ROM_ADDR_INIT(0),
+      .ROM_ADDR_END(32'h00FFFFFF),
+      .RAM_ADDR_INIT(32'h01000000),
+      .RAM_ADDR_END(32'h04FFFFFF),
       .MTIME_ADDR({32'b0, 262142*(2**12)}),    // lui 262142
       .MTIMECMP_ADDR({32'b0, 262143*(2**12)}), // lui 262143
       .MSIP_ADDR({32'b0, 262144*(2**12)})      // lui 262144
   ) BUS (
-      .mem_rd_en(mem_rd_en),
-      .mem_wr_en(mem_wr_en),
-      .mem_byte_en(mem_byte_en),
-      .wr_data(wr_data),
-      .mem_addr(mem_addr),
-      .rd_data(rd_data),
-      .mem_busy(mem_busy),
-`ifdef RV64I
-      .inst_cache_data({32'b0, rom_data}),
-`else
-      .inst_cache_data(rom_data),
-`endif
-      .inst_cache_busy(rom_busy),
-      .inst_cache_enable(rom_enable),
-      .inst_cache_addr(rom_addr),
-      .ram_read_data(ram_read_data),
-      .ram_busy(ram_busy),
-      .ram_address(ram_address),
-      .ram_write_data(ram_write_data),
-      .ram_output_enable(ram_output_enable),
-      .ram_write_enable(ram_write_enable),
-      .ram_chip_select(ram_chip_select),
-      .ram_byte_enable(ram_byte_enable),
-      .csr_mem_addr(csr_mem_addr),
-      .csr_mem_rd_en(csr_mem_rd_en),
-      .csr_mem_wr_en(csr_mem_wr_en),
-      .csr_mem_wr_data(csr_mem_wr_data),
-      .csr_mem_rd_data(csr_mem_rd_data),
-      .csr_mem_busy(csr_mem_busy)
+      .cpu_CYC_I(mem_CYC_O),
+      .cpu_STB_I(mem_STB_O),
+      .cpu_WE_I(mem_wr_en),
+      .cpu_SEL_I(mem_byte_en),
+      .cpu_DAT_I(wr_data),
+      .cpu_ADR_I(mem_addr),
+      .cpu_DAT_O(rd_data),
+      .cpu_ACK_O(mem_ack),
+    `ifdef RV64I
+      .rom_DAT_I    ({32'b0, rom_DAT_I}),
+    `else
+      .rom_DAT_I    (rom_DAT_I),
+    `endif
+      .rom_ACK_I    (rom_ACK_I),
+      .rom_CYC_O    (rom_CYC_O),
+      .rom_STB_O    (rom_STB_O),
+      .rom_ADR_O    (rom_ADR_O),
+      .ram_DAT_I    (ram_DAT_I),
+      .ram_ACK_I    (ram_ACK_I),
+      .ram_ADR_O    (ram_ADR_O),
+      .ram_DAT_O    (ram_DAT_O),
+      .ram_CYC_O    (ram_CYC_O),
+      .ram_WE_O     (ram_WE_O),
+      .ram_STB_O    (ram_STB_O),
+      .ram_SEL_O    (ram_SEL_O),
+      .csr_mem_DAT_I(csr_mem_DAT_I),
+      .csr_mem_ACK_I(csr_mem_ACK_I),
+      .csr_mem_ADR_O(csr_mem_ADR_O),
+      .csr_mem_DAT_O(csr_mem_DAT_O),
+      .csr_mem_CYC_O(csr_mem_CYC_O),
+      .csr_mem_STB_O(csr_mem_STB_O),
+      .csr_mem_WE_O (csr_mem_WE_O)
   );
 
   // Componentes auxiliares para a verificação
@@ -447,8 +462,10 @@ module core_tb ();
                                   : (`BYTE_NUM'h1 & {`BYTE_NUM{mem_op}}));
   assign mem_rd_en_ = (opcode === 7'b0000011) ? 1'b1 : 1'b0;
   assign mem_wr_en_ = (opcode === 7'b0100011) ? 1'b1 : 1'b0;
-  assign mem_en = {mem_wr_en_, mem_rd_en_, mem_byte_en_};
-  assign db_mem_en = {mem_wr_en, mem_rd_en, mem_byte_en};
+  assign mem_CYC_O_ = mem_rd_en_ | mem_wr_en_;
+  assign mem_STB_O_ = mem_CYC_O_;
+  assign mem_en = {mem_wr_en_, mem_CYC_O_, mem_STB_O_, mem_byte_en_};
+  assign db_mem_en = {mem_wr_en, mem_CYC_O, mem_STB_O, mem_byte_en};
 
   // geração do A_immediate
   assign A_immediate = A + immediate;
@@ -468,13 +485,12 @@ module core_tb ();
     else if(mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
   end
 
-  // Não uso apenas @(negedge mem_busy), pois pode haver traps a serem tratadas!
+  // Não uso apenas @(negedge mem_ack), pois pode haver traps a serem tratadas!
   task automatic wait_mem();
     begin
       forever begin
-        @(mem_busy, csr_trap);
-        if (csr_trap) disable wait_mem;
-        else if (!mem_busy) disable wait_mem;  // Descida
+        @(mem_ack, csr_trap);
+        if(csr_trap || mem_ack) disable wait_mem;
       end
     end
   endtask
@@ -506,18 +522,18 @@ module core_tb ();
       mret = 1'b0;
       sret = 1'b0;
       `ASSERT(pc === mem_addr);
-      `ASSERT(db_mem_en === {2'b01, {`BYTE_NUM - 4{1'b0}}, 4'hF});
+      `ASSERT(db_mem_en === {3'b011, {`BYTE_NUM - 4{1'b0}}, 4'hF});
       // Trap não muda o pc anterior, pois não passou a borda de subida
       if(csr_trap) disable DoFetch;
       wait_mem;
       @(negedge clock);
       // Trap -> Ainda estou em Fetch 1
-      if (mem_busy) begin
+      if (!mem_ack) begin
         `ASSERT(pc === mem_addr);
-        `ASSERT(db_mem_en === {2'b01, {`BYTE_NUM - 4{1'b0}}, 4'hF});
+        `ASSERT(db_mem_en === {3'b011, {`BYTE_NUM - 4{1'b0}}, 4'hF});
       end else begin
         instruction = rd_data;  // leitura da ROM -> instrução
-        // Busy abaixado -> instruction mem enable abaixado
+        // ACK levantou -> instruction mem enable abaixado
         `ASSERT(db_mem_en === 4'hF);
       end
     end
@@ -541,19 +557,19 @@ module core_tb ();
           // Confiro se o acesso a memória de dados está correto
           `ASSERT(db_mem_en === mem_en);
           wait_mem;
-          // Load: Após o busy abaixar escrevo no banco simulado
+          // Load: Após o ack levantar escrevo no banco simulado
           if (!opcode[5]) begin
             wr_reg_en = 1'b1;
             reg_data  = rd_data;
           end
           @(negedge clock);
           // Trap -> Ainda estou em Store1/Load1
-          if (mem_busy) begin
+          if (!mem_ack) begin
             `ASSERT(mem_addr === A + immediate);
             `ASSERT(db_mem_en === mem_en);
           end else begin
             // Na borda de descida, confiro se os sinais de controle abaixaram
-            `ASSERT(db_mem_en === {2'b00, mem_byte_en_});
+            `ASSERT(db_mem_en === {3'b000, mem_byte_en_});
             // Caso load -> confiro a leitura
             if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
           end

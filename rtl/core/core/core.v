@@ -25,7 +25,7 @@ module core (
     output wire mem_CYC_O,
     output wire mem_STB_O,
     output wire mem_WE_O,
-    output wire [`DATA_SIZE/8-1:0] mem_byte_en,
+    output wire [`DATA_SIZE/8-1:0] mem_SEL_O,
     // Interrupts from Memory
     input wire external_interrupt,
     input wire [`DATA_SIZE-1:0] mem_msip,
@@ -130,7 +130,7 @@ module core (
       .mem_ack(mem_ACK_I),
       .mem_rd_en(mem_rd_en),
       .mem_wr_en(mem_wr_en),
-      .mem_byte_en(mem_byte_en),
+      .mem_byte_en(mem_SEL_O),
       .opcode(opcode),
       .funct3(funct3),
       .funct7(funct7),
