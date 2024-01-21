@@ -43,16 +43,16 @@ module memory_controller_tb;
   wire ACK_O;
 
   // Interface da Cache
-  wire [31:0] inst_cache_DAT_O;
-  wire [31:0] inst_cache_DAT_I = inst_cache_DAT_O;
-  wire inst_cache_ACK_O;
-  wire inst_cache_ACK_I = inst_cache_ACK_O;
-  wire inst_cache_CYC_O;
-  wire inst_cache_CYC_I = inst_cache_CYC_O;
-  wire inst_cache_STB_O;
-  wire inst_cache_STB_I = inst_cache_STB_O;
-  wire [31:0] inst_cache_ADR_O;
-  wire [31:0] inst_cache_ADR_I = inst_cache_ADR_O;
+  wire [31:0] rom_DAT_O;
+  wire [31:0] rom_DAT_I = rom_DAT_O;
+  wire rom_ACK_O;
+  wire rom_ACK_I = rom_ACK_O;
+  wire rom_CYC_O;
+  wire rom_CYC_I = rom_CYC_O;
+  wire rom_STB_O;
+  wire rom_STB_I = rom_STB_O;
+  wire [31:0] rom_ADR_O;
+  wire [31:0] rom_ADR_I = rom_ADR_O;
 
   // Interface da ROM com a Cache
   wire [127:0] inst_DAT_O;
@@ -129,41 +129,41 @@ module memory_controller_tb;
       .MTIME_ADDR(MtimeAddr),
       .MTIMECMP_ADDR(MtimeCmpAddr)
   ) DUT (
-      .cpu_WE_I        (WE_I),
-      .cpu_CYC_I       (CYC_I),
-      .cpu_STB_I       (STB_I),
-      .cpu_SEL_I       (SEL_I),
-      .cpu_DAT_I       (DAT_I),
-      .cpu_ADR_I       (ADR_I),
-      .cpu_DAT_O       (DAT_O),
-      .cpu_ACK_O       (ACK_O),
-      .inst_cache_DAT_I(inst_cache_DAT_I),
-      .inst_cache_ACK_I(inst_cache_ACK_I),
-      .inst_cache_CYC_O(inst_cache_CYC_O),
-      .inst_cache_STB_O(inst_cache_STB_O),
-      .inst_cache_ADR_O(inst_cache_ADR_O),
-      .ram_DAT_I       (ram_rd_DAT_I),
-      .ram_ACK_I       (ram_ACK_I),
-      .ram_ADR_O       (ram_ADR_O),
-      .ram_DAT_O       (ram_wr_DAT_O),
-      .ram_CYC_O       (ram_CYC_O),
-      .ram_WE_O        (ram_WE_O),
-      .ram_STB_O       (ram_STB_O),
-      .ram_SEL_O       (ram_SEL_O),
-      .csr_mem_DAT_I   (csr_mem_rd_DAT_I),
-      .csr_mem_ACK_I   (csr_mem_ACK_I),
-      .csr_mem_ADR_O   (csr_mem_ADR_O),
-      .csr_mem_DAT_O   (csr_mem_wr_DAT_O),
-      .csr_mem_CYC_O   (csr_mem_CYC_O),
-      .csr_mem_WE_O    (csr_mem_WE_O),
-      .csr_mem_STB_O   (csr_mem_STB_O),
-      .uart_0_DAT_I    (uart_0_rd_DAT_I),
-      .uart_0_ACK_I    (uart_0_ACK_I),
-      .uart_0_ADR_O    (uart_0_ADR_O),
-      .uart_0_DAT_O    (uart_0_wr_DAT_O),
-      .uart_0_CYC_O    (uart_0_CYC_O),
-      .uart_0_WE_O     (uart_0_WE_O),
-      .uart_0_STB_O    (uart_0_STB_O)
+      .cpu_WE_I     (WE_I),
+      .cpu_CYC_I    (CYC_I),
+      .cpu_STB_I    (STB_I),
+      .cpu_SEL_I    (SEL_I),
+      .cpu_DAT_I    (DAT_I),
+      .cpu_ADR_I    (ADR_I),
+      .cpu_DAT_O    (DAT_O),
+      .cpu_ACK_O    (ACK_O),
+      .rom_DAT_I    (rom_DAT_I),
+      .rom_ACK_I    (rom_ACK_I),
+      .rom_CYC_O    (rom_CYC_O),
+      .rom_STB_O    (rom_STB_O),
+      .rom_ADR_O    (rom_ADR_O),
+      .ram_DAT_I    (ram_rd_DAT_I),
+      .ram_ACK_I    (ram_ACK_I),
+      .ram_ADR_O    (ram_ADR_O),
+      .ram_DAT_O    (ram_wr_DAT_O),
+      .ram_CYC_O    (ram_CYC_O),
+      .ram_WE_O     (ram_WE_O),
+      .ram_STB_O    (ram_STB_O),
+      .ram_SEL_O    (ram_SEL_O),
+      .csr_mem_DAT_I(csr_mem_rd_DAT_I),
+      .csr_mem_ACK_I(csr_mem_ACK_I),
+      .csr_mem_ADR_O(csr_mem_ADR_O),
+      .csr_mem_DAT_O(csr_mem_wr_DAT_O),
+      .csr_mem_CYC_O(csr_mem_CYC_O),
+      .csr_mem_WE_O (csr_mem_WE_O),
+      .csr_mem_STB_O(csr_mem_STB_O),
+      .uart_0_DAT_I (uart_0_rd_DAT_I),
+      .uart_0_ACK_I (uart_0_ACK_I),
+      .uart_0_ADR_O (uart_0_ADR_O),
+      .uart_0_DAT_O (uart_0_wr_DAT_O),
+      .uart_0_CYC_O (uart_0_CYC_O),
+      .uart_0_WE_O  (uart_0_WE_O),
+      .uart_0_STB_O (uart_0_STB_O)
   );
 
   instruction_cache #(
@@ -179,11 +179,11 @@ module memory_controller_tb;
       .inst_CYC_O      (inst_CYC_O),
       .inst_STB_O      (inst_STB_O),
       .inst_ADR_O      (inst_ADR_O),
-      .inst_cache_CYC_I(inst_cache_CYC_I),
-      .inst_cache_STB_I(inst_cache_STB_I),
-      .inst_cache_ADR_I(inst_cache_ADR_I),
-      .inst_cache_DAT_O(inst_cache_DAT_O),
-      .inst_cache_ACK_O(inst_cache_ACK_O)
+      .inst_cache_CYC_I(rom_CYC_I),
+      .inst_cache_STB_I(rom_STB_I),
+      .inst_cache_ADR_I(rom_ADR_I),
+      .inst_cache_DAT_O(rom_DAT_O),
+      .inst_cache_ACK_O(rom_ACK_O)
   );
 
   // Instanciação da memória ROM
