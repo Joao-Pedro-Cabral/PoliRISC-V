@@ -39,8 +39,8 @@ lui sp,4096 ; main
 lui x5,1     
 or sp,sp,x5     
 addi sp,sp,-32
-sw ra,28(sp)
-sw s0,24(sp)
+sw ra,24(sp)
+sw s0,20(sp)
 addi s0,sp,32
 lw a1,-24(s0)
 lw a0,-20(s0)
