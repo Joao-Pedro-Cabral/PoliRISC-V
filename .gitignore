@@ -19,7 +19,11 @@ simulation/transcript
 simulation/*.wlf
 simulation/Makefile
 simulation/assembly_converter/program.mif
+
+# arquivos de automatização de simulação (hdlmake + scripts python)
 *macros.vh
+*__pycache__
+simulation/log.txt
 
 # arquivos de sintese do Vivado (manter apenas arquivos do usuario)
 synthesis/Vivado/*

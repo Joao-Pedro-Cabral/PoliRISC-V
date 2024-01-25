@@ -7,6 +7,7 @@ files = [
 
 modules = {
     "local": [
+        "../Adder",
         "../../../utils/components"
     ],
 }
