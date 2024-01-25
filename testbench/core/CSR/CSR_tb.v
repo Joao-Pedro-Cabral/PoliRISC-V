@@ -62,6 +62,7 @@ module CSR_tb ();
   CSR DUT (
       .clock(clock),
       .reset(csr_reset),
+      .trap_en(1'b1),
       .wr_en(wr_en),
       .addr(addr),
       .wr_data(wr_data),

@@ -29,10 +29,11 @@ sw t0,0(s2)
 ; Supervisor Software Interrupt
 addi s2,x0,0b10
 csrrs x0,mip,s2
-jal ra,112
+jal ra,116
 
 ; end program
 addi sp,sp,28
+addi sp,sp,-28
 addi x1,x0,1
 sw t6,0(sp)
 addi sp,sp,4

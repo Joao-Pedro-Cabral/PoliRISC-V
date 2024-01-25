@@ -32,7 +32,6 @@ module control_unit (
     input wire negative,
     input wire carry_out,
     input wire overflow,
-    input wire trap,
     input wire [1:0] privilege_mode,
     input wire csr_addr_exception,
 
@@ -80,7 +79,8 @@ module control_unit (
         Load = 5'h09,
         Store = 5'h0A,
         Ecall = 5'h0B,
-        Idle = 5'h0C;
+        Idle = 5'h0C,
+        Illegal = 5'h0F;
 `ifdef TrapReturn
   localparam reg [4:0] Xret = 5'h0D; // MRET, SRET
 `endif
@@ -128,7 +128,6 @@ module control_unit (
   // lógica da mudança de estados
   always @(posedge clock, posedge reset) begin
     if (reset) estado_atual <= Idle;
-    else if (trap) estado_atual <= Fetch;
     else estado_atual <= proximo_estado;
   end
 
@@ -165,50 +164,50 @@ module control_unit (
           7'b0110011: begin // ULA R-Type
             proximo_estado = RegistradorRegistrador;
             if(funct3 == 3'b000 || funct3 == 3'b101) begin
-              if({funct7[6],funct7[4:0]} != 0) illegal_instruction = 1'b1;
-            end else if(funct7 != 0) illegal_instruction = 1'b1;
+              if({funct7[6],funct7[4:0]} != 0) proximo_estado = Illegal;
+            end else if(funct7 != 0) proximo_estado = Illegal;
           end
         `ifdef RV64I
           7'b0111011: begin // W R-Type
             proximo_estado = RegistradorRegistrador;
             if(funct3 == 3'b000 || funct3 == 3'b101) begin
-                if({funct7[6],funct7[4:0]} != 0) illegal_instruction = 1'b1;
-            end else if(funct3 != 3'b001) illegal_instruction = 1'b1;
+                if({funct7[6],funct7[4:0]} != 0) proximo_estado = Illegal;
+            end else if(funct3 != 3'b001) proximo_estado = Illegal;
           end
         `endif
           7'b0010011: begin // ULA I-Type
             proximo_estado = RegistradorImediato;
           `ifdef RV64I
-            if(funct3 == 3'b001 && funct7[6:1] != 0) illegal_instruction = 1'b1;
+            if(funct3 == 3'b001 && funct7[6:1] != 0) proximo_estado = Illegal;
             if(funct3 == 3'b101 && {funct7[6],funct7[4:1]} != 0)
-              illegal_instruction = 1'b1;
+              proximo_estado = Illegal;
           `else
-            if(funct3 == 3'b001 && funct7 != 0) illegal_instruction = 1'b1;
+            if(funct3 == 3'b001 && funct7 != 0) proximo_estado = Illegal;
             if(funct3 == 3'b101 && {funct7[6],funct7[4:0]} != 0)
-              illegal_instruction = 1'b1;
+              proximo_estado = Illegal;
           `endif
           end
           `ifdef RV64I
           7'b0011011: begin // ULA W I-Type
             proximo_estado = RegistradorImediato;
-            if(funct3 == 3'b101 && {funct7[6],funct7[4:0]} != 0) illegal_instruction = 1'b1; // SRIW
-            else if(funct3 == 3'b001 && funct7 != 0) illegal_instruction = 1'b1; // SLLIW
-            else if(funct3 != 3'b000) illegal_instruction = 1'b1; // ADDIW
+            if(funct3 == 3'b101 && {funct7[6],funct7[4:0]} != 0) proximo_estado = Illegal; // SRIW
+            else if(funct3 == 3'b001 && funct7 != 0) proximo_estado = Illegal; // SLLIW
+            else if(funct3 != 3'b000) proximo_estado = Illegal; // ADDIW
           end
           `endif
           7'b0000011: begin // I-Type (Load)
             proximo_estado = Load;
             `ifdef RV64I
-              if(funct3 == 3'b111) illegal_instruction = 1'b1;
+              if(funct3 == 3'b111) proximo_estado = Illegal;
             `else
-              if(funct3 == 3'b011 || funct3[2:1] == 2'b11) illegal_instruction = 1'b1;
+              if(funct3 == 3'b011 || funct3[2:1] == 2'b11) proximo_estado = Illegal;
             `endif
           end
           7'b0100011: begin // S-Type
             proximo_estado = Store;
-            if(funct3[2]) illegal_instruction = 1'b1;
+            if(funct3[2]) proximo_estado = Illegal;
           `ifndef RV64I
-            else if(funct3[1:0] == 2'b11) illegal_instruction = 1'b1;
+            else if(funct3[1:0] == 2'b11) proximo_estado = Illegal;
           `endif
           end
           7'b1100011: proximo_estado = DesvioCondicional;
@@ -223,17 +222,17 @@ module control_unit (
               else if(funct7 == 7'h18 && privilege_mode == 2'b11) proximo_estado = Xret; // MRET
               else if(funct7 == 7'h08 && privilege_mode[0]) proximo_estado = Xret; // SRET
               `endif
-              else illegal_instruction = 1'b1;
+              else proximo_estado = Illegal;
             end
             `ifdef ZICSR
             else if(funct3 != 3'b100) begin // Zicsr
               if(privilege_mode >= funct7[4:3]) proximo_estado = Zicsr;
-              else illegal_instruction = 1'b1;
+              else proximo_estado = Illegal;
             end
             `endif
-            else illegal_instruction = 1'b1;
+            else proximo_estado = Illegal;
           end
-          default: illegal_instruction = 1'b1;
+          default: proximo_estado = Illegal;
         endcase
       end
 
@@ -340,6 +339,13 @@ module control_unit (
 
       Ecall: begin
         ecall = 1'b1;
+        pc_en = 1'b1;
+        proximo_estado = Fetch;
+      end
+
+      Illegal: begin
+        illegal_instruction = 1'b1;
+        pc_en = 1'b1;
         proximo_estado = Fetch;
       end
 
@@ -347,6 +353,7 @@ module control_unit (
       Xret: begin
         mret = funct7[4];
         sret = ~funct7[4];
+        pc_en = 1'b1;
         proximo_estado = Fetch;
       end
     `endif

@@ -57,7 +57,6 @@ module control_unit_tb ();
   wire negative;
   wire carry_out;
   wire overflow;
-  wire trap;
   wire [1:0] privilege_mode;
   wire csr_addr_exception;
   // To Dataflow
@@ -121,7 +120,6 @@ module control_unit_tb ();
   wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
   reg [DfSrcSize-1:0] df_src;
   wire [DfSrcSize+1:0] db_df_src;  // Idem df_src, adicionando pc_en e ir_en
-  reg _trap;
   // variáveis
   integer limit = 10000;  // evitar loop infinito
   localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5; // Estados
@@ -147,7 +145,6 @@ module control_unit_tb ();
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
-      .trap(trap),
       .privilege_mode(privilege_mode),
       .ecall(ecall),
     `ifdef TrapReturn
@@ -211,7 +208,6 @@ module control_unit_tb ();
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
-      .trap(trap),
       .privilege_mode(privilege_mode),
       .mem_addr_src(mem_addr_src),
       .ecall(ecall),
@@ -404,7 +400,7 @@ module control_unit_tb ();
     // Sinais determinados pelo estado
     pc_en, // DfSrcSize + 1
     ir_en, // DfSrcSize
-    illegal_instruction, // DfSrcSize + 1
+    illegal_instruction, // DfSrcSize - 1
     // Sinais determinados pelo opcode
     alua_src,
     alub_src,
@@ -446,16 +442,6 @@ module control_unit_tb ();
     else if(mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
   end
 
-  // Não uso apenas @(posedge mem_ack), pois pode haver traps a serem tratadas!
-  task automatic wait_mem();
-    begin
-      forever begin
-        @(mem_ack, trap);
-        if(trap || mem_ack) disable wait_mem;
-      end
-    end
-  endtask
-
   task automatic DoReset();
     begin
       reset = 1'b1;
@@ -470,14 +456,10 @@ module control_unit_tb ();
   task automatic DoFetch();
     begin
       `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
-      // Trap não muda o df_src ainda
-      if(trap) disable DoFetch;
-      wait_mem;
+      @(posedge mem_ack);
       @(negedge clock);
-      // Trap -> UC ainda está no Fetch1
-      if(!mem_ack) `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
       // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
-      else `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
+      `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
     end
   endtask
 
@@ -485,44 +467,41 @@ module control_unit_tb ();
     begin
       df_src = find_instruction(opcode, funct3, funct7, LUT_linear); // obter saídas pelo sheets
       // Verifico se algum enable está erroneamente habilitado
-      `ASSERT(db_df_src[DfSrcSize+1:DfSrcSize] === 0);
+      `ASSERT(db_df_src[DfSrcSize+1:0] === 0);
       // Illegal instruction já pode ter levantado
-      `ASSERT(db_df_src[DfSrcSize-1] === df_src[DfSrcSize-1]);
-      `ASSERT(db_df_src[DfSrcSize-2:0] === 0);
+      //`ASSERT(db_df_src[DfSrcSize-1] === df_src[DfSrcSize-1]);
+      //`ASSERT(db_df_src[DfSrcSize-1:0] === 0);
     end
   endtask
 
   task automatic DoExecute();
     begin
-      if (!csr_addr_exception) begin
-        `ASSERT({1'b0, df_src[DfSrcSize-1:NotOnlyOp]} === db_df_src[DfSrcSize:NotOnlyOp]);
-        `ASSERT(df_src[NotOnlyOp-3:0] === db_df_src[NotOnlyOp-3:0]);
-        // Não testo pc_src para instruções do tipo B
-        if (opcode !== 7'b1100011) `ASSERT(df_src[NotOnlyOp-1] === db_df_src[NotOnlyOp-1]);
-        // Load -> não posso usar o sheets!(wr_reg_en só habilita depois)
-        if (opcode !== 7'b0000011) begin
-          `ASSERT(db_df_src[NotOnlyOp-2] === df_src[NotOnlyOp-2]);
-        end else begin
-          `ASSERT(db_df_src[NotOnlyOp-2] === 1'b0);
-        end
+      `ASSERT(db_df_src[DfSrcSize] === 1'b0); // ir_en desabilitado
+      // SYSTEM: Não checo illegal instruction
+      if (opcode !== 7'b1110011) begin
+        `ASSERT(df_src[DfSrcSize-1:NotOnlyOp] === db_df_src[DfSrcSize-1:NotOnlyOp]);
+      end else begin
+        `ASSERT(df_src[DfSrcSize-2:NotOnlyOp] === db_df_src[DfSrcSize-2:NotOnlyOp]);
+      end
+      `ASSERT(df_src[NotOnlyOp-3:0] === db_df_src[NotOnlyOp-3:0]);
+      // Não testo pc_src para instruções do tipo B
+      if (opcode !== 7'b1100011) `ASSERT(df_src[NotOnlyOp-1] === db_df_src[NotOnlyOp-1]);
+      // Load -> não posso usar o sheets!(wr_reg_en só habilita depois)
+      if (opcode !== 7'b0000011) begin
+        `ASSERT(db_df_src[NotOnlyOp-2] === df_src[NotOnlyOp-2]);
+      end else begin
+        `ASSERT(db_df_src[NotOnlyOp-2] === 1'b0);
       end
       case (opcode)
         // Store(S*) e Load(L*)
         7'b0100011, 7'b0000011: begin
-          wait_mem;
+          @(posedge mem_ack);
           // Espero o busy abaixar para verificar os enables
           @(negedge clock);
-          // Trap -> UC ainda está no Store1/Load1
-          if(!mem_ack) begin
-            `ASSERT({2'h0, df_src[DfSrcSize-1:NotOnlyOp-1]} === db_df_src[DfSrcSize+1:NotOnlyOp-1]);
-            `ASSERT({1'b0, df_src[NotOnlyOp-3:0]} === db_df_src[NotOnlyOp-2:0]);
-          end
-          else begin
-            `ASSERT(pc_en === 1'b1);
-            `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
-            `ASSERT(mem_rd_en === 1'b0);
-            `ASSERT(mem_wr_en === 1'b0);
-          end
+          `ASSERT(pc_en === 1'b1);
+          `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
+          `ASSERT(mem_rd_en === 1'b0);
+          `ASSERT(mem_wr_en === 1'b0);
         end
         // Branch(B*)
         7'b1100011: begin
@@ -559,15 +538,12 @@ module control_unit_tb ();
         // ECALL, MRET, SRET, CSRR* (SYSTEM)
         7'b1110011: begin
           if(funct3[1:0] !== 2'b00 && csr_addr_exception) `ASSERT(illegal_instruction === 1'b1);
-          if(privilege_mode >= funct7[4:3]) begin
-            `ASSERT(pc_en === (|funct3));
-          end else begin
-            `ASSERT(pc_en === 1'b0);
-          end
+          if(privilege_mode < funct7[4:3]) `ASSERT(illegal_instruction === 1'b1);
+          `ASSERT(pc_en === 1'b1);
         end
-        default: begin
-          $display("Error pc: pc = %x", DF.pc);
-          $stop;
+        default: begin // Illegal Instruction
+          `ASSERT(illegal_instruction === 1'b1);
+          `ASSERT(pc_en === 1'b1);
         end
       endcase
     end
@@ -591,11 +567,9 @@ module control_unit_tb ();
         default: DoReset;
       endcase
       #1;
-      _trap = trap;
       @(posedge clock);
       // Atualizando estado
-      if(_trap) estado = Fetch;
-      else estado = (estado + 1)%3;
+      estado = (estado + 1)%3;
     end
   end
 endmodule
