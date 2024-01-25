@@ -63,7 +63,6 @@ module Dataflow (
     output wire negative,
     output wire carry_out,
     output wire overflow,
-    output wire trap,
     output wire csr_addr_exception,
     output wire [1:0] privilege_mode
 );
@@ -88,7 +87,6 @@ module Dataflow (
   // PC
   wire [`DATA_SIZE-1:0] pc;
   reg  [`DATA_SIZE-1:0] new_pc;
-  wire pc_en_;
   // Instruction Register(IR)
   wire [          31:0] ir;
   // CSR
@@ -134,7 +132,8 @@ module Dataflow (
   ) int_reg_state (
       .clock(clock),
       .reset(reset),
-      .write_enable(wr_reg_en && !_trap),
+      // You can't write an illegal value coming from CSR
+      .write_enable(wr_reg_en && !(wr_reg_src == 2'b01 && csr_addr_exception)),
       .read_address1(rs1_addr),
       .read_address2(ir[24:20]),
       .write_address(ir[11:7]),
@@ -191,11 +190,7 @@ module Dataflow (
   ) pc_register (
       .clock(clock),
       .reset(reset),
-    `ifdef TrapReturn
-      .enable(pc_en | mret | sret | _trap),
-    `else
-      .enable(pc_en | _trap),
-    `endif
+      .enable(pc_en),
       .D(new_pc),
       .Q(pc)
   );
@@ -208,11 +203,6 @@ module Dataflow (
     else if (pc_src) new_pc = pc_plus_immediate;
     else new_pc = pc_plus_4;
   end
-`ifdef TrapReturn
-  assign pc_en_ = pc_en | mret | sret | _trap;
-`else
-  assign pc_en_ = pc_en | _trap;
-`endif
   // Immediate Extender
   ImmediateExtender #(
       .N(`DATA_SIZE)
@@ -237,6 +227,7 @@ module Dataflow (
   CSR csr_bank (
       .clock(clock),
       .reset(reset),
+      .trap_en(pc_en),
       // Interrupt/Exception Signals
       .ecall(ecall),
       .illegal_instruction(illegal_instruction),
@@ -296,7 +287,6 @@ module Dataflow (
   assign opcode = ir[6:0];
   assign funct3 = ir[14:12];
   assign funct7 = ir[31:25];
-  assign trap = _trap;
   assign privilege_mode = _privilege_mode;
 
 endmodule

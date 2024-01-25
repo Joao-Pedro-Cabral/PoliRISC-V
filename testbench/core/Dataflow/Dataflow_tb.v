@@ -83,7 +83,6 @@ module Dataflow_tb ();
   wire negative;
   wire carry_out;
   wire overflow;
-  wire trap;
   wire [1:0] privilege_mode;
   wire csr_addr_exception;
   // Sinais do Barramento
@@ -140,6 +139,7 @@ module Dataflow_tb ();
   reg [`DATA_SIZE-1:0] pc_imm;  // pc + (imediato << 1) OU {A + immediate[N-1:1], 0}
   reg [`DATA_SIZE-1:0] pc_4;  // pc + 4
   reg _trap; // csr_trap antes da borda de subida do clock
+  reg [`DATA_SIZE-1:0] _trap_addr; // trap_addr antes da borda de subida do clock
   // flags da ULA ->  geradas de forma simulada
   wire zero_;
   wire negative_;
@@ -201,7 +201,6 @@ module Dataflow_tb ();
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
-      .trap(trap),
       .csr_addr_exception(csr_addr_exception),
       .privilege_mode(privilege_mode)
   );
@@ -316,7 +315,7 @@ module Dataflow_tb ();
   ) banco_de_registradores (
       .clock(clock),
       .reset(reset),
-      .write_enable(wr_reg_en && !csr_trap),
+      .write_enable(wr_reg_en && !(wr_reg_src == 2'b01 && csr_addr_exception_)),
       .read_address1(instruction[19:15]),
       .read_address2(instruction[24:20]),
       .write_address(instruction[11:7]),
@@ -328,6 +327,7 @@ module Dataflow_tb ();
   CSR registradores_de_controle (
       .clock(clock),
       .reset(reset),
+      .trap_en(pc_en),
       // Interrupt/Exception Signals
       .ecall(ecall),
       .illegal_instruction(illegal_instruction),
@@ -508,16 +508,6 @@ module Dataflow_tb ();
     else if(mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
   end
 
-  // Não uso apenas @(posedge mem_ack), pois pode haver traps a serem tratadas!
-  task automatic wait_mem();
-    begin
-      forever begin
-        @(mem_ack, csr_trap);
-        if(csr_trap || mem_ack) disable wait_mem;
-      end
-    end
-  endtask
-
   task automatic DoReset();
     begin
       db_df_src = 0;
@@ -542,18 +532,10 @@ module Dataflow_tb ();
       db_df_src = {1'b1, {`BYTE_NUM - 4{1'b0}}, 4'hF};
       // Testo o endereço de acesso a Memória de Instrução
       `ASSERT(pc === mem_addr);
-      // Trap não muda o pc anterior, pois não passou a borda de subida
-      if(csr_trap) begin
-        db_df_src = 0;
-        disable DoFetch;
-      end
-      wait_mem;
+      @(posedge mem_ack);
       @(negedge clock);
-      // Sem Trap -> Terminar Fetch
-      if(mem_ack) begin
-        db_df_src   = {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF};
-        instruction = rd_data;
-      end else db_df_src = {1'b1, {`BYTE_NUM - 4{1'b0}}, 4'hF};
+      db_df_src   = {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF};
+      instruction = rd_data;
     end
   endtask
 
@@ -567,7 +549,6 @@ module Dataflow_tb ();
       // Obtenho os sinais da UC -> Sheets
       df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
       db_df_src = 0;
-      db_df_src[DfSrcSize-1] = df_src[DfSrcSize-1]; // illegal_instruction
     end
   endtask
 
@@ -585,7 +566,7 @@ module Dataflow_tb ();
           `ASSERT(mem_addr === A + immediate);
           // Caso seja store -> confiro a palavra a ser escrita
           if (opcode[5]) `ASSERT(wr_data === B);
-          wait_mem;
+          @(posedge mem_ack);
           db_df_src[`BYTE_NUM+1:`BYTE_NUM] = 2'b00;
           // caso necessário escrevo no banco
           db_df_src[NotOnlyOp-2] = df_src[NotOnlyOp-2];
@@ -593,7 +574,7 @@ module Dataflow_tb ();
           if (!opcode[5]) reg_data = rd_data;
           @(negedge clock);
           // Caso load -> confiro a leitura
-          if (!opcode[5] && mem_ack) `ASSERT(DUT.rd === reg_data);
+          if (!opcode[5]) `ASSERT(DUT.rd === reg_data);
           next_pc = pc + 4;
         end
         // Branch(B*)
@@ -664,7 +645,7 @@ module Dataflow_tb ();
         // ECALL, MRET, SRET, CSRR* (SYSTEM)
         7'b1110011: begin
           db_df_src[NotOnlyOp-1:NotOnlyOp-2] = df_src[NotOnlyOp-1:NotOnlyOp-2];
-          db_df_src[DfSrcSize+1] = (funct3 != 3'b000);
+          db_df_src[DfSrcSize+1] = 1'b1;
           @(negedge clock);
           if(funct3 === 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
@@ -701,9 +682,10 @@ module Dataflow_tb ();
           end
         end
         default: begin
-          $display("Error pc: pc = %x", pc);
+          // Habilito pc e illegal_instruction
+          db_df_src[DfSrcSize-1] = 1'b1;
+          db_df_src[DfSrcSize+1] = 1'b1;
           @(negedge clock);
-          $stop;
         end
       endcase
     end
@@ -726,18 +708,14 @@ module Dataflow_tb ();
         default: DoReset;
       endcase
       #1;
-      `ASSERT(trap === csr_trap);
+      `ASSERT(DUT._trap === csr_trap);
       `ASSERT(privilege_mode === csr_privilege_mode);
       _trap = csr_trap;
+      _trap_addr = trap_addr;
       @(posedge clock);
       // Atualizando estado  e pc
-      if(_trap) begin
-        estado = Fetch;
-        pc = trap_addr;
-      end else begin
-        estado = (estado + 1)%3;
-        pc = next_pc;
-      end
+      estado = (estado + 1)%3;
+      pc = _trap ? _trap_addr : next_pc;
       next_pc = pc;
     end
     $stop;

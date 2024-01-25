@@ -56,7 +56,6 @@ module core (
   wire negative;
   wire carry_out;
   wire overflow;
-  wire trap;
   wire [1:0] privilege_mode;
   wire ecall;
   wire illegal_instruction;
@@ -119,7 +118,6 @@ module core (
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
-      .trap(trap),
       .privilege_mode(privilege_mode)
   );
 
@@ -138,7 +136,6 @@ module core (
       .negative(negative),
       .carry_out(carry_out),
       .overflow(overflow),
-      .trap(trap),
       .privilege_mode(privilege_mode),
       .csr_addr_exception(csr_addr_exception),
       .alua_src(alua_src),

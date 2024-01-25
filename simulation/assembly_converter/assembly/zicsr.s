@@ -35,7 +35,7 @@ sw t0,0(t1)
 addi s2,x0,0b1
 slli s2,s2,5             ; STIP bit in mip
 csrrs x0,mip,s2
-jal ra,264
+jal ra,268
 
 ; Illegal Instruction
 mul x0,x0,x0
@@ -49,10 +49,11 @@ sw t0,0(s2)
 ; Supervisor Software Interrupt
 addi s2,x0,0b10
 csrrs x0,mip,s2
-jal ra,232
+jal ra,236
 
 ; end program
 addi sp,sp,28
+addi sp,sp,-28
 addi x1,x0,1
 sw t6,0(sp)
 addi sp,sp,4

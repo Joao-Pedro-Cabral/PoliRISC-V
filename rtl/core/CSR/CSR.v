@@ -14,6 +14,7 @@
 module CSR (
     input wire clock,
     input wire reset,
+    input wire trap_en,
     input wire wr_en,
     input wire [11:0] addr,
     input wire [`DATA_SIZE-1:0] wr_data,
@@ -105,7 +106,8 @@ module CSR (
   wire s_legal_write;  // check if wr_data is valid for scause
   // Trap signals
   wire _trap, sync_trap, async_trap;
-  reg m_trap, s_trap;
+  wire m_trap, s_trap;
+  reg m_trap_, s_trap_;
   wire [`DATA_SIZE-1:0] m_trap_addr, s_trap_addr;
   wire [`DATA_SIZE-3:0] m_trap_addr_vet, s_trap_addr_vet;
 
@@ -382,7 +384,7 @@ module CSR (
       .Q(sscratch)
   );
 
-  // MEPC
+  // MEPC -> Talvez esteja errado!
   always @(posedge clock, posedge reset) begin
     if (reset) mepc_ <= 0;
     else if (m_trap) mepc_ <= pc;
@@ -495,59 +497,61 @@ module CSR (
   always @(*) begin : trap_calc
     cause_async = 0;
     cause_sync = 0;
-    m_trap = 0;
-    s_trap = 0;
+    m_trap_ = 0;
+    s_trap_ = 0;
     // 1st Priority Mux
     // M-Trap: M-Mode AND !mi(e)deleg[i]
     // S-Trap: !M-Mode AND mi(e)deleg[i]
     if (interrupt_vector[5]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MEI;
-      m_trap = 1'b1;
-      s_trap = 1'b0;
+      m_trap_ = 1'b1;
+      s_trap_ = 1'b0;
     end else if (interrupt_vector[3]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MTI;
-      m_trap = 1'b1;
-      s_trap = 1'b0;
+      m_trap_ = 1'b1;
+      s_trap_ = 1'b0;
     end else if (interrupt_vector[1]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = MSI;
-      m_trap = 1'b1;
-      s_trap = 1'b0;
+      m_trap_ = 1'b1;
+      s_trap_ = 1'b0;
     end else if (interrupt_vector[4]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = SEI;
-      m_trap = !mideleg[SEI];
-      s_trap = !priv[1] & mideleg[SEI];
+      m_trap_ = !mideleg[SEI];
+      s_trap_ = !priv[1] & mideleg[SEI];
     end else if (interrupt_vector[2]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = STI;
-      m_trap = !mideleg[STI];
-      s_trap = !priv[1] & mideleg[STI];
+      m_trap_ = !mideleg[STI];
+      s_trap_ = !priv[1] & mideleg[STI];
     end else if (interrupt_vector[0]) begin
       cause_async[`DATA_SIZE-1] = 1'b1;
       cause_async[`DATA_SIZE-2:0] = SSI;
-      m_trap = !mideleg[SSI];
-      s_trap = !priv[1] & mideleg[SSI];
+      m_trap_ = !mideleg[SSI];
+      s_trap_ = !priv[1] & mideleg[SSI];
     end else if (exception_vector[0]) begin
-      m_trap = priv[1] | !medeleg[II];
-      s_trap = !priv[1] & medeleg[II];
+      m_trap_ = priv[1] | !medeleg[II];
+      s_trap_ = !priv[1] & medeleg[II];
     end else if (exception_vector[1]) begin
-      m_trap = !medeleg[ECU];
-      s_trap = medeleg[ECU]; // priv = 2'b00
+      m_trap_ = !medeleg[ECU];
+      s_trap_ = medeleg[ECU];  // priv = 2'b00
     end else if (exception_vector[2]) begin
-      m_trap = !medeleg[ECS];
-      s_trap = medeleg[ECS]; // priv = 2'b01
+      m_trap_ = !medeleg[ECS];
+      s_trap_ = medeleg[ECS];  // priv = 2'b01
     end else if (exception_vector[3]) begin
-      m_trap = 1'b1;
-      s_trap = 1'b0;
+      m_trap_ = 1'b1;
+      s_trap_ = 1'b0;
     end
     // 2nd Priority Mux -> Exclusive for cause_sync -> Decrease Critical Path
     if (exception_vector[0]) cause_sync = II;
     else if (|exception_vector[3:1]) cause_sync = {2'b10, priv};
   end
   assign cause = async_trap ? cause_async : cause_sync;  // Interrupt > Exception
+  assign m_trap = m_trap_ & trap_en;
+  assign s_trap = s_trap_ & trap_en;
   assign _trap = m_trap | s_trap;
   assign trap = _trap;
 

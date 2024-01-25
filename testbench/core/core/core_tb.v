@@ -100,8 +100,10 @@ module core_tb ();
   reg csr_wr_en;
   reg mret;
   reg sret;
+  reg trap_en = 1'b0;
   wire csr_trap;
   wire [`DATA_SIZE-1:0] trap_addr;
+  reg [`DATA_SIZE-1:0] _trap_addr;
   reg _trap;  // csr_trap antes da borda de subida do clock
   wire [1:0] csr_privilege_mode;
   wire csr_addr_exception;
@@ -249,7 +251,7 @@ module core_tb ();
   ) banco_de_registradores (
       .clock(clock),
       .reset(reset),
-      .write_enable(wr_reg_en && !csr_trap),
+      .write_enable(wr_reg_en && !(opcode === 7'b1110011 && funct3 !== 0 && csr_addr_exception)),
       .read_address1(instruction[19:15]),
       .read_address2(instruction[24:20]),
       .write_address(instruction[11:7]),
@@ -261,6 +263,7 @@ module core_tb ();
   CSR registradores_de_controle (
       .clock(clock),
       .reset(reset),
+      .trap_en(trap_en),
       // Interrupt/Exception Signals
       .ecall(check_ecall(opcode, funct3, funct7, estado)),
       // .illegal_instruction(DUT.illegal_instruction),
@@ -483,16 +486,6 @@ module core_tb ();
     else if(mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
   end
 
-  // Não uso apenas @(negedge mem_ack), pois pode haver traps a serem tratadas!
-  task automatic wait_mem();
-    begin
-      forever begin
-        @(mem_ack, csr_trap);
-        if(csr_trap || mem_ack) disable wait_mem;
-      end
-    end
-  endtask
-
   task automatic DoReset();
     begin
       // desabilito a escrita no banco simulado
@@ -521,19 +514,11 @@ module core_tb ();
       sret = 1'b0;
       `ASSERT(pc === mem_addr);
       `ASSERT(db_mem_en === {3'b011, {`BYTE_NUM - 4{1'b0}}, 4'hF});
-      // Trap não muda o pc anterior, pois não passou a borda de subida
-      if(csr_trap) disable DoFetch;
-      wait_mem;
+      @(posedge mem_ack);
       @(negedge clock);
-      // Trap -> Ainda estou em Fetch 1
-      if (!mem_ack) begin
-        `ASSERT(pc === mem_addr);
-        `ASSERT(db_mem_en === {3'b011, {`BYTE_NUM - 4{1'b0}}, 4'hF});
-      end else begin
-        instruction = rd_data;  // leitura da ROM -> instrução
-        // ACK levantou -> instruction mem enable abaixado
-        `ASSERT(db_mem_en === 4'hF);
-      end
+      instruction = rd_data;  // leitura da ROM -> instrução
+      // ACK levantou -> instruction mem enable abaixado
+      `ASSERT(db_mem_en === 4'hF);
     end
   endtask
 
@@ -554,23 +539,17 @@ module core_tb ();
           if (opcode[5]) `ASSERT(wr_data === B);
           // Confiro se o acesso a memória de dados está correto
           `ASSERT(db_mem_en === mem_en);
-          wait_mem;
+          @(posedge mem_ack);
           // Load: Após o ack levantar escrevo no banco simulado
           if (!opcode[5]) begin
             wr_reg_en = 1'b1;
             reg_data  = rd_data;
           end
           @(negedge clock);
-          // Trap -> Ainda estou em Store1/Load1
-          if (!mem_ack) begin
-            `ASSERT(mem_addr === A + immediate);
-            `ASSERT(db_mem_en === mem_en);
-          end else begin
-            // Na borda de descida, confiro se os sinais de controle abaixaram
-            `ASSERT(db_mem_en === {3'b000, mem_byte_en_});
-            // Caso load -> confiro a leitura
-            if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
-          end
+          // Na borda de descida, confiro se os sinais de controle abaixaram
+          `ASSERT(db_mem_en === {3'b000, mem_byte_en_});
+          // Caso load -> confiro a leitura
+          if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
           next_pc = pc + 4;
         end
         // Branch(B*)
@@ -635,6 +614,7 @@ module core_tb ();
         // ECALL, MRET, SRET (SYSTEM) -> O privilégio já foi checado
         7'b1110011: begin
           wr_reg_en = 1'b0;
+          trap_en = 1'b1;
           if(funct3 === 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
           `ifdef TrapReturn
@@ -677,9 +657,9 @@ module core_tb ();
           // Confiro se a memória está inativada
           `ASSERT(db_mem_en === 0);
         end
-        default: begin
-          $display("Error pc: pc = %x", pc);
-          $stop;
+        default: begin // Illegal
+          // Confiro se a memória está inativada
+          `ASSERT(db_mem_en === 0);
         end
       endcase
     end
@@ -690,6 +670,7 @@ module core_tb ();
     $display("SOT!");
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);
+      trap_en = 1'b0;
       @(negedge clock);
       case (estado)
         Fetch:   DoFetch;
@@ -697,19 +678,17 @@ module core_tb ();
         Execute: DoExecute;
         default: DoReset;
       endcase
+      if(estado === Execute) trap_en = 1'b1;
+      else trap_en = 1'b0;
       #1;
-      `ASSERT(DUT.trap === csr_trap);
+      `ASSERT(DUT.DF._trap === csr_trap);
       `ASSERT(DUT.privilege_mode === csr_privilege_mode);
       _trap = csr_trap;
+      _trap_addr = trap_addr;
       @(posedge clock);
       // Atualizando estado  e pc
-      if (_trap) begin
-        estado = Fetch;
-        pc = trap_addr;
-      end else begin
-        estado = (estado + 1) % 3;
-        pc = next_pc;
-      end
+      estado = (estado + 1) % 3;
+      pc = _trap ? trap_addr : next_pc;
       next_pc = pc;
     end
     $stop;

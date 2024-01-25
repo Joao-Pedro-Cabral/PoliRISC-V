@@ -4,35 +4,42 @@ import re
 from selenium.webdriver.support.ui import Select
 
 # Tradução de pseudoinstruções
+
+
 def li(tokens):
-    if(int(tokens[2]) < 4096):
+    if (int(tokens[2]) < 4096):
         return "addi "+tokens[1]+","+"x0,"+tokens[2]+"\n"
     else:
         return "lui "+tokens[1]+","+tokens[2]+"\n"
 
+
 def mv(tokens):
     return "addi "+tokens[1]+","+tokens[2]+",0\n"
+
 
 def sextw(tokens):
     return "addiw "+tokens[1]+","+tokens[2]+",0\n"
 
+
 def jr(tokens):
     return "jalr x0,0("+tokens[1]+")\n"
+
 
 def j(tokens):
     return "jal x0,"+tokens[1]+"\n"
 ###############################
 
-searchterms = []
-pseudoinstructions= {
-        "li":li,
-        "mv":mv,
-        "sext.w":sextw,
-        "jr":jr,
-        "j" :j
-        }
 
-with open(input("digite o nome do arquivo: "), "r") as assembly:
+searchterms = []
+pseudoinstructions = {
+    "li": li,
+    "mv": mv,
+    "sext.w": sextw,
+    "jr": jr,
+    "j": j
+}
+
+with open("assembly/" + input("digite o nome do arquivo: "), "r") as assembly:
     for line in assembly:
         if len(line.strip()) == 0:
             continue
@@ -49,13 +56,14 @@ with open(input("digite o nome do arquivo: "), "r") as assembly:
         for pseudoinst in pseudoinstructions.keys():
             if pseudoinst in temp:
                 has_pseudoinstruction = True
-                pseudo_dict_entry = pseudoinst;
+                pseudo_dict_entry = pseudoinst
                 l = re.sub("\s", ",", l)
-                tokens = re.split(",",l)
+                tokens = re.split(",", l)
                 break
 
         if has_pseudoinstruction:
-            searchterms.append(pseudoinstructions.get(pseudo_dict_entry, lambda: "Invalid")(tokens))
+            searchterms.append(pseudoinstructions.get(
+                pseudo_dict_entry, lambda: "Invalid")(tokens))
         else:
             searchterms.append(l)
 
@@ -88,8 +96,8 @@ for searchterm in searchterms:
     machine.write(binary_data[8:16]+"\n")
     machine.write(binary_data[0:8]+"\n")
 
-    browser.find_element("id", "search-input").click();
-    browser.find_element("id", "search-input").clear();
+    browser.find_element("id", "search-input").click()
+    browser.find_element("id", "search-input").clear()
 
 browser.close()
 browser.quit()
