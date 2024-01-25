@@ -27,6 +27,12 @@ module sklansky_adder #(
   assign G[0][0] = c_in;
   assign P[0][0] = 1'b0;
 
+  function automatic integer min(input integer a, input integer b);
+    begin
+      min = a;
+      if (a > b) min = b;
+    end
+  endfunction
 
   genvar i, m, n;
   generate
@@ -37,15 +43,10 @@ module sklansky_adder #(
       or (P[i][i], A[i-1], B[i-1]);
     end
 
-    for (
-        i = 0; i < $clog2(INPUT_SIZE); i = i + 1
-    ) begin : g_levels  // camadas de computação dos prefixos
-      for (
-          m = 2 ** i - 1; m < INPUT_SIZE; m = m + 2 ** (i + 1)
-      ) begin : g_blocks  // blocos de prefixos
-        for (n = m + 1; n < m + 1 + 2 ** i; n = n + 1) begin : g_prefixes  // prefixos
-          prefix_operator propagate_generate  // cálculo dos prefixos
-          (
+    for (i = 0; i < $clog2(INPUT_SIZE); i = i + 1) begin : g_levels  // camadas de prefixos
+      for (m = 2 ** i - 1; m < INPUT_SIZE; m = m + 2 ** (i + 1)) begin : g_blocks  // blocos
+        for (n = m + 1; n < min(INPUT_SIZE, m + 1 + 2 ** i); n = n + 1) begin : g_prefixes
+          prefix_operator propagate_generate (  // cálculo dos prefixos
               .g_i(G[n][m+1]),
               .g_j(G[m][m-2**i+1]),
               .p_i(P[n][m+1]),
@@ -67,6 +68,5 @@ module sklansky_adder #(
   xor (half_sum_carry_out, A[INPUT_SIZE-1], B[INPUT_SIZE-1]);
   and (propagate_carry_out, half_sum_carry_out, G[INPUT_SIZE-1][0]);
   or (c_out, propagate_carry_out, generate_carry_out);
-
 
 endmodule
