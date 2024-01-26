@@ -42,8 +42,8 @@ addi sp,sp,-32
 sw ra,28(sp)
 sw s0,24(sp)
 addi s0,sp,32
-lw a1,-24(s0)
-lw a0,-20(s0)
+addi a1,x0,4
+addi a0,x0,2
 auipc x1,0      ; call power
 jalr x1,-180(x1) ; watch out!
 sw a0,-28(s0)
