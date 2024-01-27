@@ -496,7 +496,7 @@ module control_unit_tb ();
         // Store(S*) e Load(L*)
         7'b0100011, 7'b0000011: begin
           @(posedge mem_ack);
-          // Espero o busy abaixar para verificar os enables
+          // Espero o ack levantar para verificar os enables
           @(negedge clock);
           `ASSERT(pc_en === 1'b1);
           `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);

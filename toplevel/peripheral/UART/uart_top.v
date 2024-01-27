@@ -32,7 +32,6 @@ module uart_top (
   reg  [ 2:0] addr;
   reg  [31:0] wr_data;
   wire [31:0] rd_data;
-  wire        busy;
   // Depuração
   wire [15:0] div_;
   wire        p_rxwm_;
