@@ -14,6 +14,7 @@
 // Para isso irei verificar as saídas do toplevel
 
 `include "macros.vh"
+`include "extensions.vh"
 
 `ifdef RV64I
 `define BYTE_NUM 8

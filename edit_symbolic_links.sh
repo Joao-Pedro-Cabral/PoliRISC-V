@@ -9,8 +9,8 @@ root_dir="."
 # List of directories to exclude
 exclude_dirs=("docs" "simulation" "synthesis" ".git")
 
-# Path to the macros.vh file
-macros_file="$PWD/simulation/macros.vh"
+# Path to the macros file
+macros_file="$PWD/simulation/$2.vh"
 
 # Function to check if a directory is in the exclude list
 is_excluded() {
@@ -31,11 +31,11 @@ is_leaf() {
     [ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -type d)" ]
 }
 
-# Function to check if a directory doesn't contain "macros.vh"
-contain_macros_vh() {
+# Function to check if a directory doesn't contain the macros file
+contain_macros_file() {
     local dir="$1"
-    # Check if the "macros.vh" file is not present in the directory
-    [ -e "$dir/macros.vh" ]
+    # Check if the macros file is not present in the directory
+    [ -e "$dir/$2.vh" ]
 }
 
 # Iterate through all subdirectories
@@ -51,12 +51,12 @@ find "$root_dir" -type d | while read -r sub_dir; do
     fi
 
     if [ -d "$sub_dir" ] && is_leaf "$sub_dir"; then
-        if ! contain_macros_vh "$sub_dir" && [ "$command" == "create" ]; then
-          echo "Creating macros.vh from leaf directory: $sub_dir"
-          ln -s "$macros_file" "$sub_dir/macros.vh"
-        elif contain_macros_vh "$sub_dir" && [ "$command" == "remove" ]; then
-          echo "Removing macros.vh from leaf directory: $sub_dir"
-          rm "$sub_dir/macros.vh"
+        if ! contain_macros_file "$sub_dir" "$2" && [ "$command" == "create" ]; then
+          echo "Creating macros file from leaf directory: $sub_dir"
+          ln -s "$macros_file" "$sub_dir/$2.vh"
+        elif contain_macros_file "$sub_dir" "$2" && [ "$command" == "remove" ]; then
+          echo "Removing macros file from leaf directory: $sub_dir"
+          rm "$sub_dir/$2.vh"
         fi
     fi
 done

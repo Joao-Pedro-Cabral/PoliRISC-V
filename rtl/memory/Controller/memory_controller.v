@@ -7,6 +7,7 @@
 //
 
 `include "macros.vh"
+`include "extensions.vh"
 
 module memory_controller #(
     parameter integer BYTE_AMNT = 8,

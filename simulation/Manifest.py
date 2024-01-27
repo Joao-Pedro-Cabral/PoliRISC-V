@@ -7,16 +7,14 @@ gui_mode = False
 mif_name = "power64.mif"
 rom_mif_path = "./MIFs/memory/ROM/core/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/core.mif"
-lista_de_macros = ['UART_0']
+lista_de_extensoes = ['UART_0']
 vsim_args = " -do vsim_gui.do -voptargs=+acc " if gui_mode else " -c -do vsim_tcl.do "
 
-# gerar arquivo de macros
-macros_file = open("macros.vh", 'w')
-macros_file.write("`default_nettype none\n")
-macros_file.write("`timescale 1ns / 1ns\n")
-for macro in lista_de_macros:
-    macros_file.write("`define " + macro + '\n')
-macros_file.close()
+# gerar arquivo de extensões
+extension_file = open("extensions.vh", 'w')
+for extensao in lista_de_extensoes:
+    extension_file.write("`define " + extensao + '\n')
+extension_file.close()
 
 vlog_opt = " -vlog01compat"
 

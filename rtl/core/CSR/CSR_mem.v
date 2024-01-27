@@ -1,5 +1,6 @@
 
 `include "macros.vh"
+`include "extensions.vh"
 
 `ifdef RV64I
 `define DATA_SIZE 64

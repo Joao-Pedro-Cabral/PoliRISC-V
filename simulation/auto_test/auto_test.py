@@ -1,7 +1,7 @@
 
 import subprocess
 import sys
-from manifest_utils import set_macros, run_simulation, write_lines
+from manifest_utils import set_extensions, run_simulation, write_lines
 from defines import tops_with_mifs
 
 
@@ -31,7 +31,7 @@ write_lines(["gui_mode"], ["gui_mode = False"])  # Set TCL Mode
 for testbench in sim_top_array:
     print(f'---------{testbench}---------')
     write_lines(["sim_top"], [f"sim_top = \"{testbench}\""])  # Set TCL Mode
-    set_macros(testbench)
+    set_extensions(testbench)
     if tops_with_mifs.count(testbench) != 0:
         for i, mif in enumerate(mif_array):
             write_lines(["mif_name"], [f"mif_name = \"{mif}.mif\""])

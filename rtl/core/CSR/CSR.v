@@ -4,6 +4,7 @@
 // Note: mret/sret + wr_en is a invalid input
 
 `include "macros.vh"
+`include "extensions.vh"
 
 `ifdef RV64I
 `define DATA_SIZE 64

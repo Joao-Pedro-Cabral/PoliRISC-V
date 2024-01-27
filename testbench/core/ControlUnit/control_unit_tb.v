@@ -15,6 +15,7 @@
 // Para isso irei verificar as saídas da UC
 
 `include "macros.vh"
+`include "extensions.vh"
 
 `ifdef RV64I
 `define BYTE_NUM 8
