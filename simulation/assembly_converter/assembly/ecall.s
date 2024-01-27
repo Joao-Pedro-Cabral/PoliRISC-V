@@ -1,5 +1,5 @@
 lui sp,4096  ; main
-lui x5,1 
+lui x5,1
 or sp,sp,x5
 addi sp,sp,-32
 addi s0,sp,32

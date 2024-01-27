@@ -411,6 +411,10 @@ module core_tb ();
             end
             else if(funct7 !== 0) check_illegal_instruction = 1'b1;
           end
+          7'b0001111: begin // FENCE
+            check_illegal_instruction = 1'b0;
+            if(funct3 !== 3'b000) check_illegal_instruction = 1'b1;
+          end
           `ifdef RV64I
           7'b0111011: begin // ULA W R-Type
             check_illegal_instruction = 1'b1;
@@ -611,10 +615,17 @@ module core_tb ();
           `ASSERT(db_mem_en === 0);
           next_pc = pc + 4;
         end
+        // FENCE
+        7'b0001111: begin
+          // Conservativo: NOP
+          wr_reg_en = 1'b0;
+          // Verifico se os enables estão desligados
+          `ASSERT(db_mem_en === 0);
+          next_pc = pc + 4;
+        end
         // ECALL, MRET, SRET (SYSTEM) -> O privilégio já foi checado
         7'b1110011: begin
           wr_reg_en = 1'b0;
-          trap_en = 1'b1;
           if(funct3 === 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
           `ifdef TrapReturn

@@ -80,7 +80,8 @@ module control_unit (
         Store = 5'h0A,
         Ecall = 5'h0B,
         Idle = 5'h0C,
-        Illegal = 5'h0F;
+        Illegal = 5'h0F,
+        Fence = 5'h10;
 `ifdef TrapReturn
   localparam reg [4:0] Xret = 5'h0D; // MRET, SRET
 `endif
@@ -215,6 +216,7 @@ module control_unit (
           7'b0010111: proximo_estado = Auipc;
           7'b1101111: proximo_estado = Jal;
           7'b1100111: proximo_estado = Jalr;
+          7'b0001111: proximo_estado = Fence;
           7'b1110011: begin // SYSTEM
             if(funct3 == 0) begin
               if(funct7 == 0) proximo_estado = Ecall; // ECALL
@@ -345,6 +347,11 @@ module control_unit (
 
       Illegal: begin
         illegal_instruction = 1'b1;
+        pc_en = 1'b1;
+        proximo_estado = Fetch;
+      end
+
+      Fence: begin // Conservative Fence
         pc_en = 1'b1;
         proximo_estado = Fetch;
       end

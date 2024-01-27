@@ -34,7 +34,7 @@ module control_unit_tb ();
     localparam integer HasRV64I = 0;
   `endif
   // Parâmetros do Sheets
-  localparam integer NLineI = 58;
+  localparam integer NLineI = 59;
   localparam integer NColumnI = (HasRV64I == 1) ? 49 : 44;
   // Parâmetros do df_src
     // Bits do df_src que não dependem apenas do opcode
@@ -358,8 +358,8 @@ module control_unit_tb ();
       end  // I, S, B: opcode e funct3
       else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
               opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111 ||
-              opcode === 7'b1110011) begin
-        for (i = 3; i < 43; i = i + 1) begin
+              opcode === 7'b1110011 || opcode === 7'b0001111) begin
+        for (i = 3; i < 44; i = i + 1) begin
           if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
               funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
             // SRLI e SRAI: funct7
@@ -384,13 +384,13 @@ module control_unit_tb ();
         end
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
-        for (i = 43; i < 58; i = i + 1)
+        for (i = 44; i < 59; i = i + 1)
         if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
           temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
       end
-      if(temp == 0) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
+      if(temp == 0 && opcode !== 7'b0001111) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
       find_instruction = temp;
     end
   endfunction
@@ -468,9 +468,6 @@ module control_unit_tb ();
       df_src = find_instruction(opcode, funct3, funct7, LUT_linear); // obter saídas pelo sheets
       // Verifico se algum enable está erroneamente habilitado
       `ASSERT(db_df_src[DfSrcSize+1:0] === 0);
-      // Illegal instruction já pode ter levantado
-      //`ASSERT(db_df_src[DfSrcSize-1] === df_src[DfSrcSize-1]);
-      //`ASSERT(db_df_src[DfSrcSize-1:0] === 0);
     end
   endtask
 
@@ -530,9 +527,9 @@ module control_unit_tb ();
             $stop;
           end
         end
-        // JAL, JALR, U-type & ULA R/I-type
+        // JAL, JALR, U-type, ULA R/I-type & FENCE
         7'b1101111, 7'b1100111, 7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011,
-        7'b0110111, 7'b0010111: begin
+        7'b0110111, 7'b0010111, 7'b0001111: begin
           `ASSERT(pc_en === 1'b1);
         end
         // ECALL, MRET, SRET, CSRR* (SYSTEM)
