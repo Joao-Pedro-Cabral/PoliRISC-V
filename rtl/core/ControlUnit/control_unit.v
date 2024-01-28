@@ -42,7 +42,7 @@ module control_unit (
 `ifdef RV64I
     output reg aluy_src,
 `endif
-    output reg [2:0] alu_src,
+    output reg [3:0] alu_src,
     output reg sub,
     output reg arithmetic,
     output reg alupc_src,
@@ -65,7 +65,23 @@ module control_unit (
     output reg ecall
 );
 
+
+
   // sinais úteis
+
+  localparam reg[6:0] UlaRTypeOpCode = 7'b0110011,
+    WRtypeOpCode = 7'b0111011,
+    ULAITypeOpCode = 7'b0010011,
+    ULAWITypeOpCode = 7'b0011011,
+    ITypeOpCode = 7'b0000011,
+    STypeOpCode = 7'b0100011,
+    DesvioCondicionalOpCode = 7'b1100011,
+    LuiOpCode =   7'b0110111,
+    AuipcOpCode = 7'b0010111,
+    JalOpCode =   7'b1101111,
+    JalrOpCode =  7'b1100111,
+    FenceOpCode = 7'b0001111,
+    SystemOpCode = 7'b1110011;
 
   localparam reg [4:0]
         Fetch = 5'h00,
@@ -80,14 +96,18 @@ module control_unit (
         Load = 5'h09,
         Store = 5'h0A,
         Ecall = 5'h0B,
-        Idle = 5'h0C,
-        Illegal = 5'h0F,
-        Fence = 5'h10;
+        Idle = 5'h0C;
 `ifdef TrapReturn
   localparam reg [4:0] Xret = 5'h0D; // MRET, SRET
 `endif
 `ifdef ZICSR
   localparam reg [4:0] Zicsr = 5'h0E;
+`endif
+  localparam reg [4:0]
+        Illegal = 5'h0F,
+        Fence = 5'h10;
+`ifdef M
+  localparam reg [4:0] MultiplicacaoOuDivisao = 5'h11;
 `endif
 
   reg [4:0] estado_atual, proximo_estado;
@@ -102,7 +122,7 @@ module control_unit (
 `ifdef RV64I
       aluy_src = 1'b0;
 `endif
-      alu_src      = 3'b000;
+      alu_src      = 4'b0000;
       sub          = 1'b0;
       arithmetic   = 1'b0;
       alupc_src    = 1'b0;
@@ -163,21 +183,21 @@ module control_unit (
       end
       Decode: begin
         case(opcode)
-          7'b0110011: begin // ULA R-Type
+          UlaRTypeOpCode: begin
             proximo_estado = RegistradorRegistrador;
             if(funct3 == 3'b000 || funct3 == 3'b101) begin
-              if({funct7[6],funct7[4:0]} != 0) proximo_estado = Illegal;
-            end else if(funct7 != 0) proximo_estado = Illegal;
+              if({funct7[6],funct7[4:1]} != 0) proximo_estado = Illegal;
+            end else if(funct7[6:1] != 0) proximo_estado = Illegal;
           end
         `ifdef RV64I
-          7'b0111011: begin // W R-Type
+          WRtypeOpCode: begin
             proximo_estado = RegistradorRegistrador;
             if(funct3 == 3'b000 || funct3 == 3'b101) begin
                 if({funct7[6],funct7[4:0]} != 0) proximo_estado = Illegal;
             end else if(funct3 != 3'b001) proximo_estado = Illegal;
           end
         `endif
-          7'b0010011: begin // ULA I-Type
+          ULAITypeOpCode: begin
             proximo_estado = RegistradorImediato;
           `ifdef RV64I
             if(funct3 == 3'b001 && funct7[6:1] != 0) proximo_estado = Illegal;
@@ -190,14 +210,14 @@ module control_unit (
           `endif
           end
           `ifdef RV64I
-          7'b0011011: begin // ULA W I-Type
+          ULAWITypeOpCode: begin
             proximo_estado = RegistradorImediato;
             if(funct3 == 3'b101 && {funct7[6],funct7[4:0]} != 0) proximo_estado = Illegal; // SRIW
             else if(funct3 == 3'b001 && funct7 != 0) proximo_estado = Illegal; // SLLIW
             else if(funct3 != 3'b000) proximo_estado = Illegal; // ADDIW
           end
           `endif
-          7'b0000011: begin // I-Type (Load)
+          ITypeOpCode: begin // (Load)
             proximo_estado = Load;
             `ifdef RV64I
               if(funct3 == 3'b111) proximo_estado = Illegal;
@@ -205,20 +225,20 @@ module control_unit (
               if(funct3 == 3'b011 || funct3[2:1] == 2'b11) proximo_estado = Illegal;
             `endif
           end
-          7'b0100011: begin // S-Type
+          STypeOpCode: begin
             proximo_estado = Store;
             if(funct3[2]) proximo_estado = Illegal;
           `ifndef RV64I
             else if(funct3[1:0] == 2'b11) proximo_estado = Illegal;
           `endif
           end
-          7'b1100011: proximo_estado = DesvioCondicional;
-          7'b0110111: proximo_estado = Lui;
-          7'b0010111: proximo_estado = Auipc;
-          7'b1101111: proximo_estado = Jal;
-          7'b1100111: proximo_estado = Jalr;
-          7'b0001111: proximo_estado = Fence;
-          7'b1110011: begin // SYSTEM
+          DesvioCondicionalOpCode: proximo_estado = DesvioCondicional;
+          LuiOpCode: proximo_estado = Lui;
+          AuipcOpCode: proximo_estado = Auipc;
+          JalOpCode: proximo_estado = Jal;
+          JalrOpCode: proximo_estado = Jalr;
+          FenceOpCode: proximo_estado = Fence;
+          SystemOpCode: begin
             if(funct3 == 0) begin
               if(funct7 == 0) proximo_estado = Ecall; // ECALL
               `ifdef TrapReturn
@@ -243,7 +263,7 @@ module control_unit (
       `ifdef RV64I
         aluy_src = opcode[3];
       `endif
-        alu_src = funct3;
+        alu_src = {funct7[0], funct3};
         sub = funct7[5];
         arithmetic = funct7[5];
         pc_en = 1'b1;
@@ -268,7 +288,7 @@ module control_unit (
       `ifdef RV64I
         aluy_src = opcode[3];
       `endif
-        alu_src = funct3;
+        alu_src = {funct7[0], funct3};
         arithmetic = funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
         pc_en = 1'b1;
         wr_reg_en = 1'b1;
