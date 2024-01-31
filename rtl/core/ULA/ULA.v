@@ -41,8 +41,8 @@ module ULA (
   wire [N-1:0] _or;
   wire [N-1:0] _and;
   wire [N-1:0] _mul;
-  wire [N-1:0] _mulh;
-  wire [N-1:0] _mulhsu;
+  wire [N-1:0] _mulh, _mulh_aux;
+  wire [N-1:0] _mulhsu, _mulhsu_aux;
   wire [N-1:0] _mulhu;
   wire [N-1:0] _div;
   wire [N-1:0] _divu;
@@ -91,12 +91,22 @@ module ULA (
   assign _or  = A | B;
   assign _and = A & B;
 
+  // operações da extensão M
+  assign {_mulhu, _mul} = A * B;
+  assign {_mulhsu, _mulhsu_aux} = $signed(A) * B;
+  assign {_mulh, _mulh_aux} = $signed(A) * $signed(B);
+  assign _div = $signed(A) / $signed(B);
+  assign _divu = A / B;
+  assign _rem = $signed(A) % $signed(B);
+  assign _remu = A % B;
+
   // multiplexador de saída da ULA
   gen_mux #(
       .size(N),
       .N(4)
   ) mux (
-      .A({_mul, _and, _or, sr, _xor, sltu, slt, sll, add_sub}),
+      .A({_remu, _rem, _divu, _div, _mulhu, _mulhsu, _mulh, _mul,
+          _and, _or, sr, _xor, sltu, slt, sll, add_sub}),
       .S(seletor),
       .Y(Y)
   );

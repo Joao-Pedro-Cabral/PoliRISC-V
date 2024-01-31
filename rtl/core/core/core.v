@@ -40,7 +40,7 @@ module core (
 `ifdef RV64I
   wire aluy_src;
 `endif
-  wire [2:0] alu_src;
+  wire [3:0] alu_src;
   wire sub;
   wire arithmetic;
   wire alupc_src;
