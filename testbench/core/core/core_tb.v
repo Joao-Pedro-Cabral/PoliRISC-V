@@ -314,20 +314,27 @@ module core_tb ();
 
   // função que simula o comportamento da ULA
   function automatic [`DATA_SIZE-1:0] ULA_function(
-      input reg [`DATA_SIZE-1:0] A, input reg [`DATA_SIZE-1:0] B, input reg [3:0] seletor);
+      input reg [`DATA_SIZE-1:0] A, input reg [`DATA_SIZE-1:0] B, input reg [4:0] seletor);
     begin
       case (seletor)
-        4'b0000: ULA_function = $signed(A) + $signed(B);  // ADD
-        4'b0001: ULA_function = A << (B[$clog2(`DATA_SIZE)-1:0]);  // SLL
-        4'b0010: ULA_function = ($signed(A) < $signed(B));  // SLT
-        4'b0011: ULA_function = (A < B);  // SLTU
-        4'b0100: ULA_function = A ^ B;  // XOR
-        4'b0101: ULA_function = A >> (B[$clog2(`DATA_SIZE)-1:0]); // SRL
-        4'b0110: ULA_function = A | B;  // OR
-        4'b0111: ULA_function = A & B;  // AND
-        4'b1000: ULA_function = $signed(A) - $signed(B);  // SUB
-        4'b1101: ULA_function = $signed(A) >>> (B[$clog2(`DATA_SIZE)-1:0]);  // SRA
-        default: ULA_function = 0;
+        5'b00000: ULA_function = $signed(A) + $signed(B);  // ADD
+        5'b00001: ULA_function = A << (B[$clog2(`DATA_SIZE)-1:0]);  // SLL
+        5'b00010: ULA_function = ($signed(A) < $signed(B));  // SLT
+        5'b00011: ULA_function = (A < B);  // SLTU
+        5'b00100: ULA_function = A ^ B;  // XOR
+        5'b00101: ULA_function = A >> (B[$clog2(`DATA_SIZE)-1:0]); // SRL
+        5'b00110: ULA_function = A | B;  // OR
+        5'b00111: ULA_function = A & B;  // AND
+        5'b01000: ULA_function = $signed(A) - $signed(B);  // SUB
+        5'b01101: ULA_function = $signed(A) >>> (B[$clog2(`DATA_SIZE)-1:0]);  // SRA
+        5'b10000: ULA_function = A * B; // MUL
+        5'b10001: ULA_function = ($signed(A) * $signed(B))[2*`DATA_SIZE-1:`DATA_SIZE]; // MULH
+        5'b10010: ULA_function = ($signed(A) * B)[2*`DATA_SIZE-1:`DATA_SIZE]; // MULHSU
+        5'b10011: ULA_function = (A * B)[2*`DATA_SIZE-1:`DATA_SIZE]; // MULHU
+        5'b10100: ULA_function = $signed(A) / $signed(B); // DIV
+        5'b10101: ULA_function = A / B; // DIVU
+        5'b10110: ULA_function = $signed(A) % $signed(B); // REM
+        5'b10111: ULA_function = A % B; // REMU
       endcase
     end
   endfunction
@@ -605,9 +612,9 @@ module core_tb ();
           // Habilito o banco simulado
           wr_reg_en = 1'b1;
           // A partir do opcode, do funct3 e do funct7 descubro o resultado da operação da ULA
-          if (opcode[5]) reg_data = ULA_function(A, B, {funct7[5], funct3});
-          else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[5], funct3});
-          else reg_data = ULA_function(A, immediate, {1'b0, funct3});
+          if (opcode[5]) reg_data = ULA_function(A, B, {funct7[0], funct7[5], funct3});
+          else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[0], funct7[5], funct3});
+          else reg_data = ULA_function(A, immediate, {2'b00, funct3});
           // opcode[3] = 1'b1 -> RV64I
           if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
           // Verifico reg_data

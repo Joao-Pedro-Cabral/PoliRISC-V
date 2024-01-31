@@ -35,8 +35,8 @@ module control_unit_tb ();
     localparam integer HasRV64I = 0;
   `endif
   // Parâmetros do Sheets
-  localparam integer NLineI = 59;
-  localparam integer NColumnI = (HasRV64I == 1) ? 49 : 44;
+  localparam integer NLineI = 72;
+  localparam integer NColumnI = (HasRV64I == 1) ? 50 : 45;
   // Parâmetros do df_src
     // Bits do df_src que não dependem apenas do opcode
   localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
@@ -66,7 +66,7 @@ module control_unit_tb ();
   `ifdef RV64I
     wire aluy_src;
   `endif
-  wire [2:0] alu_src;
+  wire [3:0] alu_src;
   wire sub;
   wire arithmetic;
   wire alupc_src;
@@ -385,7 +385,7 @@ module control_unit_tb ();
         end
       end  // R: opcode, funct3 e funct7
       else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
-        for (i = 44; i < 59; i = i + 1)
+        for (i = 44; i < 72; i = i + 1)
         if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
              funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
