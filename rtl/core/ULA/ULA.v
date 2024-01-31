@@ -22,7 +22,7 @@ module ULA (
   parameter integer N = 16;
   input wire [N-1:0] A;
   input wire [N-1:0] B;
-  input wire [2:0] seletor;
+  input wire [3:0] seletor;
   input wire sub;
   input wire arithmetic;  // 1: SRA, 0 : SRL
   output wire [N-1:0] Y;
@@ -36,10 +36,18 @@ module ULA (
   wire [N-1:0] sll;
   wire [N-1:0] slt;
   wire [N-1:0] sltu;
-  wire [N-1:0] xor_;
+  wire [N-1:0] _xor;
   wire [N-1:0] sr;  // SRL ou SRA
-  wire [N-1:0] or_;
-  wire [N-1:0] and_;
+  wire [N-1:0] _or;
+  wire [N-1:0] _and;
+  wire [N-1:0] _mul;
+  wire [N-1:0] _mulh;
+  wire [N-1:0] _mulhsu;
+  wire [N-1:0] _mulhu;
+  wire [N-1:0] _div;
+  wire [N-1:0] _divu;
+  wire [N-1:0] _rem;
+  wire [N-1:0] _remu;
 
   // sinais intermediários das flags
   wire negative_;
@@ -79,16 +87,16 @@ module ULA (
   );
 
   // operações lógicas
-  assign xor_ = A ^ B;
-  assign or_  = A | B;
-  assign and_ = A & B;
+  assign _xor = A ^ B;
+  assign _or  = A | B;
+  assign _and = A & B;
 
   // multiplexador de saída da ULA
   gen_mux #(
       .size(N),
-      .N(3)
+      .N(4)
   ) mux (
-      .A({and_, or_, sr, xor_, sltu, slt, sll, add_sub}),
+      .A({_mul, _and, _or, sr, _xor, sltu, slt, sll, add_sub}),
       .S(seletor),
       .Y(Y)
   );

@@ -288,7 +288,7 @@ module control_unit (
       `ifdef RV64I
         aluy_src = opcode[3];
       `endif
-        alu_src = {funct7[0], funct3};
+        alu_src = {0, funct3};
         arithmetic = funct7[5] & funct3[2] & (~funct3[1]) & funct3[0];
         pc_en = 1'b1;
         wr_reg_en = 1'b1;

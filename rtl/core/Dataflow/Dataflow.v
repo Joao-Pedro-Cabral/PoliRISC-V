@@ -28,7 +28,7 @@ module Dataflow (
 `ifdef RV64I
     input wire aluy_src,
 `endif
-    input wire [2:0] alu_src,
+    input wire [3:0] alu_src,
     input wire sub,
     input wire arithmetic,
     input wire alupc_src,
