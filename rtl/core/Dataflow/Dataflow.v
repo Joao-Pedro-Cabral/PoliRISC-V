@@ -159,7 +159,11 @@ module Dataflow (
   ) alu (
       .A(aluA),
       .B(aluB),
+`ifdef M
+      .seletor({1'b0, alu_src}),
+`else
       .seletor(alu_src),
+`endif
       .sub(sub),
       .arithmetic(arithmetic),
       .Y(aluY),
