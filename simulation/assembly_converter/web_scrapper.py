@@ -44,7 +44,7 @@ with open("assembly/" + input("digite o nome do arquivo: "), "r") as assembly:
         if len(line.strip()) == 0:
             continue
 
-        if line[len(line) - len(line.lstrip())] == ';':
+        if line[len(line) - len(line.lstrip())] in [';', '#', '/']:
             continue
 
         # apaga espaços no começo da linha

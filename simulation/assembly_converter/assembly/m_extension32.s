@@ -19,7 +19,7 @@ mulhsu a4, a0, a1 // 0x0FFFFFFF
 mulhu a5, a1, a0  // 0x0FFFFFFF
 
 # DIV - Divide (signed)
-addi a0,a0,-1      # Change value in register a0
+addi a0,x0,-1      # Change value in register a0
 addi a1,a1,2       # Change value in register a1
 div a6, a0, a1 // 0xFFFFFFFF
 
@@ -27,9 +27,9 @@ div a6, a0, a1 // 0xFFFFFFFF
 divu a7, a0, a1 // 0x7FFFFFFF
 
 # REM - Remainder (signed)
-rem a8, a0, a1
+addi  a0,x0,-7
+addi  a0,x0,-2
+rem a2, a0, a1 // -0d1 = 0xFFFFFFFF
 
 # REMU - Remainder (unsigned)
-li a0, 11      # Change value in register a0
-li a1, 4       # Change value in register a1
-remu a9, a0, a1
+remu a3, a0, a1 // 0d4294967289 = -0d7
