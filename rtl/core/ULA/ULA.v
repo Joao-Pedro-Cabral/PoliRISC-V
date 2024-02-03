@@ -22,7 +22,11 @@ module ULA (
   parameter integer N = 16;
   input wire [N-1:0] A;
   input wire [N-1:0] B;
+`ifdef M
   input wire [3:0] seletor;
+`else
+  input wire [2:0] seletor;
+`endif
   input wire sub;
   input wire arithmetic;  // 1: SRA, 0 : SRL
   output wire [N-1:0] Y;
@@ -40,6 +44,7 @@ module ULA (
   wire [N-1:0] sr;  // SRL ou SRA
   wire [N-1:0] _or;
   wire [N-1:0] _and;
+`ifdef M
   wire [N-1:0] _mul;
   wire [N-1:0] _mulh, _mulh_aux;
   wire [N-1:0] _mulhsu, _mulhsu_aux;
@@ -48,6 +53,7 @@ module ULA (
   wire [N-1:0] _divu;
   wire [N-1:0] _rem;
   wire [N-1:0] _remu;
+`endif
 
   // sinais intermediários das flags
   wire negative_;
@@ -91,6 +97,7 @@ module ULA (
   assign _or  = A | B;
   assign _and = A & B;
 
+`ifdef M
   // operações da extensão M
   assign {_mulhu, _mul} = A * B;
   assign {_mulhsu, _mulhsu_aux} = $signed(A) * B;
@@ -99,14 +106,37 @@ module ULA (
   assign _divu = A / B;
   assign _rem = $signed(A) % $signed(B);
   assign _remu = A % B;
+`endif
 
   // multiplexador de saída da ULA
   gen_mux #(
       .size(N),
+`ifdef M
       .N(4)
+`else
+      .N(3)
+`endif
   ) mux (
-      .A({_remu, _rem, _divu, _div, _mulhu, _mulhsu, _mulh, _mul,
-          _and, _or, sr, _xor, sltu, slt, sll, add_sub}),
+      .A({
+`ifdef M
+        _remu,
+        _rem,
+        _divu,
+        _div,
+        _mulhu,
+        _mulhsu,
+        _mulh,
+        _mul,
+`endif
+        _and,
+        _or,
+        sr,
+        _xor,
+        sltu,
+        slt,
+        sll,
+        add_sub
+      }),
       .S(seletor),
       .Y(Y)
   );
@@ -118,6 +148,5 @@ module ULA (
   assign negative  = negative_;
   assign carry_out = carry_out_;
   assign overflow  = overflow_;
-
 
 endmodule
