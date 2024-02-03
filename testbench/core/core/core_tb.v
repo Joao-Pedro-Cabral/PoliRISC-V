@@ -315,6 +315,7 @@ module core_tb ();
   // função que simula o comportamento da ULA
   function automatic [`DATA_SIZE-1:0] ULA_function(
       input reg [`DATA_SIZE-1:0] A, input reg [`DATA_SIZE-1:0] B, input reg [4:0] seletor);
+    reg [2*`DATA_SIZE-1:0] mulh, mulhsu, mulhu;
     begin
       case (seletor)
         5'b00000: ULA_function = $signed(A) + $signed(B);  // ADD
@@ -328,13 +329,23 @@ module core_tb ();
         5'b01000: ULA_function = $signed(A) - $signed(B);  // SUB
         5'b01101: ULA_function = $signed(A) >>> (B[$clog2(`DATA_SIZE)-1:0]);  // SRA
         5'b10000: ULA_function = A * B; // MUL
-        5'b10001: ULA_function = ($signed(A) * $signed(B))[2*`DATA_SIZE-1:`DATA_SIZE]; // MULH
-        5'b10010: ULA_function = ($signed(A) * B)[2*`DATA_SIZE-1:`DATA_SIZE]; // MULHSU
-        5'b10011: ULA_function = (A * B)[2*`DATA_SIZE-1:`DATA_SIZE]; // MULHU
+        5'b10001: begin  // MULH
+          mulh = $signed(A) * $signed(B);
+          ULA_function = mulh[2*`DATA_SIZE-1:`DATA_SIZE];
+        end
+        5'b10010: begin
+          mulhsu = $signed(A) * B;
+          ULA_function = mulhsu[2*`DATA_SIZE-1:`DATA_SIZE]; // MULHSU
+        end
+        5'b10011: begin
+          mulhu = A * B;
+          ULA_function = mulhu[2*`DATA_SIZE-1:`DATA_SIZE]; // MULHU
+        end
         5'b10100: ULA_function = $signed(A) / $signed(B); // DIV
         5'b10101: ULA_function = A / B; // DIVU
         5'b10110: ULA_function = $signed(A) % $signed(B); // REM
         5'b10111: ULA_function = A % B; // REMU
+        default: ULA_function = 0;
       endcase
     end
   endfunction

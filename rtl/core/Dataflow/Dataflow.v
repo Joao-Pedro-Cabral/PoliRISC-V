@@ -28,11 +28,7 @@ module Dataflow (
 `ifdef RV64I
     input wire aluy_src,
 `endif
-`ifdef M
     input wire [3:0] alu_src,
-`else
-    input wire [2:0] alu_src,
-`endif
     input wire sub,
     input wire arithmetic,
     input wire alupc_src,
@@ -159,11 +155,11 @@ module Dataflow (
   ) alu (
       .A(aluA),
       .B(aluB),
-`ifdef M
-      .seletor({1'b0, alu_src}),
-`else
+      `ifdef M
       .seletor(alu_src),
-`endif
+      `else
+      .seletor({1'b0, alu_src[2:0]}),
+      `endif
       .sub(sub),
       .arithmetic(arithmetic),
       .Y(aluY),
