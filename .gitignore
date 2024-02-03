@@ -22,6 +22,7 @@ simulation/assembly_converter/program.mif
 
 # arquivos de automatização de simulação (hdlmake + scripts python)
 *macros.vh
+*extensions*.vh
 *__pycache__
 simulation/log.txt
 

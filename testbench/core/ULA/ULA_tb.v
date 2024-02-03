@@ -10,39 +10,32 @@
 module ULA_tb ();
 
   // portas do DUT
-  reg  [7:0] A;
-  reg  [7:0] B;
-  reg  [2:0] seletor;
-  reg        sub;
-  reg        arithmetic;
-  wire [7:0] Y;
-  wire       zero;
-  wire       negative;
-  wire       carry_out;
-  wire       overflow;
+  reg  [ 7:0] A;
+  reg  [ 7:0] B;
+  reg  [ 3:0] seletor;
+  reg         sub;
+  reg         arith;
+  wire [ 7:0] Y;
+  wire        zero;
+  wire        negative;
+  wire        carry_out;
+  wire        overflow;
 
   // auxiliares
-  wire [7:0] A_         [7:0];
-  wire [7:0] B_         [7:0];
-  wire [7:0] add_sub;
-  wire       zero_;
-  wire       negative_;
-  wire       carry_out_;
-  wire       overflow_;
-  wire       sub_;
-  wire [7:0] xorB;
+  wire [ 7:0] add_sub;
+  wire        zero_;
+  wire        negative_;
+  wire        carry_out_;
+  wire        overflow_;
+  wire        sub_;
+  wire [ 7:0] xorB;
+  wire [15:0] mulh_ = $signed(A) * $signed(B);
+  wire [15:0] mulhsu_ = $signed(A) * $unsigned(B);
+  wire [15:0] mulhu_ = $unsigned(A) * $unsigned(B);
 
   // variáveis de iteração
   genvar j;
   integer i, k;
-
-  // inicializando A_ e B_
-  generate
-    for (j = 0; j < 8; j = j + 1) begin : gen_intermediarios
-      assign A_[j] = 40 * j;
-      assign B_[j] = 33 * j + 100;
-    end
-  endgenerate
 
   // gerando flags auxiliares
   assign xorB                  = B ^ 8'b11111111;
@@ -60,7 +53,7 @@ module ULA_tb ();
       .B(B),
       .seletor(seletor),
       .sub(sub),
-      .arithmetic(arithmetic),
+      .arithmetic(arith),
       .Y(Y),
       .zero(zero),
       .negative(negative),
@@ -68,138 +61,59 @@ module ULA_tb ();
       .overflow(overflow)
   );
 
+  task automatic display_fatal(input reg with_flags);
+    begin
+      if (with_flags) display_fatal_flags();
+      $fatal(1, "Error: A = %b, B = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b", A, B,
+             sub, arith, seletor, Y);
+    end
+  endtask
+
+  task automatic display_fatal_flags();
+    begin
+      $display("Error: zero = %b, negative = %b, carry_out = %b, overflow = %b", zero, negative,
+               carry_out, overflow);
+    end
+  endtask
+
   // initial para testar o DUT
   initial begin : testbench
     #2;
     $display("SOT!");
     // itero para cada par da tripla (seletor, sub, arithmetic)
-    for (i = 0; i < 32; i = i + 1) begin : seletor_for
+    for (i = 0; i < 64; i = i + 1) begin : seletor_for
       $display("Test: %d", i);
-      sub   = i/8;  // sub   = 4º bit de i
-      arithmetic = i/16; // arithmetic = 5º bit de i
-      seletor    = i%8;  // seletor vai de 0 a 7
-      for (k = 0; k < 8; k = k + 1) begin : A_B_for
-        $display("Subtest: %d", k);
-        A = A_[k];
-        B = B_[k];
+      sub   = i/16;  // sub   = 4º bit de i
+      arith = i/32; // arithmetic = 5º bit de i
+      seletor    = i%16;  // seletor vai de 0 a 15
+      for (k = 0; k < 100; k = k + 1) begin : A_B_for
+        A = $urandom;
+        B = $urandom;
         #1;
         // case para cada uma das possibilidades de seletor
-        case ((i % 8))
-          1:
-          if (Y !== (A << B[2:0]))
-            $fatal(
-                "Error: A[%d] = %b, B[%d] = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b",
-                k,
-                A,
-                k,
-                B,
-                sub,
-                arithmetic,
-                seletor,
-                Y
-            );
-          2:
-          if (Y !== ({7'b0, negative_ ^ overflow_}))
-            $fatal(
-                "Error: A[%d] = %b, B[%d] = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b",
-                k,
-                A,
-                k,
-                B,
-                sub,
-                arithmetic,
-                seletor,
-                Y
-            );
-          3:
-          if (Y !== ({7'b0, ~carry_out_}))
-            $fatal(
-                "Error: A[%d] = %b, B[%d] = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b",
-                k,
-                A,
-                k,
-                B,
-                sub,
-                arithmetic,
-                seletor,
-                Y
-            );
-          4:
-          if (Y !== (A ^ B))
-            $fatal(
-                "Error: A[%d] = %b, B[%d] = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b",
-                k,
-                A,
-                k,
-                B,
-                sub,
-                arithmetic,
-                seletor,
-                Y
-            );
-          5:
-          if (((Y !== A >> B[2:0]) && (~arithmetic)) || (($signed(
-                  Y
-              ) !== $signed(
-                  A
-              ) >>> B[2:0]) && arithmetic))
-            $fatal(
-                "Error: A[%d] = %b, B[%d] = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b",
-                k,
-                A,
-                k,
-                B,
-                sub,
-                arithmetic,
-                seletor,
-                Y
-            );
-          6:
-          if (Y !== (A | B))
-            $fatal(
-                "Error: A[%d] = %b, B[%d] = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b",
-                k,
-                A,
-                k,
-                B,
-                sub,
-                arithmetic,
-                seletor,
-                Y
-            );
-          7:
-          if (Y !== (A & B))
-            $fatal(
-                "Error: A[%d] = %b, B[%d] = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b",
-                k,
-                A,
-                k,
-                B,
-                sub,
-                arithmetic,
-                seletor,
-                Y
-            );
+        case ((i % 16))
           // testa as flags
-          default:
+          0:
           if((Y !== add_sub) || (zero !== zero_) || (negative !== negative_) ||
                         (carry_out !== carry_out_) || (overflow !== overflow_))
-            $fatal(
-                "Error: A[%d] = %b, B[%d] = %b, sub = %b, arithmetic = %b, seletor = %b, Y = %b" +
-                "zero = %b, negative = %b, carry_out = %b, overflow = %b",
-                k,
-                A,
-                k,
-                B,
-                sub,
-                arithmetic,
-                seletor,
-                Y,
-                zero,
-                negative,
-                carry_out,
-                overflow
-            );
+            display_fatal(1'b1);
+          1: if (Y !== (A << B[2:0])) display_fatal(1'b0);
+          2: if (Y !== ({7'b0, negative_ ^ overflow_})) display_fatal(1'b0);
+          3: if (Y !== ({7'b0, ~carry_out_})) display_fatal(1'b0);
+          4: if (Y !== (A ^ B)) display_fatal(1'b0);
+          5:
+          if ((Y !== A >> B[2:0] && (~arith)) || (Y !== $signed($signed(A) >>> B[2:0]) && arith))
+            display_fatal(1'b0);
+          6: if (Y !== (A | B)) display_fatal(1'b0);
+          7: if (Y !== (A & B)) display_fatal(1'b0);
+          8: if (Y !== ($signed(A) * $signed(B))) display_fatal(1'b0);
+          9: if (Y !== mulh_[15:8]) display_fatal(1'b0);
+          10: if (Y !== mulhsu_[15:8]) display_fatal(1'b0);
+          11: if (Y !== mulhu_[15:8]) display_fatal(1'b0);
+          12: if (Y !== $signed($signed(A) / $signed(B))) display_fatal(1'b0);
+          13: if (Y !== (A / B)) display_fatal(1'b0);
+          14: if (Y !== $signed($signed(A) % $signed(B))) display_fatal(1'b0);
+          default: if (Y !== ($unsigned(A) % $unsigned(B))) display_fatal(1'b0);
         endcase
         #1;
       end
