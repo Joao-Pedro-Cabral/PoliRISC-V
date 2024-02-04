@@ -454,13 +454,13 @@ module Dataflow_tb ();
           mulh = $signed(A) * $signed(B);
           ULA_function = mulh[2*`DATA_SIZE-1:`DATA_SIZE];
         end
-        5'b10010: begin
+        5'b10010: begin  // MULHSU
           mulhsu = $signed(A) * B;
-          ULA_function = mulhsu[2*`DATA_SIZE-1:`DATA_SIZE]; // MULHSU
+          ULA_function = mulhsu[2*`DATA_SIZE-1:`DATA_SIZE];
         end
-        5'b10011: begin
+        5'b10011: begin  // MULHU
           mulhu = A * B;
-          ULA_function = mulhu[2*`DATA_SIZE-1:`DATA_SIZE]; // MULHU
+          ULA_function = mulhu[2*`DATA_SIZE-1:`DATA_SIZE];
         end
         5'b10100: ULA_function = $signed(A) / $signed(B); // DIV
         5'b10101: ULA_function = A / B; // DIVU
