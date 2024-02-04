@@ -6,30 +6,25 @@ addi a1,x0,3       # Load immediate 3 to register a1
 mul a2, a0, a1
 
 # MULH - Multiply High (signed)
-lui a0,65536
+lui a0,-65536
 lui a1,621412
-addi a1,a1,3072
-mulh a3, a0, a1 // 0x097B64C0
+mulh a3, a0, a1 # 0xFFFFF684 = -2428
 
 # MULHSU - Multiply High (signed-unsigned)
-addi a1,a1,-1
-mulhsu a4, a0, a1 // 0x0FFFFFFF
+mulhsu a4, a1, a3 # 0x00059EE4 = 368356
 
 # MULHU - Multiply High (unsigned)
-mulhu a5, a1, a0  // 0x0FFFFFFF
+mulhu a5, a4, a0  # 0x000059EE = 23022
 
 # DIV - Divide (signed)
-addi a0,x0,-1      # Change value in register a0
-addi a1,a1,2       # Change value in register a1
-div a6, a0, a1 // 0xFFFFFFFF
+div a6, a0, a5 # 0xFFFFD275 = -11659
 
 # DIVU - Divide (unsigned)
-divu a7, a0, a1 // 0x7FFFFFFF
+divu a7, a1, a6 # 0x000354C8 = 218312
 
 # REM - Remainder (signed)
-addi  a0,x0,-7
-addi  a0,x0,-2
-rem a2, a0, a1 // -0d1 = 0xFFFFFFFF
+rem a2, a0, a7 # 0xFFFE0428 = -130008
 
 # REMU - Remainder (unsigned)
-remu a3, a0, a1 // 0d4294967289 = -0d7
+mul a6, a6, a5 # 0xF00055C6 = −268413498
+remu a3, a6, a2 # 0x00012CBA = 76986
