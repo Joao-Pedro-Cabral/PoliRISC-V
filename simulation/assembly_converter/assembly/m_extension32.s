@@ -28,3 +28,10 @@ rem a2, a0, a7 # 0xFFFE0428 = -130008
 # REMU - Remainder (unsigned)
 mul a6, a6, a5 # 0xF00055C6 = −268413498
 remu a3, a6, a2 # 0x00012CBA = 76986
+
+# Write data
+lui sp,4096
+lui x5,1     
+or sp,sp,x5     
+addi sp,sp,28
+sw a3,0(sp)
