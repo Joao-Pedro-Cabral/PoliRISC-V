@@ -1,5 +1,18 @@
 #!/bin/bash
 
+if [ "$#" -ge 2 ]; then
+    echo "Argument 1: $1"
+    echo "Argument 2: $2"
+else
+    echo "Error: Insufficient number of arguments. Please provide two arguments."
+    exit 1
+fi
+
+if [ "$1" != "create" ] && [ "$1" != "remove" ]; then
+  echo "Invalid command"
+  exit 1
+fi
+
 # create or remove
 command=$1
 
@@ -11,6 +24,11 @@ exclude_dirs=("docs" "simulation" "synthesis" ".git")
 
 # Path to the macros file
 macros_file="$PWD/simulation/$2.vh"
+
+if ! [ -e "$macros_file" ]; then
+  echo "Macros file doesn't exists"
+  exit 1
+fi
 
 # Function to check if a directory is in the exclude list
 is_excluded() {
