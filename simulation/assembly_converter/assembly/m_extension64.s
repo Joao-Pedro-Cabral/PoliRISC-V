@@ -20,10 +20,10 @@ mulhsu a4, a3, a1 # 0x00000000_0006849B
 mulhu a5, a4, a0  # 0x00000000_0006849A
 
 # DIV - Divide (signed)
-div a6, a0, a5    # 0xFFFFFFFF_FEFFFFB2
+div a6, a0, a5    # 0xFFFFFFFF_FFD8B958
 
 # DIVU - Divide (unsigned)
-divu a7, a6, a5   # 0x00002746_A82233F0
+divu a7, a6, a5   # 0x00002746_A8223412
 
 # REM - Remainder (signed)
 rem a2, a0, a4    # 0xFFFFFFFF_FFFF4C16
@@ -32,10 +32,10 @@ rem a2, a0, a4    # 0xFFFFFFFF_FFFF4C16
 remu a3, a2, a5   # 0x00000000_00061A40
 
 # MULW - Multiply (32 bits)
-mulw a4, a2, a7   # 0x00000000_666BB6A0
+mulw a4, a2, a7   # 0x00000000_6653D18C
 
 # DIVW - Divide (32 bits)
-divw a5, a4, a2   # 0xFFFFFFFF_FFFF6E44
+divw a5, a4, a2   # 0xFFFFFFFF_FFFF6E66
 
 # DIVUW - Divide (unsigned 32 bits)
 divuw a6, a5, a2   # 0x1
@@ -44,11 +44,11 @@ divuw a6, a5, a2   # 0x1
 remw a7, a4, a2   # 0x00000000_00000CC8
 
 # REMUW - Remainder (unsigned 32 bits)
-remuw a7, a5, a2   # 0x00000000_0000222E
+remuw a7, a5, a2   # 0x00000000_00002250
 
 # Write data
 lui sp,4096
 lui x5,1
 or sp,sp,x5
 addi sp,sp,-4
-sw a3,0(sp)
+sw a7,0(sp)

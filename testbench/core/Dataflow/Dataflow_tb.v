@@ -653,7 +653,8 @@ module Dataflow_tb ();
           @(negedge clock);
           // Uso ULA_function para calcular o reg_data
           if (opcode[5]) reg_data = ULA_function(A, B, {funct7[0], funct7[5], funct3});
-          else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[0], funct7[5], funct3});
+          else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[0] &
+                                                (opcode != 7'b0010011), funct7[5], funct3});
           else reg_data = ULA_function(A, immediate, {2'b00, funct3});
           // opcode[3] = 1'b1 -> RV64I
           if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};

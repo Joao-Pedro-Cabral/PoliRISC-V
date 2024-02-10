@@ -193,8 +193,8 @@ module control_unit (
           WRtypeOpCode: begin
             proximo_estado = RegistradorRegistrador;
             if(funct3 == 3'b000 || funct3 == 3'b101) begin
-                if({funct7[6],funct7[4:0]} != 0) proximo_estado = Illegal;
-            end else if(funct3 != 3'b001) proximo_estado = Illegal;
+                if({funct7[6],funct7[4:1]} != 0) proximo_estado = Illegal;
+            end else if(funct3 == 3'b010 || funct3 == 3'b011) proximo_estado = Illegal;
           end
         `endif
           ULAITypeOpCode: begin
@@ -205,14 +205,14 @@ module control_unit (
               proximo_estado = Illegal;
           `else
             if(funct3 == 3'b001 && funct7 != 0) proximo_estado = Illegal;
-            if(funct3 == 3'b101 && {funct7[6],funct7[4:0]} != 0)
+            if(funct3 == 3'b101 && {funct7[6],funct7[4:1]} != 0)
               proximo_estado = Illegal;
           `endif
           end
           `ifdef RV64I
           ULAWITypeOpCode: begin
             proximo_estado = RegistradorImediato;
-            if(funct3 == 3'b101 && {funct7[6],funct7[4:0]} != 0) proximo_estado = Illegal; // SRIW
+            if(funct3 == 3'b101 && {funct7[6],funct7[4:1]} != 0) proximo_estado = Illegal; // SRIW
             else if(funct3 == 3'b001 && funct7 != 0) proximo_estado = Illegal; // SLLIW
             else if(funct3 != 3'b000) proximo_estado = Illegal; // ADDIW
           end

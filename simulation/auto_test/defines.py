@@ -1,6 +1,6 @@
-extensions_map = {"control_unit_tb": ["RV64I", "ZICSR", "TrapReturn"],
-                  "core_tb": ["RV64I", "ZICSR", "TrapReturn"],
-                  "Dataflow_tb": ["RV64I", "ZICSR", "TrapReturn"],
+extensions_map = {"control_unit_tb": ["RV64I", "ZICSR", "TrapReturn", "M"],
+                  "core_tb": ["RV64I", "ZICSR", "TrapReturn", "M"],
+                  "Dataflow_tb": ["RV64I", "ZICSR", "TrapReturn", "M"],
                   "memory_controller_tb": ["UART_0"],
                   "RV32I_uart_tb": ["UART_0"]}
 

@@ -91,7 +91,7 @@ module ULA (
   assign _or = A | B;
   assign _and = A & B;
 
-  // operações da extensão M
+  // operações da extensão M -> FIXME: DIV(U)W e REM(U)W
   assign {_mulhu, _mul} = A * B;
   assign {_mulhsu, _mulhsu_aux} = $signed(A) * B;
   assign {_mulh, _mulh_aux} = $signed(A) * $signed(B);
