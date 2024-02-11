@@ -1,9 +1,6 @@
 #!/bin/bash
 
-if [ "$#" -ge 2 ]; then
-    echo "Argument 1: $1"
-    echo "Argument 2: $2"
-else
+if [ "$#" -ne 2 ]; then
     echo "Error: Insufficient number of arguments. Please provide two arguments."
     exit 1
 fi
