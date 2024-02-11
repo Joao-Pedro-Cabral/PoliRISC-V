@@ -1,13 +1,13 @@
 
 action = "simulation"
 sim_tool = "modelsim"
-sim_top = "control_unit_tb"
+sim_top = "core_tb"
 use_mif = True
-gui_mode = False
-mif_name = "power64.mif"
+gui_mode = True
+mif_name = "branches.mif"
 rom_mif_path = "./MIFs/memory/ROM/core/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/core.mif"
-lista_de_extensoes = []
+lista_de_extensoes = ["RV64I"]
 vsim_args = " -do vsim_gui.do -voptargs=+acc " if gui_mode else " -c -do vsim_tcl.do "
 
 # gerar arquivo de extensões

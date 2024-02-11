@@ -135,6 +135,8 @@ module Dataflow_tb ();
   reg [`DATA_SIZE-1:0] reg_data;  // write data do banco de registradores
   wire [`DATA_SIZE-1:0] A;  // read data 1 do banco de registradores
   wire [`DATA_SIZE-1:0] B;  // read data 2 do banco de registradores
+  reg [`DATA_SIZE-1:0] aluA; // register operator A of ULA
+  reg [`DATA_SIZE-1:0] aluB; // register operator B of ULA
   reg [`DATA_SIZE-1:0] pc = 0;  // pc -> Acessa memória de instrução
   reg [`DATA_SIZE-1:0] next_pc = 0; // próximo valor do pc
   reg [`DATA_SIZE-1:0] pc_imm;  // pc + (imediato << 1) OU {A + immediate[N-1:1], 0}
@@ -531,6 +533,8 @@ module Dataflow_tb ();
     begin
       db_df_src = 0;
       reg_data = 0;
+      aluA = 0;
+      aluB = 0;
       csr_wr_data = 0;
       pc_4 = 0;
       pc_imm = 0;
@@ -652,12 +656,14 @@ module Dataflow_tb ();
           db_df_src[DfSrcSize+1] = 1'b1;
           @(negedge clock);
           // Uso ULA_function para calcular o reg_data
-          if (opcode[5]) reg_data = ULA_function(A, B, {funct7[0], funct7[5], funct3});
-          else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[0] &
+          aluA = opcode[3] ? {{32{A[31]}}, A[31:0]} : A;
+          aluB = opcode[3] ? {{32{B[31]}}, B[31:0]} : B;
+          if (opcode[5]) reg_data = ULA_function(aluA, aluB, {funct7[0], funct7[5], funct3});
+          else if (funct3 === 3'b101) reg_data = ULA_function(aluA, immediate, {funct7[0] &
                                                 (opcode != 7'b0010011), funct7[5], funct3});
-          else reg_data = ULA_function(A, immediate, {2'b00, funct3});
+          else reg_data = ULA_function(aluA, immediate, {2'b00, funct3});
           // opcode[3] = 1'b1 -> RV64I
-          if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
+          if (opcode[3]) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
           next_pc = pc + 4;
           // Verifico reg_data
           `ASSERT(reg_data === DUT.rd);

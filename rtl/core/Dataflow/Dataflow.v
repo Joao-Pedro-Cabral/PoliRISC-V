@@ -143,11 +143,13 @@ module Dataflow (
       .read_data2(rs2)
   );
   // ULA
+`ifdef RV64I
+  assign aluA = alua_src ? pc : (aluy_src ? {{32{rs1[31]}}, rs1[31:0]} : rs1);
+  assign aluB = alub_src ? immediate : (aluy_src ? {{32{rs2[31]}}, rs2[31:0]} : rs2);
+  assign muxaluY_out[`DATA_SIZE-1:32] = aluy_src ? {32{aluY[31]}} : aluY[`DATA_SIZE-1:32];
+`else
   assign aluA = alua_src ? pc : rs1;
   assign aluB = alub_src ? immediate : rs2;
-
-`ifdef RV64I
-  assign muxaluY_out[`DATA_SIZE-1:32] = aluy_src ? {32{aluY[31]}} : aluY[`DATA_SIZE-1:32];
 `endif
 
   ULA #(

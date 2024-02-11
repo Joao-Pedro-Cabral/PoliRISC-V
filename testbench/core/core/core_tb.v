@@ -55,6 +55,8 @@ module core_tb ();
   reg [`DATA_SIZE-1:0] reg_data;  // write data do banco de registradores
   wire [`DATA_SIZE-1:0] A;  // read data 1 do banco de registradores
   wire [`DATA_SIZE-1:0] B;  // read data 2 do banco de registradores
+  reg [`DATA_SIZE-1:0] aluA; // register operator A of ULA
+  reg [`DATA_SIZE-1:0] aluB; // register operator B of ULA
   reg [`DATA_SIZE-1:0] pc = 0;  // pc -> Uso esse pc para acessar a memória de
   reg [`DATA_SIZE-1:0] next_pc = 0;  // próximo valor do pc
   // instrução
@@ -517,6 +519,8 @@ module core_tb ();
       mret = 1'b0;
       sret = 1'b0;
       reg_data = 0;
+      aluA = 0;
+      aluB = 0;
       csr_wr_data = 0;
       pc_4 = 0;
       pc_imm = 0;
@@ -623,11 +627,14 @@ module core_tb ();
           // Habilito o banco simulado
           wr_reg_en = 1'b1;
           // A partir do opcode, do funct3 e do funct7 descubro o resultado da operação da ULA
-          if (opcode[5]) reg_data = ULA_function(A, B, {funct7[0], funct7[5], funct3});
-          else if (funct3 === 3'b101) reg_data = ULA_function(A, immediate, {funct7[0], funct7[5], funct3});
-          else reg_data = ULA_function(A, immediate, {2'b00, funct3});
+          aluA = opcode[3] ? {{32{A[31]}}, A[31:0]} : A;
+          aluB = opcode[3] ? {{32{B[31]}}, B[31:0]} : B;
+          if (opcode[5]) reg_data = ULA_function(aluA, aluB, {funct7[0], funct7[5], funct3});
+          else if (funct3 === 3'b101) reg_data = ULA_function(aluA, immediate, {funct7[0] &
+                                                  (opcode != 7'b0010011), funct7[5], funct3});
+          else reg_data = ULA_function(aluA, immediate, {2'b00, funct3});
           // opcode[3] = 1'b1 -> RV64I
-          if (opcode[3] === 1'b1) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
+          if (opcode[3]) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
           // Verifico reg_data
           `ASSERT(reg_data === DUT.DF.rd);
           // Verifico se os enables estão desligados
