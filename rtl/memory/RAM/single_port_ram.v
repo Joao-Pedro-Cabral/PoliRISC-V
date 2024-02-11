@@ -64,20 +64,18 @@ module single_port_ram #(
     end
   end
 
-  always @* begin
-    if (STB_I === 1'b1 && CYC_I === 1'b1) busy_flag <= 1'b1;
-  end
-
   integer k;
   always @(posedge CLK_I) begin
-    ACK_O = 1'b0;
-    if (busy_flag === 1'b1) begin
+    ACK_O <= 1'b0;
+    if (busy_flag) begin
       for (k = 0; k < BUSY_CYCLES; k = k + 1) begin
         wait (CLK_I == 1'b0);
         wait (CLK_I == 1'b1);
       end
-      ACK_O = 1'b1;
-      busy_flag = 1'b0;
+      ACK_O <= 1'b1;
+      busy_flag <= 1'b0;
+    end else if (STB_I && CYC_I) begin
+      busy_flag <= 1'b1;
     end
   end
 

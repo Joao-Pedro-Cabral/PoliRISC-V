@@ -1,10 +1,11 @@
 files = [
     "core_tb.v",
-    "RV32I_uart_tb.v"
+    "RV32I_uart_tb.v",
+    "RV32I_litex_tb.v"
 ]
 
 modules = {
-    "local" : [
+    "local": [
         "../../../rtl/core/core",
         "../../../rtl/core/ImmediateExtender",
         "../../../rtl/core/RegisterFile",

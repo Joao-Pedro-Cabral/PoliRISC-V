@@ -55,6 +55,18 @@ module CSR (
   // MISA
   wire [`DATA_SIZE-1:0] misa;
 
+  // MVENDORID
+  wire [`DATA_SIZE-1:0] mvendorid;
+
+  // MARCHID
+  wire [`DATA_SIZE-1:0] marchid;
+
+  // MIMPID
+  wire [`DATA_SIZE-1:0] mimpid;
+
+  // MHARTID
+  wire [`DATA_SIZE-1:0] mhartid;
+
   // MTVEC
   wire [`DATA_SIZE-1:0] mtvec;
 
@@ -222,7 +234,19 @@ module CSR (
   // MISA
   assign misa[`DATA_SIZE-1:`DATA_SIZE-2] = `DATA_SIZE / 32;
   assign misa[`DATA_SIZE-3:26] = 0;
-  assign misa[25:0] = 26'h1400100;  // U, S implementados + RV64I
+  assign misa[25:0] = 26'h1401100;  // U, S implementados + RV64I
+
+  // MVENDORID
+  assign mvendorid = 0;  // non-commercial implementation
+
+  // MARCHID
+  assign marchid = 0;
+
+  // MIMPID
+  assign mimpid = 0;
+
+  // MHARTID
+  assign mhartid = 0;  // no threads
 
   // MTVEC
   assign mtvec[1] = 1'b0;  // Reserved
@@ -467,6 +491,10 @@ module CSR (
       12'h342: rd_data = mcause;
       12'h343: rd_data = mtval;
       12'h344: rd_data = mip;
+      12'hF11: rd_data = mvendorid;
+      12'hF12: rd_data = marchid;
+      12'hF13: rd_data = mimpid;
+      12'hF14: rd_data = mhartid;
       default: addr_exception = 1'b1;
     endcase
   end
