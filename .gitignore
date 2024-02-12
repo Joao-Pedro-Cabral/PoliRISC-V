@@ -18,9 +18,9 @@ simulation/work/
 simulation/transcript
 simulation/*.wlf
 simulation/Makefile
-simulation/assembly_converter/program.mif
+simulation/assembly_converter/program.*
 
-# arquivos de automatização de simulação (hdlmake + scripts python)
+# arquivos de automação de simulação (hdlmake + scripts python)
 *macros.vh
 *extensions*.vh
 *__pycache__
