@@ -2,22 +2,12 @@ from selenium import webdriver
 from time import sleep
 import re
 from selenium.webdriver.support.ui import Select
-
+from bintohex import bintohex
 
 searchterms = []
 
-with open("x.mif", "r") as assembly:
-    for line in assembly:
-        if len(line.strip()) == 0:
-            continue
-
-        if line[len(line) - len(line.lstrip())] in [';', '#', '/']:
-            continue
-
-        # apaga espaços no começo da linha
-        l = re.sub("^\s+", "", line)
-
-        searchterms.append(l)
+mif_path: str = input("Digite o nome do arquivo: ").strip()
+searchterms = bintohex(mif_path)
 
 machine = open("program.s", "w")
 
@@ -25,7 +15,6 @@ brave_path = "/usr/bin/brave-browser"
 
 option = webdriver.ChromeOptions()
 option.add_argument("--port=11000")
-option.add_argument("--headless=new")
 option.binary_location = brave_path
 browser = webdriver.Chrome(options=option)
 
