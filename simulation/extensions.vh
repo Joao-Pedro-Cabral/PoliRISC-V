@@ -1,1 +1,3 @@
-`define RV64I
+`define TrapReturn
+`define M
+`define ZICSR
