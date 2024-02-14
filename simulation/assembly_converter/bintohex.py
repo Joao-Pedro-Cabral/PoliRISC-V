@@ -5,7 +5,6 @@ def binary_to_hex(binary_str: str) -> str:
 
 
 def mount_binary_line(broken_lines: list[str]) -> str:
-    print(broken_lines[::-1])
     return ''.join(broken_lines[::-1])
 
 
@@ -22,7 +21,6 @@ def read_binary_from_file(file_path: str) -> list[str]:
                 if len(binary_line) != 8 or not all(bit in '01' for bit in binary_line):
                     print(f"Invalid input in the file. Line: {binary_line}")
                     return None
-                print("Linha: " + binary_line)
                 broken_binary_lines[i] = binary_line
                 if i == 3:
                     binary_lines.append(mount_binary_line(broken_binary_lines))

@@ -23,7 +23,6 @@ module RV32I_litex_tb ();
   wire mem_CYC_O;
   wire mem_STB_O;
   wire [3:0] mem_byte_en;
-  wire external_interrupt;
   // Sinais do Barramento
   // ROM
   wire rom_cyc;
@@ -62,7 +61,6 @@ module RV32I_litex_tb ();
   // wire [31:0] opensbi_dat;
   // wire opensbi_ack;
   // variáveis
-  integer limit = 100000;  // tamanho do programa que será executado
   integer i;
 
   // DUT
@@ -77,7 +75,7 @@ module RV32I_litex_tb ();
       .mem_STB_O(mem_STB_O),
       .mem_SEL_O(mem_byte_en),
       .mem_WE_O(mem_wr_en),
-      .external_interrupt(external_interrupt),
+      .external_interrupt(1'b0),
       .mem_msip(0),
       .mem_mtime(64'h64),
       .mem_mtimecmp(64'h0)
@@ -197,9 +195,6 @@ module RV32I_litex_tb ();
   //     .ACK_O(opensbi_ack)
   // );
 
-  // BUS
-  assign external_interrupt = memory_csr_clint.ram[16'h1010][1];
-
   // Memory controller
   // ROM
   assign rom_cyc = (mem_addr[31:16] == 0) & mem_STB_O;
@@ -246,12 +241,6 @@ module RV32I_litex_tb ();
   always @(posedge csr_clint_cyc) begin
     if (mem_addr == 32'hf0001000 && csr_clint_we) begin
       $write("%s", wr_data[7:0]);
-    end else if (32'hf0001010 == mem_addr && csr_clint_we) begin
-      $display("Accessing pending");
-      if (~wr_data[1]) begin
-        force memory_csr_clint.ram[16'h1010][1] = 1'b0;
-        release memory_csr_clint.ram[16'h1010][1];
-      end
     end
   end
 
@@ -274,15 +263,5 @@ module RV32I_litex_tb ();
   initial begin : Testbench
     $display("SOT!");
     DoReset();
-    // $monitor("[monitor]: time=%0t, trap=%b, pc=%x", $time, DUT.DF._trap, DUT.DF.pc);
-    for (i = 0; i < limit; i = i + 1) begin
-      // $display("Test: %d", i);
-      @(negedge clock);
-      if (limit == 58567) begin
-        force memory_csr_clint.ram[16'h1010][1] = 1'b1;
-        release memory_csr_clint.ram[16'h1010][1];
-      end
-    end
-    $stop;
   end
 endmodule
