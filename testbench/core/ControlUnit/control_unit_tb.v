@@ -459,8 +459,8 @@ module control_unit_tb ();
       `ASSERT(db_df_src === {1'b1,{`BYTE_NUM-4{1'b0}},4'hF});
       @(posedge mem_ack);
       @(negedge clock);
-      // Após a memória abaixar confiro se o ir_en levantou e o instruction mem en desceu
-      `ASSERT(db_df_src === {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF});
+      // Confiro se o ir_en levantou
+      `ASSERT(db_df_src === {2'b01, {DfSrcSize - 9{1'b0}}, 1'b1, {`BYTE_NUM-4{1'b0}}, 4'hF});
     end
   endtask
 
@@ -498,8 +498,8 @@ module control_unit_tb ();
           @(negedge clock);
           `ASSERT(pc_en === 1'b1);
           `ASSERT(wr_reg_en === df_src[NotOnlyOp-2]);
-          `ASSERT(mem_rd_en === 1'b0);
-          `ASSERT(mem_wr_en === 1'b0);
+          `ASSERT(mem_rd_en === (opcode === 7'b0000011));
+          `ASSERT(mem_wr_en === (opcode === 7'b0100011));
         end
         // Branch(B*)
         7'b1100011: begin

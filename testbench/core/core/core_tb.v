@@ -481,13 +481,13 @@ module core_tb ();
   assign funct7 = instruction[31:25];
 
   // geração dos sinais de controle do barramento
-  assign mem_op = (opcode === 7'b0100011 || opcode === 7'b0000011) ? 1'b1 : 1'b0;
+  assign mem_op = (opcode === 7'b0100011 || opcode === 7'b0000011);
   assign mem_byte_en_ = funct3[1] ? (funct3[0] ? ({`BYTE_NUM{1'b1}} & {`BYTE_NUM{mem_op}})
                                   : (`BYTE_NUM'hF & {`BYTE_NUM{mem_op}}))
                                   : (funct3[0] ? (`BYTE_NUM'h3 & {`BYTE_NUM{mem_op}})
                                   : (`BYTE_NUM'h1 & {`BYTE_NUM{mem_op}}));
-  assign mem_rd_en_ = (opcode === 7'b0000011) ? 1'b1 : 1'b0;
-  assign mem_wr_en_ = (opcode === 7'b0100011) ? 1'b1 : 1'b0;
+  assign mem_rd_en_ = (opcode === 7'b0000011);
+  assign mem_wr_en_ = (opcode === 7'b0100011);
   assign mem_CYC_O_ = mem_rd_en_ | mem_wr_en_;
   assign mem_STB_O_ = mem_CYC_O_;
   assign mem_en = {mem_wr_en_, mem_CYC_O_, mem_STB_O_, mem_byte_en_};
@@ -544,8 +544,7 @@ module core_tb ();
       @(posedge mem_ack);
       @(negedge clock);
       instruction = rd_data;  // leitura da ROM -> instrução
-      // ACK levantou -> instruction mem enable abaixado
-      `ASSERT(db_mem_en === 4'hF);
+      `ASSERT(db_mem_en === {3'b011, {`BYTE_NUM - 4{1'b0}}, 4'hF});
     end
   endtask
 
@@ -573,8 +572,7 @@ module core_tb ();
             reg_data  = rd_data;
           end
           @(negedge clock);
-          // Na borda de descida, confiro se os sinais de controle abaixaram
-          `ASSERT(db_mem_en === {3'b000, mem_byte_en_});
+          `ASSERT(db_mem_en === mem_en);
           // Caso load -> confiro a leitura
           if (!opcode[5]) `ASSERT(DUT.DF.rd === reg_data);
           next_pc = pc + 4;

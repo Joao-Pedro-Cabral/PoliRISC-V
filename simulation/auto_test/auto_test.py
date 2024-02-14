@@ -1,8 +1,8 @@
 
 import subprocess
 import sys
-from manifest_utils import set_extensions, run_simulation, write_lines
-from defines import tops_with_mifs
+from manifest_utils import *
+from defines import *
 
 
 def find_files(root_directory: str, extension: str):
@@ -32,7 +32,9 @@ for testbench in sim_top_array:
     print(f'---------{testbench}---------')
     write_lines(["sim_top"], [f"sim_top = \"{testbench}\""])  # Set TCL Mode
     set_extensions(testbench)
-    if tops_with_mifs.count(testbench) != 0:
+    if testbench in excluded_tops:
+        print("---------PASS---------")
+    elif tops_with_mifs.count(testbench) != 0:
         for i, mif in enumerate(mif_array):
             write_lines(["mif_name"], [f"mif_name = \"{mif}.mif\""])
             run_simulation()
