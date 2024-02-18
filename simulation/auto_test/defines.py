@@ -6,4 +6,5 @@ extensions_map = {"control_unit_tb": ["RV64I", "ZICSR", "TrapReturn", "M"],
 
 tops_with_mifs = ["core_tb", "Dataflow_tb", "control_unit_tb"]
 
-excluded_tops = ["RV32I_litex_tb", "multiplier_top_tb", "sdram_controller_tb"]
+excluded_tops = ["RV32I_litex_de10nano_tb", "RV32I_litex_nexys4ddr_tb",
+                 "multiplier_top_tb", "sdram_controller_tb"]

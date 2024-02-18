@@ -1,5 +1,5 @@
 //
-//! @file   RV32I_Litex_tb.v
+//! @file   RV32I_litex_de10nano_tb.v
 //! @brief  Testbench do core com BIOS da Litex
 //! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
 //! @date   2024-02-11
@@ -10,7 +10,7 @@
 
 `define ASSERT(condition) if (!(condition)) $stop
 
-module RV32I_litex_tb ();
+module RV32I_litex_de10nano_tb ();
   // sinais do DUT
   reg clock;
   reg reset;
@@ -54,12 +54,6 @@ module RV32I_litex_tb ();
   wire [3:0] plic_sel;
   wire [31:0] plic_dat;
   wire plic_ack;
-  // OpenSBI
-  // wire opensbi_cyc;
-  // wire opensbi_we;
-  // wire [3:0] opensbi_sel;
-  // wire [31:0] opensbi_dat;
-  // wire opensbi_ack;
   // variáveis
   integer i;
 
@@ -83,7 +77,7 @@ module RV32I_litex_tb ();
 
   // ROM
   single_port_ram #(
-      .RAM_INIT_FILE("./MIFs/memory/ROM/bios.mif"),
+      .RAM_INIT_FILE("./MIFs/memory/ROM/bios/de10nano_bios.mif"),
       .ADDR_SIZE(16),
       .BYTE_SIZE(8),
       .DATA_SIZE(32),
@@ -102,7 +96,7 @@ module RV32I_litex_tb ();
 
   // SRAM
   single_port_ram #(
-      .RAM_INIT_FILE("./MIFs/memory/ROM/bios.mif"),
+      .RAM_INIT_FILE("./MIFs/memory/ROM/zeros.mif"),
       .ADDR_SIZE(12),
       .BYTE_SIZE(8),
       .DATA_SIZE(32),
@@ -121,7 +115,7 @@ module RV32I_litex_tb ();
 
   // Main RAM
   single_port_ram #(
-      .RAM_INIT_FILE("./MIFs/memory/ROM/bios.mif"),
+      .RAM_INIT_FILE("./MIFs/memory/ROM/zeros.mif"),
       .ADDR_SIZE(26),
       .BYTE_SIZE(8),
       .DATA_SIZE(32),
@@ -176,25 +170,6 @@ module RV32I_litex_tb ();
       .ACK_O(plic_ack)
   );
 
-  // OpenSBI
-  // single_port_ram #(
-  //     .RAM_INIT_FILE("./MIFs/memory/ROM/bios.mif"),
-  //     .ADDR_SIZE(19),
-  //     .BYTE_SIZE(8),
-  //     .DATA_SIZE(32),
-  //     .BUSY_CYCLES(2)
-  // ) memory_opensbi (
-  //     .CLK_I(clock),
-  //     .ADR_I(mem_addr),
-  //     .DAT_I(wr_data),
-  //     .CYC_I(opensbi_cyc),
-  //     .STB_I(opensbi_cyc),
-  //     .WE_I (opensbi_we),
-  //     .SEL_I(opensbi_sel),
-  //     .DAT_O(opensbi_dat_O),
-  //     .ACK_O(opensbi_ack)
-  // );
-
   // Memory controller
   // ROM
   assign rom_cyc = (mem_addr[31:16] == 0) & mem_STB_O;
@@ -216,10 +191,7 @@ module RV32I_litex_tb ();
   assign plic_cyc = (mem_addr[31:22] == 10'h3C3) & mem_STB_O;
   assign plic_we = plic_cyc & mem_wr_en;
   assign plic_sel = mem_byte_en;
-  // OpenSBI
-  // assign opensbi_cyc = mem_addr[31:19] == 13'h;
-  // assign opensbi_we = opensbi_cyc & mem_wr_en;
-  // assign opensbi_sel = mem_byte_en;
+  // Controller
   assign rd_data = rom_cyc       ? rom_dat       :
                    sram_cyc      ? sram_dat      :
                    ram_cyc       ? ram_dat       :
