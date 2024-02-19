@@ -12,6 +12,8 @@
 
 module uart_tb ();
 
+  localparam integer LitexArch = 0;
+  localparam integer FifoDepth = 8;
   localparam integer AmntOfTests = 500;
   localparam integer ClockPeriod = 20;
   localparam integer Seed = 133;
@@ -79,6 +81,8 @@ module uart_tb ();
 
   // DUT
   uart #(
+      .LITEX_ARCH(LitexArch),
+      .FIFO_DEPTH(FifoDepth),
       .CLOCK_FREQ_HZ(115200 * 32)
   ) DUT (
       .CLK_I(clock),
@@ -112,7 +116,7 @@ module uart_tb ();
   initial begin
     rx_clock = 0;
     @(initClocks);
-    @(posedge DUT.rx_clock);  // Sincronizando
+    @(posedge DUT.PHY.rx_clock);  // Sincronizando
     forever begin
       rx_clock = 1;
       #(RxClockPeriod / 2);
@@ -125,7 +129,7 @@ module uart_tb ();
   initial begin
     tx_clock = 0;
     @(initClocks);
-    @(posedge DUT.tx_clock);  // Sincronizando
+    @(posedge DUT.PHY.tx_clock);  // Sincronizando
     forever begin
       tx_clock = 1;
       #(TxClockPeriod / 32);
@@ -138,7 +142,7 @@ module uart_tb ();
   // Após detectar um novo dado válido
   // Espere a FIFO ter espaço
   // Então, no ciclo seguinte escreva
-  always @(posedge DUT.rx_data_valid) begin
+  always @(posedge DUT.PHY.rx_data_valid) begin
     @(negedge clock);
     wait (rx_full == 1'b0);
     @(posedge clock);
@@ -166,7 +170,7 @@ module uart_tb ();
   // Após detectar um que o Transmissor está pronto
   // Espere a FIFO ter dado
   // Então, no ciclo seguinte lê
-  always @(posedge DUT.tx_rdy) begin
+  always @(posedge DUT.PHY.tx_rdy) begin
     @(negedge clock);
     wait (tx_empty == 1'b0);
     @(posedge clock);
@@ -227,8 +231,8 @@ module uart_tb ();
 
       `ASSERT(rx_empty_ === rd_data[31]);
       `ASSERT(rx_fifo[rx_read_ptr] === rd_data[7:0]);
-      `ASSERT(rx_read_ptr === DUT.rx_fifo.rd_reg);
-      `ASSERT(rx_watermark_reg === DUT.rx_fifo.watermark_reg);
+      `ASSERT(rx_read_ptr === DUT.PHY.rx_fifo.rd_reg);
+      `ASSERT(rx_watermark_reg === DUT.PHY.rx_fifo.watermark_reg);
 
     end
   endtask
@@ -247,9 +251,9 @@ module uart_tb ();
       @(negedge clock);
 
       `ASSERT(tx_full === rd_data[31]);
-      `ASSERT(tx_write_ptr === DUT.tx_fifo.wr_reg);
-      `ASSERT(tx_watermark_reg === DUT.tx_fifo.watermark_reg);
-      `ASSERT(tx_fifo[tx_write_ptr-1] === DUT.tx_fifo.fifo_memory[DUT.tx_fifo.wr_reg-1]);
+      `ASSERT(tx_write_ptr === DUT.PHY.tx_fifo.wr_reg);
+      `ASSERT(tx_watermark_reg === DUT.PHY.tx_fifo.watermark_reg);
+      `ASSERT(tx_fifo[tx_write_ptr-1] === DUT.PHY.tx_fifo.fifo_memory[DUT.PHY.tx_fifo.wr_reg-1]);
     end
   endtask
 
@@ -346,7 +350,7 @@ module uart_tb ();
       rxd = 0;
       @(negedge tx_clock);
 
-      `ASSERT(DUT.rx.present_state === DUT.rx.Start);
+      `ASSERT(DUT.PHY.rx.present_state === DUT.PHY.rx.Start);
 
     end
   endtask
@@ -359,7 +363,7 @@ module uart_tb ();
       for (j = 0; j < 8; j = j + 1) begin
         rxd = rx_data[j];
         @(negedge tx_clock);
-        `ASSERT(DUT.rx.present_state === DUT.rx.Data);
+        `ASSERT(DUT.PHY.rx.present_state === DUT.PHY.rx.Data);
       end
     end
   endtask
@@ -371,7 +375,7 @@ module uart_tb ();
       rxd = 1'b1;
       @(negedge tx_clock);
 
-      `ASSERT(DUT.rx.present_state === DUT.rx.Stop1);
+      `ASSERT(DUT.PHY.rx.present_state === DUT.PHY.rx.Stop1);
 
     end
   endtask
@@ -382,7 +386,7 @@ module uart_tb ();
       rxd = 1'b1;
       @(negedge tx_clock);
 
-      `ASSERT(DUT.rx.present_state === DUT.rx.Stop2);
+      `ASSERT(DUT.PHY.rx.present_state === DUT.PHY.rx.Stop2);
 
     end
   endtask
@@ -392,9 +396,10 @@ module uart_tb ();
       rx_initial = 3'b100;
       @(negedge tx_clock);
 
-      `ASSERT(rx_fifo[rx_write_ptr-1'b1] === DUT.rx_fifo.fifo_memory[DUT.rx_fifo.wr_reg-1'b1]);
-      `ASSERT(rx_write_ptr === DUT.rx_fifo.wr_reg);
-      `ASSERT(rx_watermark_reg === DUT.rx_fifo.watermark_reg);
+      `ASSERT(
+          rx_fifo[rx_write_ptr-1'b1] === DUT.PHY.rx_fifo.fifo_memory[DUT.PHY.rx_fifo.wr_reg-1'b1]);
+      `ASSERT(rx_write_ptr === DUT.PHY.rx_fifo.wr_reg);
+      `ASSERT(rx_watermark_reg === DUT.PHY.rx_fifo.watermark_reg);
     end
   endtask
 

@@ -2,8 +2,7 @@
 `include "macros.vh"
 
 module uart_phy #(
-    parameter integer FIFO_DEPTH = 8,
-    parameter integer CLOCK_FREQ_HZ = 10000000
+    parameter integer FIFO_DEPTH = 8
 ) (
     // COMMON
     input  wire                          clock,

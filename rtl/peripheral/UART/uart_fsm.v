@@ -2,7 +2,7 @@
 `include "macros.vh"
 
 module uart_fsm #(
-    parameter reg LITEX_MODE = 0
+    parameter integer LITEX_ARCH = 0
 ) (
     // COMMON
     input wire clock,
@@ -60,11 +60,11 @@ module uart_fsm #(
         else if (wr_en) next_state = Write;
       end
       Read: begin
-        if (is_rxdata_addr(LITEX_MODE, addr)) next_state = EndOp;
+        if (is_rxdata_addr(LITEX_ARCH, addr)) next_state = EndOp;
         else next_state = Final;
       end
       Write: begin
-        if (is_txdata_addr(LITEX_MODE, addr)) next_state = EndOp;
+        if (is_txdata_addr(LITEX_ARCH, addr)) next_state = EndOp;
         else next_state = Final;
       end
       EndOp:   next_state = Final;
@@ -93,8 +93,8 @@ module uart_fsm #(
         end
         EndOp: begin
           op     <= 1'b1;
-          end_rd <= _rd_en & is_rxdata_addr(LITEX_MODE, addr);
-          end_wr <= _wr_en & is_txdata_addr(LITEX_MODE, addr);
+          end_rd <= _rd_en & is_rxdata_addr(LITEX_ARCH, addr);
+          end_wr <= _wr_en & is_txdata_addr(LITEX_ARCH, addr);
         end
         Final: begin
           ack <= 1'b1;
@@ -109,7 +109,7 @@ module uart_fsm #(
   assign bank_wr_en = _wr_en;
   assign rxdata_wr_en = end_rd;
   assign tx_fifo_wr_en = end_wr;
-  assign rx_fifo_rd_en = _rd_en & is_rxdata_addr(LITEX_MODE, addr);
+  assign rx_fifo_rd_en = _rd_en & is_rxdata_addr(LITEX_ARCH, addr);
 
   // DEBUG
 `ifdef DEBUG

@@ -2,8 +2,9 @@
 `include "macros.vh"
 
 module uart_bank #(
-    parameter reg LITEX_MODE = 0,
-    parameter integer FIFO_DEPTH = 8
+    parameter integer LITEX_ARCH = 0,
+    parameter integer FIFO_DEPTH = 8,
+    parameter integer CLOCK_FREQ_HZ = 10000000
 ) (
     // COMMON
     input  wire                          clock,
@@ -17,19 +18,15 @@ module uart_bank #(
     input  wire                          rxdata_wr_en,
     // DEBUG
 `ifdef DEBUG
-    output wire [                  15:0] div_,
-    output wire                          rx_pending_,
     output wire                          tx_pending_,
+    output wire                          rx_pending_,
     output wire                          tx_pending_en_,
     output wire                          rx_pending_en_,
     output wire                          tx_status_,
     output wire                          rx_status_,
-    output wire                          rxen_,
-    output wire                          nstop_,
-    output wire                          txen_,
     output wire                          rx_fifo_empty_,
-    output wire [                   7:0] rxdata_,
     output wire [                   7:0] txdata_,
+    output wire [                   7:0] rxdata_,
 `endif
     // PHY
     output wire                          txen,
@@ -90,22 +87,22 @@ module uart_bank #(
                        RxControl = 4'hA,
                        ClockDiv = 4'hB;
 
-  function automatic addr_en(input integer litex_mode, input reg [2:0] addr,
+  function automatic addr_en(input integer litex_arch, input reg [2:0] addr,
                              input reg [3:0] addr_type);
     begin
       case (addr_type)
         TxData: addr_en = (addr == 3'b000);
-        RxData: addr_en = litex_mode ? (addr == 3'b000) : (addr == 3'b001);
-        TxFull: addr_en = litex_mode ? (addr == 3'b001) : (addr == 3'b000);
-        TxEmpty: addr_en = litex_mode ? (addr == 3'b110) : 1'b0;
-        RxFull: addr_en = litex_mode ? (addr == 3'b111) : 1'b0;
-        RxEmpty: addr_en = litex_mode ? (addr == 3'b010) : (addr == 3'b001);
-        InterruptEn: addr_en = litex_mode ? (addr == 3'b101) : (addr == 3'b100);
-        Pending: addr_en = litex_mode ? (addr == 3'b100) : (addr == 3'b101);
-        Status: addr_en = litex_mode ? (addr == 3'b011) : 1'b0;
-        TxControl: addr_en = litex_mode ? 1'b0 : (addr == 3'b010);
-        RxControl: addr_en = litex_mode ? 1'b0 : (addr == 3'b011);
-        ClockDiv: addr_en = litex_mode ? 1'b0 : (addr == 3'b110);
+        RxData: addr_en = litex_arch ? (addr == 3'b000) : (addr == 3'b001);
+        TxFull: addr_en = litex_arch ? (addr == 3'b001) : (addr == 3'b000);
+        TxEmpty: addr_en = litex_arch ? (addr == 3'b110) : 1'b0;
+        RxFull: addr_en = litex_arch ? (addr == 3'b111) : 1'b0;
+        RxEmpty: addr_en = litex_arch ? (addr == 3'b010) : (addr == 3'b001);
+        InterruptEn: addr_en = litex_arch ? (addr == 3'b101) : (addr == 3'b100);
+        Pending: addr_en = litex_arch ? (addr == 3'b100) : (addr == 3'b101);
+        Status: addr_en = litex_arch ? (addr == 3'b011) : 1'b0;
+        TxControl: addr_en = litex_arch ? 1'b0 : (addr == 3'b010);
+        RxControl: addr_en = litex_arch ? 1'b0 : (addr == 3'b011);
+        ClockDiv: addr_en = litex_arch ? 1'b0 : (addr == 3'b110);
         default: addr_en = 1'b0;  // Reserved
       endcase
     end
@@ -119,7 +116,7 @@ module uart_bank #(
   ) transmit_data_register (
       .clock(clock),
       .reset(reset),
-      .enable(bank_wr_en & addr_en(LITEX_MODE, addr, TxData)),
+      .enable(bank_wr_en & addr_en(LITEX_ARCH, addr, TxData)),
       .D(wr_data[7:0]),
       .Q(_txdata)
   );
@@ -141,13 +138,13 @@ module uart_bank #(
   ) interrupt_enable_register (
       .clock(clock),
       .reset(reset),
-      .enable(bank_wr_en & addr_en(LITEX_MODE, addr, InterruptEn)),
+      .enable(bank_wr_en & addr_en(LITEX_ARCH, addr, InterruptEn)),
       .D(wr_data[1:0]),
       .Q({rx_pending_en, tx_pending_en})
   );
   // Obter empty antes da leitura ser feita
   generate
-    if (LITEX_MODE) begin : gen_litex_regs
+    if (LITEX_ARCH) begin : gen_litex_regs
       reg tx_fifo_full_d, rx_fifo_empty_d;
       reg [1:0] uart_pending;
       always @(posedge clock) begin
@@ -156,7 +153,7 @@ module uart_bank #(
       end
       always @(posedge clock, posedge reset) begin
         if (reset) uart_pending <= 2'b00;
-        else if (bank_wr_en & addr_en(LITEX_MODE, addr, Pending)) uart_pending <= wr_data[1:0];
+        else if (bank_wr_en & addr_en(LITEX_ARCH, addr, Pending)) uart_pending <= wr_data[1:0];
         else if (tx_fifo_full_d && !tx_fifo_full) uart_pending[0] <= 1'b1;
         else if (rx_fifo_empty_d && !rx_fifo_empty) uart_pending[1] <= 1'b1;
       end
@@ -174,7 +171,7 @@ module uart_bank #(
       ) receive_empty_register (
           .clock(clock),
           .reset(reset),
-          .enable(bank_rd_en & addr_en(LITEX_MODE, addr, RxEmpty)),
+          .enable(bank_rd_en & addr_en(LITEX_ARCH, addr, RxEmpty)),
           .D(rx_fifo_empty),
           .Q(_rx_fifo_empty)
       );
@@ -185,7 +182,7 @@ module uart_bank #(
       ) transmit_control_register (
           .clock(clock),
           .reset(reset),
-          .enable(bank_wr_en & addr_en(LITEX_MODE, addr, TxControl)),
+          .enable(bank_wr_en & addr_en(LITEX_ARCH, addr, TxControl)),
           .D({wr_data[18:16], wr_data[1:0]}),
           .Q({_txcnt, _nstop, _txen})
       );
@@ -196,7 +193,7 @@ module uart_bank #(
       ) receive_control_register (
           .clock(clock),
           .reset(reset),
-          .enable(bank_wr_en & addr_en(LITEX_MODE, addr, RxControl)),
+          .enable(bank_wr_en & addr_en(LITEX_ARCH, addr, RxControl)),
           .D({wr_data[18:16], wr_data[0]}),
           .Q({_rxcnt, _rxen})
       );
@@ -210,7 +207,7 @@ module uart_bank #(
       ) baud_rate_divisor_register (
           .clock(clock),
           .reset(reset),
-          .enable(bank_wr_en & addr_en(LITEX_MODE, addr, ClockDiv)),
+          .enable(bank_wr_en & addr_en(LITEX_ARCH, addr, ClockDiv)),
           .D(wr_data[15:0]),
           .Q(_div)
       );
@@ -220,7 +217,7 @@ module uart_bank #(
 
   // Saídas
   generate
-    if (LITEX_MODE) begin : gen_litex_rd_data
+    if (LITEX_ARCH) begin : gen_litex_rd_data
       gen_mux #(
           .size(32),
           .N(3)
@@ -268,16 +265,12 @@ module uart_bank #(
   assign div = _div;
 
 `ifdef DEBUG
-  assign div_ = _div;
   assign rx_pending_ = rx_pending;
   assign tx_pending_ = tx_pending;
   assign tx_pending_en_ = tx_pending_en;
   assign rx_pending_en_ = rx_pending_en;
   assign tx_status_ = tx_status;
   assign rx_status_ = rx_status;
-  assign rxen_ = _rxen;
-  assign nstop_ = _nstop;
-  assign txen_ = _txen;
   assign rx_fifo_empty_ = _rx_fifo_empty;
   assign rxdata_ = _rxdata;
   assign txdata_ = _txdata;
