@@ -18,7 +18,7 @@ module uart_fsm #(
     output wire rxdata_wr_en,
     // DEBUG
 `ifdef DEBUG
-    output wire [1:0] present_state_,
+    output wire [2:0] present_state_,
 `endif
     // PHY
     output wire tx_fifo_wr_en,
@@ -34,15 +34,15 @@ module uart_fsm #(
   // Estados possíveis
   localparam reg [2:0] Idle = 3'b000, Read = 3'b001, Write = 3'b010, EndOp = 3'b011, Final = 3'b100;
 
-  function automatic is_txdata_addr(input integer mode, input reg [2:0] addr);
+  function automatic is_txdata_addr(input integer litex_arch, input reg [2:0] addr);
     begin
       is_txdata_addr = (addr == 3'b000);
     end
   endfunction
 
-  function automatic is_rxdata_addr(input integer mode, input reg [2:0] addr);
+  function automatic is_rxdata_addr(input integer litex_arch, input reg [2:0] addr);
     begin
-      is_rxdata_addr = mode ? (addr == 3'b000) : (addr == 3'b001);
+      is_rxdata_addr = litex_arch ? (addr == 3'b000) : (addr == 3'b001);
     end
   endfunction
 

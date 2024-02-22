@@ -154,8 +154,10 @@ module uart_bank #(
       always @(posedge clock, posedge reset) begin
         if (reset) uart_pending <= 2'b00;
         else if (bank_wr_en & addr_en(LITEX_ARCH, addr, Pending)) uart_pending <= wr_data[1:0];
-        else if (tx_fifo_full_d && !tx_fifo_full) uart_pending[0] <= 1'b1;
-        else if (rx_fifo_empty_d && !rx_fifo_empty) uart_pending[1] <= 1'b1;
+        else begin
+          if (tx_fifo_full_d && !tx_fifo_full) uart_pending[0] <= 1'b1;
+          if (rx_fifo_empty_d && !rx_fifo_empty) uart_pending[1] <= 1'b1;
+        end
       end
       assign {rx_pending, tx_pending} = uart_pending;
       assign tx_status = ~tx_fifo_full;
@@ -198,8 +200,8 @@ module uart_bank #(
           .Q({_rxcnt, _rxen})
       );
       // Interrupt Pending Register
-      assign rx_pending = rx_fifo_greater_than_watermark & rx_pending_en;
-      assign tx_pending = tx_fifo_less_than_watermark & tx_pending_en;
+      assign rx_pending = rx_fifo_greater_than_watermark;
+      assign tx_pending = tx_fifo_less_than_watermark;
       // Baud Rate Divisor Register
       register_d #(
           .N(16),

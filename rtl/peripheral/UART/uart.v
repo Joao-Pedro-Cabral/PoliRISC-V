@@ -31,7 +31,7 @@ module uart #(
     output wire [                   7:0] rxdata_,
     output wire                          tx_fifo_full_,
     output wire [                   7:0] txdata_,
-    output wire [                   1:0] present_state_,
+    output wire [                   2:0] present_state_,
     output wire [                   2:0] addr_,
     output wire [                  31:0] wr_data_,
     output wire                          rx_data_valid_,
