@@ -17,6 +17,7 @@ module uart #(
     input  wire [                  31:0] DAT_I,
     output wire                          txd,                // dado de transmissão
     output wire [                  31:0] DAT_O,
+    output wire                          interrupt,
 `ifdef DEBUG
     output wire [                  15:0] div_,
     output wire                          rx_pending_,
@@ -124,6 +125,7 @@ module uart #(
       .addr(_addr),
       .wr_data(_wr_data),
       .rd_data(DAT_O),
+      .interrupt(interrupt),
       // FSM
       .bank_rd_en(bank_rd_en),
       .bank_wr_en(bank_wr_en),

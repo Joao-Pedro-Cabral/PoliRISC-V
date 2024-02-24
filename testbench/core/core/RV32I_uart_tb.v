@@ -131,11 +131,12 @@ module RV32I_uart_tb ();
       .DAT_I(uart_0_DAT_I),
       .CYC_I(uart_0_CYC_I),
       .STB_I(uart_0_STB_I),
-      .WE_I (uart_0_WE_I),
+      .WE_I(uart_0_WE_I),
       .DAT_O(uart_0_DAT_O),
       .ACK_O(uart_0_ACK_O),
-      .rxd  (uart_0_rxd),
-      .txd  (uart_0_txd)
+      .rxd(uart_0_rxd),
+      .txd(uart_0_txd),
+      .interrupt()
   );
 
   // Instanciação do barramento

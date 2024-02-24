@@ -41,6 +41,7 @@ module uart_top (
   reg  [                 31:0] wr_data;
   wire [                 31:0] rd_data;
   wire                         ack;
+  wire                         interrupt;
   // Depuração
   wire [                 15:0] div_;
   wire                         rx_pending_;
@@ -56,7 +57,7 @@ module uart_top (
   wire [                  7:0] rxdata_;
   wire                         tx_fifo_full_;
   wire [                  7:0] txdata_;
-  wire [                  1:0] present_state_;
+  wire [                  2:0] present_state_;
   wire [                  2:0] addr_;
   wire [                 31:0] wr_data_;
   wire                         rx_data_valid_;
@@ -75,10 +76,11 @@ module uart_top (
                         ConfReceiveControl = 4'h1,
                         ConfTransmitControl = 4'h2,
                         ConfInterruptEn = 4'h3,
-                        WaitReceivePending = 4'h4,
+                        WaitInterrupt = 4'h4,
                         ReadingData = 4'h5,
                         InitWritingData = 4'h6,
-                        WritingData = 4'h7;
+                        WritingData = 4'h7,
+                        ClearInterrupt = 4'h8;
 
   uart #(
       .LITEX_ARCH(LitexArch),
@@ -96,6 +98,7 @@ module uart_top (
       .txd              (txd),
       .DAT_O            (rd_data),
       .ACK_O            (ack),
+      .interrupt        (interrupt),
       .div_             (div_),
       .rx_pending_      (rx_pending_),
       .tx_pending_      (tx_pending_),
@@ -173,17 +176,17 @@ module uart_top (
         wr_en = 1'b1;
         addr = LitexArch ? 3'b101 : 3'b100;
         wr_data[1:0] = 2'b11;
-        if (ack) next_state = WaitReceivePending;
+        if (ack) next_state = WaitInterrupt;
         else next_state = ConfInterruptEn;
       end
       // Estados de Operação da UART
-      // Espera rx_pending_ = 1'b1 -> passar rd_data para wr_data
-      WaitReceivePending: begin
+      // Espera uma interrupção
+      WaitInterrupt: begin
         addr = LitexArch ? 3'b000 : 3'b001;
-        if (rx_pending_) begin
+        if (interrupt) begin
           rd_en = 1'b1;
           next_state = ReadingData;
-        end else next_state = WaitReceivePending;
+        end else next_state = WaitInterrupt;
       end
       // Realizando a leitura
       ReadingData: begin
@@ -204,12 +207,18 @@ module uart_top (
         wr_en = 1'b1;
         addr = 3'b000;
         wr_data = rd_data;
-        // Após a Escrita -> Checar rx_pending denovo
-        if (ack) next_state = WaitReceivePending;
+        if (ack) next_state = LitexArch ? ClearInterrupt : WaitInterrupt;
         else next_state = WritingData;
       end
       default: begin
         next_state = Idle;
+      end
+      ClearInterrupt: begin
+        wr_en = 1'b1;
+        addr = 3'b100;
+        wr_data = 0;
+        if (ack) next_state = WaitInterrupt;
+        else next_state = ClearInterrupt;
       end
     endcase
   end
@@ -221,7 +230,7 @@ module uart_top (
       0: leds = div_;
       1:
       leds = {
-        1'b0,
+        present_state_,
         rx_pending_,
         tx_pending_,
         rx_pending_en_,
@@ -230,16 +239,14 @@ module uart_top (
         rxen_,
         txcnt_,
         txen_,
-        nstop_,
-        rx_fifo_empty_,
-        tx_fifo_full_
+        nstop_
       };
       2: leds = {rxdata_, txdata_};
       3:
       leds = {
+        2'b00,
         rx_status_,
         tx_status_,
-        present_state_,
         addr_,
         rx_data_valid_,
         tx_data_valid_,
@@ -249,7 +256,7 @@ module uart_top (
       };
       4: leds = wr_data_[15:0];
       5: leds = wr_data_[31:16];
-      6: leds = {7'b0, rd_en, wr_en, addr, present_state};
+      6: leds = {6'b0, rx_fifo_empty_, tx_fifo_full_, rd_en, wr_en, addr, present_state};
       default: leds = wr_data_[15:0];
     endcase
   end
@@ -260,10 +267,10 @@ module uart_top (
       1: leds = {2'b00, div_[15:8]};
       2: leds = {rx_pending_, tx_pending_, rx_pending_en_, tx_pending_en_, rxcnt_, rxen_};
       3: leds = {1'b0, txcnt_, txen_, nstop_, rx_fifo_empty_, tx_fifo_full_};
-      4: leds = {2'b00, rxdata_};
-      5: leds = {2'b00, txdata_};
-      6: leds = {present_state_, addr_, rx_data_valid_, tx_data_valid_, tx_rdy_};
-      7: leds = {rx_status_, tx_status_, rx_watermark_reg_, tx_watermark_reg_};
+      4: leds = {1'b0, rx_status_, rxdata_};
+      5: leds = {1'b0, tx_status_, txdata_};
+      6: leds = {1'b0, present_state_, addr_, rx_data_valid_, tx_data_valid_, tx_rdy_};
+      7: leds = {2'b00, rx_watermark_reg_, tx_watermark_reg_};
       8: leds = {2'b00, wr_data_[7:0]};
       9: leds = {2'b00, wr_data_[15:8]};
       10: leds = {2'b00, wr_data_[23:16]};

@@ -241,6 +241,8 @@ module memory_controller_tb;
   );
 
   uart #(
+      .LITEX_ARCH(0),
+      .FIFO_DEPTH(8),
       .CLOCK_FREQ_HZ(115200 * 32)
   ) uart_0 (
       .CLK_I(CLK_I),
@@ -249,11 +251,12 @@ module memory_controller_tb;
       .DAT_I(uart_0_DAT_I),
       .CYC_I(uart_0_CYC_I),
       .STB_I(uart_0_STB_I),
-      .WE_I (uart_0_WE_I),
+      .WE_I(uart_0_WE_I),
       .DAT_O(uart_0_DAT_O),
       .ACK_O(uart_0_ACK_O),
-      .rxd  (rx_tx),
-      .txd  (rx_tx)
+      .rxd(rx_tx),
+      .txd(rx_tx),
+      .interrupt()
   );
 
   task automatic WriteRam(input integer j);

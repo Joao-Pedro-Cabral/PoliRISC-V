@@ -7,12 +7,17 @@
 //
 
 `include "macros.vh"
+`include "boards.vh"
 
 `define ASSERT(condition) if (!(condition)) $stop
 
 module uart_tb ();
 
+`ifdef LITEX_
+  localparam integer LitexArch = 1;
+`else
   localparam integer LitexArch = 0;
+`endif
   localparam integer FifoDepth = LitexArch ? 16 : 8;
   localparam integer AmntOfTests = 500;
   localparam integer ClockPeriod = 20;
@@ -39,6 +44,7 @@ module uart_tb ();
   wire                          txd;
   wire  [                 31:0] rd_data;
   wire                          ack_i;
+  wire                          interrupt;
   ////
 
   // Sinais Auxiliares
@@ -97,17 +103,18 @@ module uart_tb ();
       .FIFO_DEPTH(FifoDepth),
       .CLOCK_FREQ_HZ(115200 * 32)
   ) DUT (
-      .CLK_I(clock),
-      .RST_I(reset),
-      .CYC_I(cyc_o),
-      .STB_I(stb_o),
-      .WE_I (wr_o),
-      .ADR_I(addr),     // 0x00 a 0x18
-      .rxd  (rxd),      // dado serial
-      .DAT_I(wr_data),
-      .txd  (txd),      // dado de transmissão
-      .DAT_O(rd_data),
-      .ACK_O(ack_i)
+      .CLK_I    (clock),
+      .RST_I    (reset),
+      .CYC_I    (cyc_o),
+      .STB_I    (stb_o),
+      .WE_I     (wr_o),
+      .ADR_I    (addr),      // 0x00 a 0x18
+      .rxd      (rxd),       // dado serial
+      .DAT_I    (wr_data),
+      .txd      (txd),       // dado de transmissão
+      .DAT_O    (rd_data),
+      .ACK_O    (ack_i),
+      .interrupt(interrupt)
   );
 
   // Sinais da FIFO/interrupts
@@ -261,6 +268,7 @@ module uart_tb ();
       @(negedge clock);
       `ASSERT(rd_data[0] === !tx_full);
       `ASSERT(rd_data[1] === !rx_empty);
+      `ASSERT(interrupt === (tx_pending || rx_pending));
     end
   endtask
 

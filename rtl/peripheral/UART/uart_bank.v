@@ -13,6 +13,7 @@ module uart_bank #(
     input  wire [                   2:0] addr,
     input  wire [                  31:0] wr_data,
     output wire [                  31:0] rd_data,
+    output wire                          interrupt,
     // FSM
     input  wire                          bank_rd_en,
     input  wire                          bank_wr_en,
@@ -44,7 +45,6 @@ module uart_bank #(
     input  wire                          rx_fifo_empty,
     input  wire                          tx_fifo_less_than_watermark,
     input  wire                          rx_fifo_greater_than_watermark
-
 );
 
   localparam integer DivInit = CLOCK_FREQ_HZ / (115200) - 1;
@@ -266,6 +266,7 @@ module uart_bank #(
   assign rxen = _rxen;
   assign rxcnt = _rxcnt;
   assign div = _div;
+  assign interrupt = (tx_pending & tx_pending_en) | (rx_pending & rx_pending_en);
 
 `ifdef DEBUG
   assign rx_pending_ = rx_pending;
