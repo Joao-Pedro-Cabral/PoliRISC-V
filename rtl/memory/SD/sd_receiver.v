@@ -7,6 +7,7 @@
 //
 
 `include "macros.vh"
+`include "boards.vh"
 
 module sd_receiver (
     // Comum

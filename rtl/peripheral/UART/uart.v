@@ -1,5 +1,6 @@
 
 `include "macros.vh"
+`include "boards.vh"
 
 module uart #(
     parameter integer LITEX_ARCH = 0,  // 0: SiFive, 1: Litex
@@ -39,6 +40,8 @@ module uart #(
     output wire                          tx_rdy_,
     output wire [$clog2(FIFO_DEPTH)-1:0] rx_watermark_reg_,
     output wire [$clog2(FIFO_DEPTH)-1:0] tx_watermark_reg_,
+    output wire                          tx_status_,
+    output wire                          rx_status_,
 `endif
     output wire                          ACK_O
 );

@@ -19,12 +19,15 @@ root_dir="."
 # List of directories to exclude
 exclude_dirs=("docs" "simulation" "synthesis" ".git")
 
-# Path to the macros file
+# Path to the macros file (simulation)
 macros_file="$PWD/simulation/$2.vh"
 
 if ! [ -e "$macros_file" ]; then
-  echo "Macros file doesn't exists"
-  exit 1
+  macros_file="$PWD/synthesis/Vivado/$2.vh" # synthesis macro
+  if ! [ -e "$macros_file" ]; then
+    echo "Macros file doesn't exists"
+    exit 1
+  fi
 fi
 
 # Function to check if a directory is in the exclude list

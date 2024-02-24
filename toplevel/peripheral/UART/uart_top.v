@@ -6,6 +6,7 @@
 //
 
 `include "macros.vh"
+`include "boards.vh"
 
 module uart_top (
     // Comum
@@ -23,38 +24,48 @@ module uart_top (
 `endif
 );
 
+`ifdef LITEX
+  localparam integer LitexArch = 1;
+`else
+  localparam integer LitexArch = 0;
+`endif
+  localparam integer FifoDepth = LitexArch ? 16 : 8;
+
   // Sinais para controlar o DUT
-  reg         rd_en;
-  reg         wr_en;
-  reg         CYC_O;
-  reg         STB_O;
-  reg         WR_O;
-  reg  [ 2:0] addr;
-  reg  [31:0] wr_data;
-  wire [31:0] rd_data;
+  reg                          rd_en;
+  reg                          wr_en;
+  reg                          CYC_O;
+  reg                          STB_O;
+  reg                          WR_O;
+  reg  [                  2:0] addr;
+  reg  [                 31:0] wr_data;
+  wire [                 31:0] rd_data;
+  wire                         ack;
   // Depuração
-  wire [15:0] div_;
-  wire        p_rxwm_;
-  wire        p_txwm_;
-  wire        e_rxwm_;
-  wire        e_txwm_;
-  wire [ 2:0] rxcnt_;
-  wire        rxen_;
-  wire [ 2:0] txcnt_;
-  wire        txen_;
-  wire        nstop_;
-  wire        rx_fifo_empty_;
-  wire [ 7:0] rxdata_;
-  wire        tx_fifo_full_;
-  wire [ 7:0] txdata_;
-  wire [ 1:0] present_state_;
-  wire [ 2:0] addr_;
-  wire [31:0] wr_data_;
-  wire        rx_data_valid_;
-  wire        tx_data_valid_;
-  wire        tx_rdy_;
-  wire [ 2:0] rx_watermark_reg_;
-  wire [ 2:0] tx_watermark_reg_;
+  wire [                 15:0] div_;
+  wire                         rx_pending_;
+  wire                         tx_pending_;
+  wire                         rx_pending_en_;
+  wire                         tx_pending_en_;
+  wire [$clog2(FifoDepth)-1:0] rxcnt_;
+  wire                         rxen_;
+  wire [$clog2(FifoDepth)-1:0] txcnt_;
+  wire                         txen_;
+  wire                         nstop_;
+  wire                         rx_fifo_empty_;
+  wire [                  7:0] rxdata_;
+  wire                         tx_fifo_full_;
+  wire [                  7:0] txdata_;
+  wire [                  1:0] present_state_;
+  wire [                  2:0] addr_;
+  wire [                 31:0] wr_data_;
+  wire                         rx_data_valid_;
+  wire                         tx_data_valid_;
+  wire                         tx_rdy_;
+  wire [$clog2(FifoDepth)-1:0] rx_watermark_reg_;
+  wire [$clog2(FifoDepth)-1:0] tx_watermark_reg_;
+  wire                         tx_status_;
+  wire                         rx_status_;
 
   localparam reg Nstop = 1'b0;  // Numero de stop bits
 
@@ -70,6 +81,8 @@ module uart_top (
                         WritingData = 4'h7;
 
   uart #(
+      .LITEX_ARCH(LitexArch),
+      .FIFO_DEPTH(FifoDepth),
       .CLOCK_FREQ_HZ(100000000)  // 100 MHz
   ) DUT (
       .CLK_I            (clock),
@@ -84,16 +97,16 @@ module uart_top (
       .DAT_O            (rd_data),
       .ACK_O            (ack),
       .div_             (div_),
-      .p_rxwm_          (p_rxwm_),
-      .p_txwm_          (p_txwm_),
-      .e_txwm_          (e_txwm_),
-      .e_rxwm_          (e_rxwm_),
+      .rx_pending_      (rx_pending_),
+      .tx_pending_      (tx_pending_),
+      .tx_pending_en_   (tx_pending_en_),
+      .rx_pending_en_   (rx_pending_en_),
       .rxcnt_           (rxcnt_),
       .rxen_            (rxen_),
       .txcnt_           (txcnt_),
       .nstop_           (nstop_),
       .txen_            (txen_),
-      ._rx_fifo_empty_  (rx_fifo_empty_),
+      .rx_fifo_empty_   (rx_fifo_empty_),
       .rxdata_          (rxdata_),
       .tx_fifo_full_    (tx_fifo_full_),
       .txdata_          (txdata_),
@@ -104,7 +117,9 @@ module uart_top (
       .tx_data_valid_   (tx_data_valid_),
       .tx_rdy_          (tx_rdy_),
       .rx_watermark_reg_(rx_watermark_reg_),
-      .tx_watermark_reg_(tx_watermark_reg_)
+      .tx_watermark_reg_(tx_watermark_reg_),
+      .tx_status_       (tx_status_),
+      .rx_status_       (rx_status_)
   );
 
   always @(*) begin
@@ -135,7 +150,7 @@ module uart_top (
     wr_data = 0;
     case (present_state)
       Idle: begin
-        next_state = ConfReceiveControl;
+        next_state = LitexArch ? ConfInterruptEn : ConfReceiveControl;
       end
       // Estados de Configuração da UART
       ConfReceiveControl: begin
@@ -156,16 +171,16 @@ module uart_top (
       end
       ConfInterruptEn: begin
         wr_en = 1'b1;
-        addr = 3'b100;
+        addr = LitexArch ? 3'b101 : 3'b100;
         wr_data[1:0] = 2'b11;
         if (ack) next_state = WaitReceivePending;
         else next_state = ConfInterruptEn;
       end
       // Estados de Operação da UART
-      // Espera p_rxwm_ = 1'b1 -> passar rd_data para wr_data
+      // Espera rx_pending_ = 1'b1 -> passar rd_data para wr_data
       WaitReceivePending: begin
-        addr = 3'b001;
-        if (p_rxwm_) begin
+        addr = LitexArch ? 3'b000 : 3'b001;
+        if (rx_pending_) begin
           rd_en = 1'b1;
           next_state = ReadingData;
         end else next_state = WaitReceivePending;
@@ -173,7 +188,7 @@ module uart_top (
       // Realizando a leitura
       ReadingData: begin
         rd_en = 1'b1;
-        addr  = 3'b001;
+        addr  = LitexArch ? 3'b000 : 3'b001;
         if (ack) next_state = InitWritingData;
         else next_state = ReadingData;
       end
@@ -189,7 +204,7 @@ module uart_top (
         wr_en = 1'b1;
         addr = 3'b000;
         wr_data = rd_data;
-        // Após a Escrita -> Checar rxwm denovo
+        // Após a Escrita -> Checar rx_pending denovo
         if (ack) next_state = WaitReceivePending;
         else next_state = WritingData;
       end
@@ -207,10 +222,10 @@ module uart_top (
       1:
       leds = {
         1'b0,
-        p_rxwm_,
-        p_txwm_,
-        e_rxwm_,
-        e_txwm_,
+        rx_pending_,
+        tx_pending_,
+        rx_pending_en_,
+        tx_pending_en_,
         rxcnt_,
         rxen_,
         txcnt_,
@@ -222,7 +237,8 @@ module uart_top (
       2: leds = {rxdata_, txdata_};
       3:
       leds = {
-        2'b0,
+        rx_status_,
+        tx_status_,
         present_state_,
         addr_,
         rx_data_valid_,
@@ -242,12 +258,12 @@ module uart_top (
     case (sw)
       0: leds = {2'b00, div_[7:0]};
       1: leds = {2'b00, div_[15:8]};
-      2: leds = {p_rxwm_, p_txwm_, e_rxwm_, e_txwm_, rxcnt_, rxen_};
+      2: leds = {rx_pending_, tx_pending_, rx_pending_en_, tx_pending_en_, rxcnt_, rxen_};
       3: leds = {1'b0, txcnt_, txen_, nstop_, rx_fifo_empty_, tx_fifo_full_};
       4: leds = {2'b00, rxdata_};
       5: leds = {2'b00, txdata_};
       6: leds = {present_state_, addr_, rx_data_valid_, tx_data_valid_, tx_rdy_};
-      7: leds = {2'b00, rx_watermark_reg_, tx_watermark_reg_};
+      7: leds = {rx_status_, tx_status_, rx_watermark_reg_, tx_watermark_reg_};
       8: leds = {2'b00, wr_data_[7:0]};
       9: leds = {2'b00, wr_data_[15:8]};
       10: leds = {2'b00, wr_data_[23:16]};

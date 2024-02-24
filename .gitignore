@@ -30,3 +30,4 @@ simulation/log.txt
 synthesis/Vivado/*
 !synthesis/Vivado/constraints
 !synthesis/Vivado/Manifest.py
+*boards.vh

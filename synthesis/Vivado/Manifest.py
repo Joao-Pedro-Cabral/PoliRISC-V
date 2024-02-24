@@ -9,32 +9,37 @@ syn_package = "csg324"
 syn_top = "uart" + "_top"
 syn_project = syn_top
 syn_tool = "vivado"
-program_fpga = False # False: open Vivado
-lista_de_macros = ["DEBUG", "NEXYS4"]
+program_fpga = False  # False: open Vivado
+lista_de_macros = ["DEBUG", "NEXYS4", "LITEX"]
 
-#gerar arquivo de macros
-macros_file = open("macros.vh", 'w')
+# gerar arquivo de macros
+macros_file = open("boards.vh", 'w')
 for macro in lista_de_macros:
     macros_file.write("`define " + macro + ' \n')
 macros_file.close()
 
 # generate constraints tcl file
 constrains_file = open("constraints.tcl", 'w')
-constrains_file.write("open_project " + syn_top + ".xpr\nadd_files -fileset constrs_1 -norecurse ./constraints/" + syn_top + ".xdc\n")
-constrains_file.write("set_property target_language Verilog [current_project]\nexit")
+constrains_file.write("open_project " + syn_top +
+                      ".xpr\nadd_files -fileset constrs_1 -norecurse ./constraints/" + syn_top + ".xdc\n")
+constrains_file.write(
+    "set_property target_language Verilog [current_project]\nexit")
 
 # generate program tcl file
 hw_device = syn_device + "_0"
 program_comands = ["open_project " + syn_top + ".xpr\n",
                    "open_hw_manager\n",
                    "connect_hw_server -allow_non_jtag\n",
-                   "open_hw_target\n", 
-                   "set_property PROGRAM.FILE {./" + syn_top + ".runs/impl_1/" + syn_top + ".bit} [get_hw_devices " + hw_device + "]\n",
+                   "open_hw_target\n",
+                   "set_property PROGRAM.FILE {./" + syn_top + ".runs/impl_1/" +
+                   syn_top + ".bit} [get_hw_devices " + hw_device + "]\n",
                    "current_hw_device [get_hw_devices " + hw_device + "]\n",
                    "refresh_hw_device -update_hw_probes false [lindex [get_hw_devices " + hw_device + "] 0]\n",
-                   "set_property PROBES.FILE {}  [get_hw_devices " + hw_device +"]\n",
-                   "set_property FULL_PROBES.FILE {} [get_hw_devices " + hw_device +"]\n",
-                   "program_hw_devices [get_hw_devices " + hw_device +"]\n",
+                   "set_property PROBES.FILE {}  [get_hw_devices " +
+                   hw_device + "]\n",
+                   "set_property FULL_PROBES.FILE {} [get_hw_devices " +
+                   hw_device + "]\n",
+                   "program_hw_devices [get_hw_devices " + hw_device + "]\n",
                    "refresh_hw_device -update_hw_probes false [lindex [get_hw_devices " + hw_device + "] 0]\n",
                    "exit"]
 program_file = open("program.tcl", "w")
@@ -50,7 +55,7 @@ else:
     syn_post_bitstream_cmd = "vivado -source program.tcl"
 
 modules = {
-    "local" : [ 
-        "../../toplevel/peripheral/UART" 
+    "local": [
+        "../../toplevel/peripheral/UART"
     ],
 }
