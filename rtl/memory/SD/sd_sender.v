@@ -7,7 +7,7 @@
 //
 
 `include "macros.vh"
-`include "boards.vh"
+`include "extensions.vh"
 
 module sd_sender (
     input wire clock,

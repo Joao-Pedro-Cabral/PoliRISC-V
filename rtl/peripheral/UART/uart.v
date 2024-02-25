@@ -1,6 +1,6 @@
 
 `include "macros.vh"
-`include "boards.vh"
+`include "extensions.vh"
 
 module uart #(
     parameter integer LITEX_ARCH = 0,  // 0: SiFive, 1: Litex

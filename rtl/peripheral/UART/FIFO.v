@@ -7,7 +7,7 @@
 //
 
 `include "macros.vh"
-`include "boards.vh"
+`include "extensions.vh"
 
 module FIFO #(
     parameter integer DATA_SIZE = 32,

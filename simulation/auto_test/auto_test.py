@@ -27,6 +27,7 @@ mif_array = find_files("../MIFs/memory/ROM/core", "mif")
 print("############## mifs: " + str(mif_array))
 
 write_lines(["gui_mode"], ["gui_mode = False"])  # Set TCL Mode
+write_lines(["use_mif"], ["use_mif = True"])  # Set Mifs
 
 for testbench in sim_top_array:
     print(f'---------{testbench}---------')

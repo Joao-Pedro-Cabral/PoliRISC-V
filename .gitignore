@@ -19,6 +19,8 @@ simulation/transcript
 simulation/*.wlf
 simulation/Makefile
 simulation/assembly_converter/program.*
+simulation/ROM.mif
+simulation/RAM.mif
 
 # arquivos de automação de simulação (hdlmake + scripts python)
 *macros.vh
@@ -30,4 +32,3 @@ simulation/log.txt
 synthesis/Vivado/*
 !synthesis/Vivado/constraints
 !synthesis/Vivado/Manifest.py
-*boards.vh

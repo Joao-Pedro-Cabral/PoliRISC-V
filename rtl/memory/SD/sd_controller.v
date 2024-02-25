@@ -7,7 +7,7 @@
 //
 
 `include "macros.vh"
-`include "boards.vh"
+`include "extensions.vh"
 
 module sd_controller #(
   parameter integer SDSC = 0

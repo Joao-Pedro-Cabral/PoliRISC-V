@@ -7,7 +7,7 @@
 //
 
 `include "macros.vh"
-`include "boards.vh"
+`include "extensions.vh"
 
 `define ASSERT(condition) if (!(condition)) $stop
 

@@ -13,9 +13,9 @@ program_fpga = False  # False: open Vivado
 lista_de_macros = ["DEBUG", "NEXYS4", "LITEX"]
 
 # gerar arquivo de macros
-macros_file = open("boards.vh", 'w')
+macros_file = open("../../simulation/extensions.vh", 'w')
 for macro in lista_de_macros:
-    macros_file.write("`define " + macro + ' \n')
+    macros_file.write("`define " + macro + '\n')
 macros_file.close()
 
 # generate constraints tcl file

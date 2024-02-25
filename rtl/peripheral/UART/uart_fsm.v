@@ -1,6 +1,6 @@
 
 `include "macros.vh"
-`include "boards.vh"
+`include "extensions.vh"
 
 module uart_fsm #(
     parameter integer LITEX_ARCH = 0

@@ -1,6 +1,6 @@
 
 `include "macros.vh"
-`include "boards.vh"
+`include "extensions.vh"
 
 module uart_phy #(
     parameter integer FIFO_DEPTH = 8

@@ -6,7 +6,7 @@
 //
 
 `include "macros.vh"
-`include "boards.vh"
+`include "extensions.vh"
 
 module uart_top (
     // Comum
