@@ -25,7 +25,7 @@ module single_port_ram #(
     output reg ACK_O
 
 );
-  reg busy_flag;
+  reg [1:0] busy_flag;
 
   function automatic [ADDR_SIZE-1:0] offset_and_truncate_address(input [DATA_SIZE-1:0] addr,
                                                                  input integer offset);
@@ -67,15 +67,13 @@ module single_port_ram #(
   integer k;
   always @(posedge CLK_I) begin
     ACK_O <= 1'b0;
-    if (busy_flag) begin
-      for (k = 0; k < BUSY_CYCLES; k = k + 1) begin
-        wait (CLK_I == 1'b0);
-        wait (CLK_I == 1'b1);
-      end
-      ACK_O <= 1'b1;
-      busy_flag <= 1'b0;
+    if (busy_flag == 2'b10) begin
+      ACK_O  <= 1'b1;
+      busy_flag <= 2'b00;
+    end else if (busy_flag != 2'b00) begin
+      busy_flag <= {busy_flag[1] ^ busy_flag[0], ~busy_flag[0]}; // busy_flag + 1
     end else if (STB_I && CYC_I) begin
-      busy_flag <= 1'b1;
+      busy_flag <= 2'b01;
     end
   end
 
