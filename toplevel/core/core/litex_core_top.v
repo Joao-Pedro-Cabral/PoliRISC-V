@@ -2,26 +2,26 @@
 `include "macros.vh"
 `include "extensions.vh"
 
-module litex_core_top(
-  // Common
-  input wire clock,
-  input wire reset,
-  // DDR2
-  output wire   [12:0] ddram_a,
-  output wire    [2:0] ddram_ba,
-  output wire          ddram_cas_n,
-  output wire          ddram_cke,
-  output wire          ddram_clk_n,
-  output wire          ddram_clk_p,
-  output wire          ddram_cs_n,
-  output wire    [1:0] ddram_dm,
-  inout  wire   [15:0] ddram_dq,
-  inout  wire    [1:0] ddram_dqs_n,
-  inout  wire    [1:0] ddram_dqs_p,
-  output wire          ddram_odt,
-  output wire          ddram_ras_n,
-  output wire          ddram_reset_n,
-  output wire          ddram_we_n
+module litex_core_top (
+    // Common
+    input  wire        clock,
+    input  wire        reset,
+    // DDR2
+    output wire [12:0] ddram_a,
+    output wire [ 2:0] ddram_ba,
+    output wire        ddram_cas_n,
+    output wire        ddram_cke,
+    output wire        ddram_clk_n,
+    output wire        ddram_clk_p,
+    output wire        ddram_cs_n,
+    output wire [ 1:0] ddram_dm,
+    inout  wire [15:0] ddram_dq,
+    inout  wire [ 1:0] ddram_dqs_n,
+    inout  wire [ 1:0] ddram_dqs_p,
+    output wire        ddram_odt,
+    output wire        ddram_ras_n,
+    output wire        ddram_reset_n,
+    output wire        ddram_we_n
 );
 
   // BUS
