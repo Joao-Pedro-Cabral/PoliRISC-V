@@ -1,10 +1,8 @@
 `include "macros.vh"
 `include "extensions.vh"
 
-`define ADR_I_IS_BASE(BASE) (BASE[31:11] == ADR_I[31:11])
-`define ADR_I_REG_SEL(REG_ADR) (REG_ADR[10:0] == ADR_I[10:0])
-
 module csr_and_clint (
+    // core interface
     input wire CLK_I,
     input wire RST_I,
     input wire [31:0] ADR_I,
@@ -14,10 +12,29 @@ module csr_and_clint (
     input wire WE_I,
     input wire [3:0] SEL_I,
     output wire [31:0] DAT_O,
-    output wire ACK_O
+    output wire ACK_O,
+
+    // uart interface
+    input  wire rxd,
+    output wire txd,
+    output wire uart_interrupt
 );
 
+  function automatic reg adr_i_is_base(input reg [31:0] base);
+    begin
+      adr_i_is_base = base[31:11] == ADR_I[31:11];
+    end
+  endfunction
+
+  function automatic reg adr_i_reg_sel(input reg [31:0] reg_adr);
+    begin
+      adr_i_reg_sel = reg_adr[10:0] == ADR_I[10:0];
+    end
+  endfunction
+
   reg [31:0] _DAT_O;
+  wire [31:0] _uart_DAT_O;
+  wire _ACK_O;
 
   // ctrl block
   localparam reg [31:0] CtrlBase = 32'hf0000000;
@@ -30,16 +47,20 @@ module csr_and_clint (
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
       {ctrl_reset, ctrl_scratch, ctrl_bus_errors} <= {8'b0, 8'b0, 8'b0};
-    end else if (`ADR_I_IS_BASE(CtrlBase)) begin
+    end else if (adr_i_is_base(CtrlBase)) begin
       case (1'b1)
-        `ADR_I_REG_SEL(CtrlReset): begin
-            ctrl_reset <= DAT_I[7:0];
+        adr_i_reg_sel(
+            CtrlReset
+        ): begin
+          ctrl_reset <= DAT_I[7:0];
         end
-        `ADR_I_REG_SEL(CtrlScratch): begin
-            ctrl_scratch <= DAT_I[7:0];
+        adr_i_reg_sel(
+            CtrlScratch
+        ): begin
+          ctrl_scratch <= DAT_I[7:0];
         end
         /* Read only
-        `ADR_I_REG_SEL(CtrlBusErrors): begin
+        adr_i_reg_sel(CtrlBusErrors): begin
             ctrl_bus_errors <= DAT_I[7:0];
         end
         */
@@ -50,101 +71,199 @@ module csr_and_clint (
   end
   // ctrl block end
 
-  // ddrphy block
-  localparam reg [31:0] DdrphyBase = 32'hf0000800;
-  localparam reg [31:0] DdrphyRst = 32'hf0000800;
-  localparam reg [31:0] DdrphyDlySel = 32'hf0000804;
-  localparam reg [31:0] DdrphyHalfSys8xTaps = 32'hf0000808;
-  localparam reg [31:0] DdrphyWlevelEn = 32'hf000080C;
-  localparam reg [31:0] DdrphyWlevelStrobe = 32'hf0000810;
-  localparam reg [31:0] DdrphyRdlyDqRst = 32'hf0000814;
-  localparam reg [31:0] DdrphyRdlyDqInc = 32'hf0000818;
-  localparam reg [31:0] DdrphyRdlyDqBitslipRst = 32'hf000081C;
-  localparam reg [31:0] DdrphyRdlyDqBitslip = 32'hf0000820;
-  localparam reg [31:0] DdrphyWdlyDqBitslipRst = 32'hf0000824;
-  localparam reg [31:0] DdrphyWdlyDqBitslip = 32'hf0000828;
-  localparam reg [31:0] DdrphyRdphase = 32'hf000082C;
-  localparam reg [31:0] DdrphyWrphase = 32'hf0000830;
+  // uart block
+  localparam reg [31:0] Uart = 32'hF0001000;
 
-  reg [7:0] ddrphy_rst;
-  reg [7:0] ddrphy_dly_sel;
-  reg [7:0] ddrphy_half_sys8x_taps;
-  reg [7:0] ddrphy_wlevel_en;
-  reg [7:0] ddrphy_wlevel_strobe;
-  reg [7:0] ddrphy_rdly_dq_rst;
-  reg [7:0] ddrphy_rdly_dq_inc;
-  reg [7:0] ddrphy_rdly_dq_bitslip_rst;
-  reg [7:0] ddrphy_rdly_dq_bitslip;
-  reg [7:0] ddrphy_wdly_dq_bitslip_rst;
-  reg [7:0] ddrphy_wdly_dq_bitslip;
-  reg [7:0] ddrphy_rdphase;
-  reg [7:0] ddrphy_wrphase;
+  uart #(
+      .CLOCK_FREQ_HZ(115200 * 32)
+  ) uart_0 (
+      .CLK_I(CLK_I),
+      .RST_I(RST_I),
+      .ADR_I(ADR_I[4:2]),
+      .DAT_I(DAT_I),
+      .CYC_I(CYC_I),
+      .STB_I(STB_I & adr_i_is_base(Uart)),
+      .WE_I(WE_I & adr_i_is_base(Uart)),
+      .DAT_O(_uart_DAT_O),
+      .ACK_O(_ACK_O),
+      .rxd(rxd),
+      .txd(txd),
+      .interrupt(uart_interrupt)
+  );
+  // uart block end
+
+  // ethmac block
+  localparam reg [31:0] EthmacBase = 32'hf0002000;
+  localparam reg [31:0] EthmacSramWriterSlot = 32'hf0002000;
+  localparam reg [31:0] EthmacSramWriterLength = 32'hf0002004;
+  localparam reg [31:0] EthmacSramWriterErrors = 32'hf0002008;
+  localparam reg [31:0] EthmacSramWriterEvStatus = 32'hf000200C;
+  localparam reg [31:0] EthmacSramWriterEvPending = 32'hf0002010;
+  localparam reg [31:0] EthmacSramWriterEvEnable = 32'hf0002014;
+  localparam reg [31:0] EthmacSramReaderStart = 32'hf0002018;
+  localparam reg [31:0] EthmacSramReaderReady = 32'hf000201C;
+  localparam reg [31:0] EthmacSramReaderLevel = 32'hf0002020;
+  localparam reg [31:0] EthmacSramReaderSlot = 32'hf0002024;
+  localparam reg [31:0] EthmacSramReaderLength = 32'hf0002028;
+  localparam reg [31:0] EthmacSramReaderEvStatus = 32'hf000202C;
+  localparam reg [31:0] EthmacSramReaderEvPending = 32'hf0002030;
+  localparam reg [31:0] EthmacSramReaderEvEnable = 32'hf0002034;
+  localparam reg [31:0] EthmacPreambleCrc = 32'hf0002038;
+  localparam reg [31:0] EthmacRxDatapathPreambleErrors = 32'hf000203C;
+  localparam reg [31:0] EthmacRxDatapathCrcErrors = 32'hf0002040;
+
+  reg [7:0] ethmac_base;
+  reg [7:0] ethmac_sram_writer_slot;
+  reg [7:0] ethmac_sram_writer_length;
+  reg [7:0] ethmac_sram_writer_errors;
+  reg [7:0] ethmac_sram_writer_evStatus;
+  reg [7:0] ethmac_sram_writer_ev_pending;
+  reg [7:0] ethmac_sram_writer_ev_enable;
+  reg [7:0] ethmac_sram_reader_start;
+  reg [7:0] ethmac_sram_reader_ready;
+  reg [7:0] ethmac_sram_reader_level;
+  reg [7:0] ethmac_sram_reader_slot;
+  reg [7:0] ethmac_sram_reader_length;
+  reg [7:0] ethmac_sram_reader_ev_status;
+  reg [7:0] ethmac_sram_reader_ev_pending;
+  reg [7:0] ethmac_sram_reader_ev_enable;
+  reg [7:0] ethmac_preamble_crc;
+  reg [7:0] ethmac_rx_datapath_preamble_errors;
+  reg [7:0] ethmac_rx_datapath_crc_errors;
 
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      ddrphy_rst <= 8'b0';
-      ddrphy_dly_sel <= 8'b0';
-      ddrphy_half_sys8x_taps <= 8'b0';
-      ddrphy_wlevel_en <= 8'b0';
-      ddrphy_wlevel_strobe <= 8'b0';
-      ddrphy_rdly_dq_rst <= 8'b0';
-      ddrphy_rdly_dq_inc <= 8'b0';
-      ddrphy_rdly_dq_bitslip_rst <= 8'b0';
-      ddrphy_rdly_dq_bitslip <= 8'b0';
-      ddrphy_wdly_dq_bitslip_rst <= 8'b0';
-      ddrphy_wdly_dq_bitslip <= 8'b0';
-      ddrphy_rdphase <= 8'b0';
-      ddrphy_wrphase <= 8'b0';
-    end else if (`ADR_I_IS_BASE(DdrphyBase)) begin
+      ethmac_base <= 0;
+      ethmac_sram_writer_slot <= 0;
+      ethmac_sram_writer_length <= 0;
+      ethmac_sram_writer_errors <= 0;
+      ethmac_sram_writer_evStatus <= 0;
+      ethmac_sram_writer_ev_pending <= 0;
+      ethmac_sram_writer_ev_enable <= 0;
+      ethmac_sram_reader_start <= 0;
+      ethmac_sram_reader_ready <= 0;
+      ethmac_sram_reader_level <= 0;
+      ethmac_sram_reader_slot <= 0;
+      ethmac_sram_reader_length <= 0;
+      ethmac_sram_reader_ev_status <= 0;
+      ethmac_sram_reader_ev_pending <= 0;
+      ethmac_sram_reader_ev_enable <= 0;
+      ethmac_preamble_crc <= 0;
+      ethmac_rx_datapath_preamble_errors <= 0;
+      ethmac_rx_datapath_crc_errors <= 0;
+    end else if (adr_i_is_base(EthmacBase)) begin
       case (1'b1)
-        `ADR_I_REG_SEL(DdrphyBase): begin
-          Ddrphy_rst <= DAT_I[7:0];
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacSramWriterSlot
+        ): begin
+          ethmac_sram_writer_slot <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyRst): begin
-          ddrphy_rst <= DAT_I[7:0];
+        */
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacSramWriterLength
+        ): begin
+          ethmac_sram_writer_length <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyDlySel): begin
-          ddrphy_dly_sel <= DAT_I[7:0];
+        */
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacSramWriterErrors
+        ): begin
+          ethmac_sram_writer_errors <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyHalfSys8xTaps): begin
-          ddrphy_half_sys8x_taps <= DAT_I[7:0];
+        */
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacSramWriterEvStatus
+        ): begin
+          ethmac_sram_writer_evStatus <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyWlevelEn): begin
-          ddrphy_wlevel_en <= DAT_I[7:0];
+        */
+        adr_i_reg_sel(
+            EthmacSramWriterEvPending
+        ): begin
+          ethmac_sram_writer_ev_pending <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyWlevelStrobe): begin
-          ddrphy_wlevel_strobe <= DAT_I[7:0];
+        adr_i_reg_sel(
+            EthmacSramWriterEvEnable
+        ): begin
+          ethmac_sram_writer_ev_enable <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyRdlyDqRst): begin
-          ddrphy_rdly_dq_rst <= DAT_I[7:0];
+        adr_i_reg_sel(
+            EthmacSramReaderStart
+        ): begin
+          ethmac_sram_reader_start <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyRdlyDqInc): begin
-          ddrphy_rdly_dq_inc <= DAT_I[7:0];
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacSramReaderReady
+        ): begin
+          ethmac_sram_reader_ready <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyRdlyDqBitslipRst): begin
-          ddrphy_rdly_dq_bitslip_rst <= DAT_I[7:0];
+        */
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacSramReaderLevel
+        ): begin
+          ethmac_sram_reader_level <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyRdlyDqBitslip): begin
-          ddrphy_rdly_dq_bitslip <= DAT_I[7:0];
+        */
+        adr_i_reg_sel(
+            EthmacSramReaderSlot
+        ): begin
+          ethmac_sram_reader_slot <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyWdlyDqBitslipRst): begin
-          ddrphy_wdly_dq_bitslip_rst <= DAT_I[7:0];
+        adr_i_reg_sel(
+            EthmacSramReaderLength
+        ): begin
+          ethmac_sram_reader_length <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyWdlyDqBitslip): begin
-          ddrphy_wdly_dq_bitslip <= DAT_I[7:0];
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacSramReaderEvStatus
+        ): begin
+          ethmac_sram_reader_ev_status <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyRdphase): begin
-          ddrphy_rdphase <= DAT_I[7:0];
+        */
+        adr_i_reg_sel(
+            EthmacSramReaderEvPending
+        ): begin
+          ethmac_sram_reader_ev_pending <= ADR_I[7:0];
         end
-        `ADR_I_REG_SEL(DdrphyWrphase): begin
-          ddrphy_wrphase <= DAT_I[7:0];
+        adr_i_reg_sel(
+            EthmacSramReaderEvEnable
+        ): begin
+          ethmac_sram_reader_ev_enable <= ADR_I[7:0];
         end
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacPreambleCrc
+        ): begin
+          ethmac_preamble_crc <= ADR_I[7:0];
+        end
+        */
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacRxDatapathPreambleErrors
+        ): begin
+          ethmac_rx_datapath_preamble_errors <= ADR_I[7:0];
+        end
+        */
+        /* Read-only
+        adr_i_reg_sel(
+            EthmacRxDatapathCrcErrors
+        ): begin
+          ethmac_rx_datapath_crc_errors <= ADR_I[7:0];
+        end
+        */
         default: begin
         end
       endcase
     end
   end
-  // ddrphy block end
+  // ethmac block end
 
   // ethphy block
   localparam reg [31:0] EthphyBase = 32'hf0002800;
@@ -161,15 +280,21 @@ module csr_and_clint (
       ethphy_crg_reset <= 8'b0;
       ethphy_mdio_w <= 8'b0;
       ethphy_mdio_r <= 8'b0;
-    end else if (`ADR_I_IS_BASE(EthphyBase)) begin
+    end else if (adr_i_is_base(EthphyBase)) begin
       case (1'b1)
-        `ADR_I_REG_SEL(EthphyCrgReset): begin
+        adr_i_reg_sel(
+            EthphyCrgReset
+        ): begin
           ethphy_crg_reset <= DAT_I[7:0];
         end
-        `ADR_I_REG_SEL(EthphyMdioW): begin
+        adr_i_reg_sel(
+            EthphyMdioW
+        ): begin
           ethphy_mdio_w <= DAT_I[7:0];
         end
-        `ADR_I_REG_SEL(EthphyMdioR): begin
+        adr_i_reg_sel(
+            EthphyMdioR
+        ): begin
           ethphy_mdio_r <= DAT_I[7:0];
         end
         default: begin
@@ -188,9 +313,11 @@ module csr_and_clint (
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
       leds_out <= 8'b0;
-    end else if (`ADR_I_IS_BASE(LedsBase)) begin
+    end else if (adr_i_is_base(LedsBase)) begin
       case (1'b1)
-        `ADR_I_REG_SEL(LedsOut): begin
+        adr_i_reg_sel(
+            LedsOut
+        ): begin
           leds_out <= DAT_I[7:0];
         end
         default: begin
@@ -209,9 +336,11 @@ module csr_and_clint (
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
       leds_out <= 8'b0;
-    end else if (`ADR_I_IS_BASE(LedsBase)) begin
+    end else if (adr_i_is_base(LedsBase)) begin
       case (1'b1)
-        `ADR_I_REG_SEL(LedsOut): begin
+        adr_i_reg_sel(
+            LedsOut
+        ): begin
           leds_out <= DAT_I[7:0];
         end
         default: begin
@@ -221,6 +350,6 @@ module csr_and_clint (
   end
   // leds block end
 
-  assign DAT_O = _DAT_O;
-
+  assign DAT_O = adr_i_is_base(Uart) ? _uart_DAT_O : _DAT_O;
+  assign ACK_O = _ACK_O;
 endmodule
