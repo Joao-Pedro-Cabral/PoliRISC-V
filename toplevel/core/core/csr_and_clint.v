@@ -37,7 +37,7 @@ module csr_and_clint (
   localparam reg [31:0] CtrlBase = 32'hf0000000;
   localparam integer CtrlSize = 3;
 
-  reg [7:0] ctrl_out[CtrlSize];
+  reg [31:0] ctrl_out[CtrlSize];
 
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
@@ -47,6 +47,21 @@ module csr_and_clint (
     end
   end
   // ctrl block end
+
+  // timer block
+  localparam reg [31:0] Timer0Base = 32'hf0001800;
+  localparam integer Timer0Size = 8;
+
+  reg [31:0] timer0_out[Timer0Size];
+
+  always @(posedge CLK_I, posedge RST_I) begin
+    if (1'b1 == RST_I) begin
+      timer0_out <= {Timer0Size{32'b0}};
+    end else if (_we && adr_i_is_base(Timer0Base)) begin
+      timer0_out[ADR_I[4:2]] <= DAT_I;
+    end
+  end
+  // timer block end
 
   // uart block
   localparam reg [31:0] UartBase = 32'hF0001000;
@@ -286,6 +301,9 @@ module csr_and_clint (
       end
       UartBase[31:11]: begin
         DAT_O = _uart_DAT_O;
+      end
+      Timer0Base[31:11]: begin
+        DAT_O = timer0_out[ADR_I[4:2]];
       end
       EthmacBase[31:11]: begin
         DAT_O = ethmac_out[ADR_I[6:2]];
