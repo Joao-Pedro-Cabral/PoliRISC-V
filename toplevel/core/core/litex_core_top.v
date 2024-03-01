@@ -21,7 +21,12 @@ module litex_core_top (
     output wire        ddram_odt,
     output wire        ddram_ras_n,
     output wire        ddram_reset_n,
-    output wire        ddram_we_n
+    output wire        ddram_we_n,
+    // SD card
+    input  wire        miso,
+    output wire        mosi,
+    output wire        cs,
+    output wire        sck
 );
 
   // BUS
@@ -33,6 +38,7 @@ module litex_core_top (
   wire mem_CYC_O;
   wire mem_STB_O;
   wire [3:0] mem_byte_en;
+  wire external_interrupt;
   // Sinais do Barramento
   // ROM
   wire rom_cyc;
@@ -93,28 +99,34 @@ module litex_core_top (
       .mem_STB_O(mem_STB_O),
       .mem_SEL_O(mem_byte_en),
       .mem_WE_O(mem_wr_en),
-      .external_interrupt(1'b0),
+      .external_interrupt(external_interrupt),
       .mem_msip(0),
       .mem_mtime(64'h64),
       .mem_mtimecmp(64'h0)
   );
 
-  // ROM
-  single_port_ram #(
-      .RAM_INIT_FILE("nexys4ddr_bios.mif"),
-      .ADDR_SIZE(16),
-      .BYTE_SIZE(8),
-      .DATA_SIZE(32),
-      .BUSY_CYCLES(2)
-  ) memory_rom (
+  sd_controller#(
+      .SDSC(0)
+  ) (
+      // sinais de sistema
       .CLK_I(clock),
-      .ADR_I(mem_addr),
-      .DAT_I(wr_data),
+      .RST_I(reset),
+
+      // interface com a pseudocache
       .CYC_I(rom_cyc),
       .STB_I(rom_cyc),
-      .WE_I (rom_we),
-      .SEL_I(rom_sel),
+      .WE_I(rom_we),
+      .ADR_I(mem_addr),
+      .DAT_I(wr_data),
       .DAT_O(rom_dat),
+
+      // interface com o cartão SD
+      .miso(miso),
+      .cs(cs),
+      .sck(sck),
+      .mosi(mosi),
+
+      // sinal de status
       .ACK_O(rom_ack)
   );
 
@@ -217,22 +229,19 @@ module litex_core_top (
   end
 
   // CSR + CLINT
-  single_port_ram #(
-      .RAM_INIT_FILE("zeros.mif"),
-      .ADDR_SIZE(17),
-      .BYTE_SIZE(8),
-      .DATA_SIZE(32),
-      .BUSY_CYCLES(2)
-  ) memory_csr_clint (
+  csr_and_clint memory_csr_clint (
       .CLK_I(clock),
       .ADR_I(mem_addr),
       .DAT_I(wr_data),
       .CYC_I(csr_clint_cyc),
       .STB_I(csr_clint_cyc),
-      .WE_I (csr_clint_we),
+      .WE_I(csr_clint_we),
       .SEL_I(csr_clint_sel),
       .DAT_O(csr_clint_dat),
-      .ACK_O(csr_clint_ack)
+      .ACK_O(csr_clint_ack),
+      .rxd(rxd),
+      .txd(txd),
+      .uart_interrupt(uart_interrupt)
   );
 
   // PLIC
@@ -263,11 +272,11 @@ module litex_core_top (
   assign ram_we = ram_cyc & mem_wr_en;
   assign ram_sel = mem_byte_en;
   // ETHMAC
-  assign eth_cyc = (mem_addr[31:13] == 19'h40000) & mem_STB_O;
+  assign eth_cyc = (mem_addr[31:12] == 20'h80000) & mem_STB_O;
   assign eth_we = eth_cyc & mem_wr_en;
   assign eth_sel = mem_byte_en;
   // CSR + CLINT
-  assign csr_clint_cyc = (mem_addr[31:17] == 15'h7800) & mem_STB_O;
+  assign csr_clint_cyc = (mem_addr[31:17] == 16'hF000 || mem_addr[31:17] == 16'hF001) & mem_STB_O;
   assign csr_clint_we = csr_clint_cyc & mem_wr_en;
   assign csr_clint_sel = mem_byte_en;
   // CSR + CLINT
