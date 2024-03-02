@@ -1,4 +1,3 @@
-
 `include "macros.vh"
 `include "extensions.vh"
 
@@ -26,7 +25,11 @@ module litex_core_top (
     input  wire        miso,
     output wire        mosi,
     output wire        cs,
-    output wire        sck
+    output wire        sck,
+
+    // UART
+    input  wire rxd,
+    output wire txd
 );
 
   // BUS
@@ -173,7 +176,7 @@ module litex_core_top (
       .rst(reset),
       .user_clk(),
       .user_port_wishbone_0_ack(ram_ack),
-      .user_port_wishbone_0_adr(mem_addr[24:0]),
+      .user_port_wishbone_0_adr(mem_addr[26:2]),
       .user_port_wishbone_0_cyc(ram_cyc),
       .user_port_wishbone_0_dat_r(ram_dat),
       .user_port_wishbone_0_dat_w(wr_data),
@@ -183,7 +186,7 @@ module litex_core_top (
       .user_port_wishbone_0_we(ram_we),
       .user_rst(),
       .wb_ctrl_ack(csr_ram_ack),
-      .wb_ctrl_adr(mem_addr[29:0]),
+      .wb_ctrl_adr(mem_addr[31:2]),
       .wb_ctrl_bte(2'b00),
       .wb_ctrl_cti(3'b000),
       .wb_ctrl_cyc(csr_ram_cyc),
@@ -241,7 +244,7 @@ module litex_core_top (
       .ACK_O(csr_clint_ack),
       .rxd(rxd),
       .txd(txd),
-      .uart_interrupt(uart_interrupt)
+      .uart_interrupt(external_interrupt)
   );
 
   // PLIC
@@ -272,11 +275,11 @@ module litex_core_top (
   assign ram_we = ram_cyc & mem_wr_en;
   assign ram_sel = mem_byte_en;
   // ETHMAC
-  assign eth_cyc = (mem_addr[31:12] == 20'h80000) & mem_STB_O;
+  assign eth_cyc = (mem_addr[31:13] == 19'h40000) & mem_STB_O;
   assign eth_we = eth_cyc & mem_wr_en;
   assign eth_sel = mem_byte_en;
   // CSR + CLINT
-  assign csr_clint_cyc = (mem_addr[31:17] == 16'hF000 || mem_addr[31:17] == 16'hF001) & mem_STB_O;
+  assign csr_clint_cyc = (mem_addr[31:17] == 15'h7800) & mem_STB_O;
   assign csr_clint_we = csr_clint_cyc & mem_wr_en;
   assign csr_clint_sel = mem_byte_en;
   // CSR + CLINT
