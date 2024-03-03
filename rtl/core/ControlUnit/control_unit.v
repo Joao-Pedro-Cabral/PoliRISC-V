@@ -159,7 +159,7 @@ module control_unit (
   wire bltu_bgeu = carry_out ~^ funct3[0];
   wire cond = funct3[1] == 0 ? (funct3[2] == 0 ? beq_bne : blt_bge) : bltu_bgeu;
   // uso sempre 8 bits aqui -> truncamento automático na atribuição do always
-  wire [7:0] byte_en = funct3[1]==0 ?
+  wire [`BYTE_NUM-1:0] byte_en = funct3[1]==0 ?
         (funct3[0]==0 ? 'h1 : 'h3) : (funct3[0]==0 ? 'hF : 'hFF);
 
   // máquina de estados principal

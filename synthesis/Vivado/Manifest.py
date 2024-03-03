@@ -6,11 +6,12 @@ syn_family = "Artix 7"
 syn_device = "xc7a100t"
 syn_grade = "-1"
 syn_package = "csg324"
-syn_top = "uart" + "_top"
+syn_top = "litex_core" + "_top"
 syn_project = syn_top
 syn_tool = "vivado"
 program_fpga = False  # False: open Vivado
-lista_de_macros = ["DEBUG", "NEXYS4", "LITEX"]
+lista_de_macros = ["NEXYS4", "LITEX", "ZICSR", "M", "TrapReturn"]
+lista_de_mifs = ["memory/ROM/zeros.mif", "memory/ROM/bios/nexys4ddr_bios.mif"]
 
 # gerar arquivo de macros
 macros_file = open("../../simulation/extensions.vh", 'w')
@@ -22,6 +23,9 @@ macros_file.close()
 constrains_file = open("constraints.tcl", 'w')
 constrains_file.write("open_project " + syn_top +
                       ".xpr\nadd_files -fileset constrs_1 -norecurse ./constraints/" + syn_top + ".xdc\n")
+for mif in lista_de_mifs:
+    constrains_file.write(
+        "add_files -norecurse ../../simulation/MIFs/" + mif + "\n")
 constrains_file.write(
     "set_property target_language Verilog [current_project]\nexit")
 
@@ -56,6 +60,6 @@ else:
 
 modules = {
     "local": [
-        "../../toplevel/peripheral/UART"
+        "../../toplevel/core/core"
     ],
 }

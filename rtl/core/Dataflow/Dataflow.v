@@ -118,12 +118,12 @@ module Dataflow (
       .S(wr_reg_src),
       .Y(rd)
   );
-  // caso seja realizada uma leitura do SEIP é preciso realizar o OR com o external_interrupt
-  assign csr_mask_rd_data[csr_bank.SEIP-1:0] = csr_rd_data[csr_bank.SEIP-1:0];
-  assign csr_mask_rd_data[csr_bank.SEIP] = (ir[31:20] == 12'h344 || ir[31:20] == 12'h144)
-                                            ? (csr_rd_data[csr_bank.SEIP] | external_interrupt)
-                                            : csr_rd_data[csr_bank.SEIP];
-  assign csr_mask_rd_data[`DATA_SIZE-1:csr_bank.SEIP+1] = csr_rd_data[`DATA_SIZE-1:csr_bank.SEIP+1];
+  // caso seja realizada uma leitura do SEIP(9) é preciso realizar o OR com o external_interrupt
+  assign csr_mask_rd_data[8:0] = csr_rd_data[8:0];
+  assign csr_mask_rd_data[9] = (ir[31:20] == 12'h344 || ir[31:20] == 12'h144)
+                                            ? (csr_rd_data[9] | external_interrupt)
+                                            : csr_rd_data[9];
+  assign csr_mask_rd_data[`DATA_SIZE-1:10] = csr_rd_data[`DATA_SIZE-1:10];
 `else  // Sem ZICSR: 3 origens -> Economizar 1 mux
   assign rd = wr_reg_src[1] ? (wr_reg_src[0] ? pc_plus_4 : rd_data) : muxaluY_out;
 `endif

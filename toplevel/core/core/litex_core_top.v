@@ -26,6 +26,7 @@ module litex_core_top (
     output wire        mosi,
     output wire        cs,
     output wire        sck,
+    output wire        sd_reset,
 
     // UART
     input  wire rxd,
@@ -87,8 +88,6 @@ module litex_core_top (
   wire [31:0] plic_dat;
   reg plic_ack;
   reg [1:0] plic_flag;
-  // variáveis
-  integer i;
 
   // DUT
   core DUT (
@@ -108,9 +107,9 @@ module litex_core_top (
       .mem_mtimecmp(64'h0)
   );
 
-  sd_controller#(
+  sd_controller #(
       .SDSC(0)
-  ) (
+  ) sd_card (
       // sinais de sistema
       .CLK_I(clock),
       .RST_I(reset),
@@ -132,6 +131,8 @@ module litex_core_top (
       // sinal de status
       .ACK_O(rom_ack)
   );
+
+  assign sd_reset = reset;
 
   // SRAM
   single_port_ram #(
@@ -181,7 +182,7 @@ module litex_core_top (
       .user_port_wishbone_0_dat_r(ram_dat),
       .user_port_wishbone_0_dat_w(wr_data),
       .user_port_wishbone_0_err(),
-      .user_port_wishbone_0_sel(mem_sel),
+      .user_port_wishbone_0_sel(ram_sel),
       .user_port_wishbone_0_stb(ram_cyc),
       .user_port_wishbone_0_we(ram_we),
       .user_rst(),
@@ -197,25 +198,6 @@ module litex_core_top (
       .wb_ctrl_stb(csr_ram_cyc),
       .wb_ctrl_we(csr_ram_we)
   );
-
-  // ETHMAC
-  // single_port_ram #(
-  //     .RAM_INIT_FILE("zeros.mif"),
-  //     .ADDR_SIZE(13),
-  //     .BYTE_SIZE(8),
-  //     .DATA_SIZE(32),
-  //     .BUSY_CYCLES(2)
-  // ) memory_eth (
-  //     .CLK_I(clock),
-  //     .ADR_I(mem_addr),
-  //     .DAT_I(wr_data),
-  //     .CYC_I(eth_cyc),
-  //     .STB_I(eth_cyc),
-  //     .WE_I (eth_we),
-  //     .SEL_I(eth_sel),
-  //     .DAT_O(eth_dat),
-  //     .ACK_O(eth_ack)
-  // );
 
   // ETH
   assign eth_dat = 0;

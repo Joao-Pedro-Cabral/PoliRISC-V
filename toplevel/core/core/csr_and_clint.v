@@ -37,11 +37,12 @@ module csr_and_clint (
   localparam reg [31:0] CtrlBase = 32'hf0000000;
   localparam integer CtrlSize = 3;
 
-  reg [31:0] ctrl_out[CtrlSize];
-
+  reg [31:0] ctrl_out[CtrlSize-1:0];
+  integer i0;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      ctrl_out <= {CtrlSize{32'b0}};
+      for(i0 = 0; i0 < CtrlSize; i0 = i0 + 1)
+        ctrl_out[i0] <= 0;
     end else if (_we && adr_i_is_base(CtrlBase)) begin
       ctrl_out[ADR_I[3:2]] <= DAT_I;
     end
@@ -52,11 +53,12 @@ module csr_and_clint (
   localparam reg [31:0] Timer0Base = 32'hf0001800;
   localparam integer Timer0Size = 8;
 
-  reg [31:0] timer0_out[Timer0Size];
-
+  reg [31:0] timer0_out[Timer0Size-1:0];
+  integer i1;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      timer0_out <= {Timer0Size{32'b0}};
+      for(i1 = 0; i1 < Timer0Size; i1 = i1 + 1)
+        timer0_out[i1] <= 0;
     end else if (_we && adr_i_is_base(Timer0Base)) begin
       timer0_out[ADR_I[4:2]] <= DAT_I;
     end
@@ -70,6 +72,8 @@ module csr_and_clint (
   wire _uart_ACK_O;
 
   uart #(
+      .LITEX_ARCH(1),
+      .FIFO_DEPTH(16),
       .CLOCK_FREQ_HZ(115200 * 32)
   ) uart_0 (
       .CLK_I(CLK_I),
@@ -91,11 +95,12 @@ module csr_and_clint (
   localparam reg [31:0] EthmacBase = 32'hf0002000;
   localparam integer EthmacSize = 17;
 
-  reg [31:0] ethmac_out[EthmacSize];
-
+  reg [31:0] ethmac_out[EthmacSize-1:0];
+  integer i2;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      ethmac_out <= {EthmacSize{32'b0}};
+      for(i2 = 0; i2 < EthmacSize; i2 = i2 + 1)
+        ethmac_out[i2] <= 0;
     end else if (_we && adr_i_is_base(EthmacBase)) begin
       ethmac_out[ADR_I[6:2]] <= DAT_I;
     end
@@ -106,11 +111,12 @@ module csr_and_clint (
   localparam reg [31:0] EthphyBase = 32'hf0002800;
   localparam integer EthphySize = 3;
 
-  reg [31:0] ethphy_out[EthphySize];
-
+  reg [31:0] ethphy_out[EthphySize-1:0];
+  integer i3;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      ethphy_out <= {{EthphySize{32'b0}}};
+      for(i3 = 0; i3 < EthphySize; i3 = i3 + 1)
+        ethphy_out[i3] <= 0;
     end else if (_we && adr_i_is_base(EthphyBase)) begin
       ethphy_out[ADR_I[3:2]] <= DAT_I;
     end
@@ -144,11 +150,12 @@ module csr_and_clint (
   localparam reg [31:0] SdCardBlock2MemBase = 32'hf0004000;
   localparam reg [2:0] SdCardBlock2MemSize = 7;
 
-  reg [31:0] sdcard_block2mem_out[SdCardBlock2MemSize];
-
+  reg [31:0] sdcard_block2mem_out[SdCardBlock2MemSize-1:0];
+  integer i4;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      sdcard_block2mem_out <= {SdCardBlock2MemSize{0}};
+      for(i4 = 0; i4 < SdCardBlock2MemSize; i4 = i4 + 1)
+        sdcard_block2mem_out[i4] <= 0;
     end else if (_we && adr_i_is_base(SdCardBlock2MemBase)) begin
       sdcard_block2mem_out[ADR_I[4:2]] <= DAT_I;
     end
@@ -159,11 +166,12 @@ module csr_and_clint (
   localparam reg [31:0] SdCardCoreBase = 32'hf0004800;
   localparam reg [3:0] SdCardCoreSize = 11;
 
-  reg [31:0] sdcard_core_out[SdCardCoreSize];
-
+  reg [31:0] sdcard_core_out[SdCardCoreSize-1:0];
+  integer i5;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      sdcard_core_out <= {SdCardCoreSize{0}};
+      for(i5 = 0; i5 < SdCardCoreSize; i5 = i5 + 1)
+        sdcard_core_out[i5] <= 0;
     end else if (_we && adr_i_is_base(SdCardCoreBase)) begin
       sdcard_core_out[ADR_I[5:2]] <= DAT_I;
     end
@@ -174,11 +182,12 @@ module csr_and_clint (
   localparam reg [31:0] SdCardIrqBase = 32'hf0005000;
   localparam reg [1:0] SdCardIrqSize = 3;
 
-  reg [31:0] sdcard_irq_out[SdCardIrqSize];
-
+  reg [31:0] sdcard_irq_out[SdCardIrqSize-1:0];
+  integer i6;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      sdcard_irq_out <= {SdCardIrqSize{0}};
+      for(i6 = 0; i6 < SdCardIrqSize; i6 = i6 + 1)
+        sdcard_irq_out[i6] <= 0;
     end else if (_we && adr_i_is_base(SdCardIrqBase)) begin
       sdcard_irq_out[ADR_I[3:2]] <= DAT_I;
     end
@@ -189,11 +198,12 @@ module csr_and_clint (
   localparam reg [31:0] SdCardMem2BlockBase = 32'hf0005800;
   localparam reg [2:0] SdCardMem2BlockSize = 7;
 
-  reg [31:0] sdcard_mem2block_out[SdCardMem2BlockSize];
-
+  reg [31:0] sdcard_mem2block_out[SdCardMem2BlockSize-1:0];
+  integer i7;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      sdcard_mem2block_out <= {SdCardMem2BlockSize{0}};
+      for(i7 = 0; i7 < SdCardMem2BlockSize; i7 = i7 + 1)
+        sdcard_mem2block_out[i7] <= 0;
     end else if (_we && adr_i_is_base(SdCardMem2BlockBase)) begin
       sdcard_mem2block_out[ADR_I[4:2]] <= DAT_I;
     end
@@ -202,13 +212,14 @@ module csr_and_clint (
 
   // sdcard_phy block
   localparam reg [31:0] SdCardPhyBase = 32'hf0006000;
-  localparam reg [1:0] SdCardPhySize = 4;
+  localparam reg [2:0] SdCardPhySize = 4;
 
-  reg [31:0] sdcard_phy_out[SdCardPhySize];
-
+  reg [31:0] sdcard_phy_out[SdCardPhySize-1:0];
+  integer i8;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      sdcard_phy_out <= {SdCardPhySize{0}};
+      for(i8 = 0; i8 < SdCardPhySize; i8 = i8 + 1)
+        sdcard_phy_out[i8] <= 0;
     end else if (_we && adr_i_is_base(SdCardPhyBase)) begin
       sdcard_phy_out[ADR_I[3:2]] <= DAT_I;
     end
@@ -219,11 +230,12 @@ module csr_and_clint (
   localparam reg [31:0] SdRamDfiiBase = 32'hf0006800;
   localparam reg [3:0] SdRamDfiiSize = 13;
 
-  reg [31:0] sdram_dfii_out[SdRamDfiiSize];
-
+  reg [31:0] sdram_dfii_out[SdRamDfiiSize-1:0];
+  integer i9;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      sdram_dfii_out <= {SdRamDfiiSize{0}};
+      for(i9 = 0; i9 < SdRamDfiiSize; i9 = i9 + 1)
+        sdram_dfii_out[i9] <= 0;
     end else if (_we && adr_i_is_base(SdRamDfiiBase)) begin
       sdram_dfii_out[ADR_I[5:2]] <= DAT_I;
     end
@@ -234,11 +246,12 @@ module csr_and_clint (
   localparam reg [31:0] SdVideoDmaBase = 32'hf0006800;
   localparam reg [2:0] SdVideoDmaSize = 6;
 
-  reg [31:0] video_dma_out[SdVideoDmaSize];
-
+  reg [31:0] video_dma_out[SdVideoDmaSize-1:0];
+  integer i10;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      video_dma_out <= {SdVideoDmaSize{0}};
+      for(i10 = 0; i10 < SdVideoDmaSize; i10 = i10 + 1)
+        video_dma_out[i10] <= 0;
     end else if (_we && adr_i_is_base(SdVideoDmaBase)) begin
       video_dma_out[ADR_I[4:2]] <= DAT_I;
     end
@@ -249,11 +262,12 @@ module csr_and_clint (
   localparam reg [31:0] SdVideoVtgBase = 32'hf0006800;
   localparam reg [3:0] SdVideoVtgSize = 9;
 
-  reg [31:0] video_vtg_out[SdVideoVtgSize];
-
+  reg [31:0] video_vtg_out[SdVideoVtgSize-1:0];
+  integer i11;
   always @(posedge CLK_I, posedge RST_I) begin
     if (1'b1 == RST_I) begin
-      video_vtg_out <= {SdVideoVtgSize{0}};
+      for(i11 = 0; i11 < SdVideoVtgSize; i11 = i11 + 1)
+        video_vtg_out[i11] <= 0;
     end else if (_we && adr_i_is_base(SdVideoVtgBase)) begin
       video_vtg_out[ADR_I[5:2]] <= DAT_I;
     end

@@ -53,13 +53,6 @@ module uart #(
   wire [                   2:0] _addr;
   wire [                  31:0] _wr_data;
 
-  // Read-only register signals
-  // Receive Data Register
-  wire [                   7:0] rxdata;
-  // Interrupt Pending Register
-  wire                          p_txwm;
-  wire                          p_rxwm;
-
   // Component's signals
   // BANK
   wire                          txen;

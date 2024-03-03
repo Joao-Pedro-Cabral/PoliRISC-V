@@ -30,6 +30,8 @@ write_lines(["gui_mode"], ["gui_mode = False"])  # Set TCL Mode
 write_lines(["use_mif"], ["use_mif = True"])  # Set Mifs
 
 for testbench in sim_top_array:
+    if not testbench.endswith("_tb"):
+      continue
     print(f'---------{testbench}---------')
     write_lines(["sim_top"], [f"sim_top = \"{testbench}\""])  # Set TCL Mode
     set_extensions(testbench)

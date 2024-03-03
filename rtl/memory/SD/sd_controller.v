@@ -67,7 +67,6 @@ module sd_controller #(
   reg [2:0] response_type;
   reg [2:0] new_response_type;
   wire [4095:0] received_data;
-  wire response_received;
   wire crc_error;
   reg new_cs;
   reg sck_en;

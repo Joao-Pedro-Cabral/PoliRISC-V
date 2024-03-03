@@ -64,7 +64,6 @@ module single_port_ram #(
     end
   end
 
-  integer k;
   always @(posedge CLK_I) begin
     ACK_O <= 1'b0;
     if (busy_flag == 2'b10) begin
