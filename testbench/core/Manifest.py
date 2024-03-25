@@ -1,10 +1,11 @@
 modules = {
-    "local" : [
+    "local": [
         "Adder",
         "ControlUnit",
         "core",
         "CSR",
         "Dataflow",
+        "ForwardingUnit",
         "ImmediateExtender",
         "RegisterFile",
         "ULA"
