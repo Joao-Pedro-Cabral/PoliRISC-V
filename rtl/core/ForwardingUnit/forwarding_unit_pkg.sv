@@ -15,16 +15,30 @@ package forwarding_unit_pkg;
     ForwardFromWb
   } forwarding_t;
 
+  typedef struct {
+    logic reg_we;
+    logic [4:0] rd;
+    forwarding_t target_forwarding;
+  } forwarding_src_bundle_t;
+
+  typedef struct {
+    logic rs;
+    forwarding_t forward_rs;
+  } forwarding_dst_bundle_t;
+
   function automatic bit valid_forwarding(input logic reg_we, input logic [4:0] rs,
                                           input logic [4:0] rd);
     return reg_we && !rs && rd == rs;
   endfunction
 
-  task automatic forward(input logic reg_we, input logic [4:0] rs, input logic [4:0] rd,
-                         input forwarding_t target_forwarding, output forwarding_t forward_rs);
-    if (valid_forwarding(reg_we, rs, rd)) begin
-      forward_rs = target_forwarding;
+  function automatic bit forward(input forwarding_src_bundle_t src_bundle,
+                                 ref forwarding_dst_bundle_t dst_bundle);
+    if (valid_forwarding(src_bundle.reg_we, dst_bundle.rs, src_bundle.rd)) begin
+      dst_bundle.forward_rs = src_bundle.target_forwarding;
+      return 1'b1;
     end
-  endtask
+    dst_bundle.forward_rs = NoForwarding;
+    return 1'b0;
+  endfunction
 
 endpackage
