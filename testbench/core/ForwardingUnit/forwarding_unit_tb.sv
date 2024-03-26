@@ -13,12 +13,12 @@ module forwarding_unit_tb ();
   forwarding_t forward_rs1_id, forward_rs2_id, forward_rs1_ex, forward_rs2_ex;
   logic forward_rs2_mem;
 
-  function automatic logic match_registers(input logic [4:0] rs, input logic [4:0] rd,
+  function automatic bit match_registers(input logic [4:0] rs, input logic [4:0] rd,
                                            input logic we);
     return ((rs === rd) && (rd !== 0) && we);
   endfunction
 
-  function automatic logic check_type(input forwarding_type_t forward_type,
+  function automatic bit check_type(input forwarding_type_t forward_type,
                                       input stages_t current_stage, input stages_t forwading_stage,
                                       input logic rs_num, input logic zicsr_ex = 0);
     unique case (forward_type)
@@ -55,7 +55,7 @@ module forwarding_unit_tb ();
 
   forwarding_unit DUT (.*);
 
-  initial begin
+  initial begin : verify_dut
     repeat (number_of_tests) begin
       forwarding_type_id = forwarding_type_t'($urandom() % forwarding_type_id.num());
       {forwarding_type_ex, forwading_type_mem} = $urandom();
@@ -73,6 +73,7 @@ module forwarding_unit_tb ();
       CHECK_RS2_MEM : assert (forward_rs2_mem === get_forward_t(
         rs2_mem, 1'b1, rd_ex, rd_mem, rd_wb, Memory, 1'b0, reg_we_wb));
     end
-  end
+    $stop();
+  end : verify_dut
 
 endmodule

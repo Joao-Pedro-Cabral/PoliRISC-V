@@ -7,6 +7,7 @@ modules = {
         "CSR",
         "Dataflow",
         "ForwardingUnit",
+        "HazardUnit",
         "ImmediateExtender",
         "MemoryUnit",
         "RegisterFile",
