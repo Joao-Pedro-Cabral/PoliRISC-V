@@ -22,13 +22,13 @@ package forwarding_unit_pkg;
   } forwarding_src_bundle_t;
 
   typedef struct {
-    logic rs;
+    logic [4:0] rs;
     forwarding_t forward_rs;
   } forwarding_dst_bundle_t;
 
   function automatic bit valid_forwarding(input logic reg_we, input logic [4:0] rs,
                                           input logic [4:0] rd);
-    return reg_we && !rs && rd == rs;
+    return reg_we && rs && rd == rs;
   endfunction
 
   function automatic bit forward(input forwarding_src_bundle_t src_bundle,

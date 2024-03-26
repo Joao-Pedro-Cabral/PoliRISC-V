@@ -1,6 +1,7 @@
 modules = {
-    "local" : [
+    "local": [
         "7_segments",
-        "components"
+        "components",
+        "global_pkg"
     ],
 }

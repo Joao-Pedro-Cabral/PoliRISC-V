@@ -1,7 +1,7 @@
 
 action = "simulation"
 sim_tool = "modelsim"
-sim_top = "RV32I_litex_tb"
+sim_top = "forwarding_unit_tb"
 use_mif = False
 gui_mode = True
 mif_name = "branches.mif"
@@ -16,7 +16,7 @@ for extensao in lista_de_extensoes:
     extension_file.write("`define " + extensao + '\n')
 extension_file.close()
 
-vlog_opt = " -vlog01compat"
+vlog_opt = " -define default_nettype=none"
 
 if use_mif:  # if the testbench needs a mif file
     sim_pre_cmd = ("ln -fs " + rom_mif_path + " ./ROM.mif" + ";"
