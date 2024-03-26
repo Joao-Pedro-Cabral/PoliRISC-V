@@ -1,5 +1,6 @@
 files = [
-    "Dataflow.v"
+    "Dataflow.v",
+    "dataflow_pkg.sv"
 ]
 
 modules = {

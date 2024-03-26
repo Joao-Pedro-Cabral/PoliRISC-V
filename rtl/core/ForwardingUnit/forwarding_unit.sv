@@ -19,7 +19,6 @@ module forwarding_unit (
     output forwarding_t forward_rs2_id,
     output forwarding_t forward_rs1_ex,
     output forwarding_t forward_rs2_ex,
-    output forwarding_t forward_rs1_mem,
     output forwarding_t forward_rs2_mem
 );
 
