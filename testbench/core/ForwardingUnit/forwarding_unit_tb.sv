@@ -21,18 +21,17 @@ module forwarding_unit_tb ();
                                     input stages_t current_stage, input stages_t forwading_stage,
                                     input logic rs_num, input logic zicsr_ex = 0);
     unique case (forward_type)
-      NoType: return 1'b0;
       Type1:
       return (current_stage === Decode && forwading_stage === WriteBack) ||
                     (current_stage === Execute && (forwading_stage inside {Memory, WriteBack}));
       Type2:
       return (current_stage === Decode && ((forwading_stage === Execute && rs_num === 1'b0
                     && zicsr_ex) || (forwading_stage inside {Memory, WriteBack})));
-      // Type 1 and Type 3
-      default:
+      Type1_3:
       return (current_stage === Decode && forwading_stage === WriteBack) ||
                       (current_stage === Execute && (forwading_stage inside {Memory, WriteBack})) ||
-                      (current_stage === Memory && forwading_stage === Memory && rs_num);
+                      (current_stage === Memory && forwading_stage === WriteBack && rs_num);
+      default: return 1'b0; // NoType
     endcase
   endfunction
 
@@ -67,9 +66,7 @@ module forwarding_unit_tb ();
     logic forwarding_temp_ex, forwarding_temp_mem;
     repeat (number_of_tests) begin
       forwarding_type_id = forwarding_type_t'($urandom() % forwarding_type_id.num());
-      {forwarding_temp_ex, forwarding_temp_mem} = $urandom();
-      forwarding_type_ex = forwarding_type_t'({2{forwarding_temp_ex}});
-      forwarding_type_mem = forwarding_type_t'({2{forwarding_temp_mem}});
+      {forwarding_type_ex, forwarding_type_mem} = $urandom();
       {reg_we_mem, reg_we_wb, zicsr_ex} = $urandom();
       {rd_ex, rd_mem, rd_wb, rs1_id, rs2_id, rs1_ex, rs2_ex, rs2_mem} = {$urandom(), $urandom()};
       #5;
