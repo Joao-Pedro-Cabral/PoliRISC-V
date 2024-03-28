@@ -1,5 +1,6 @@
 files = [
-    "core.v"
+    "core.v",
+    "core_pkg.sv"
 ]
 
 modules = {
