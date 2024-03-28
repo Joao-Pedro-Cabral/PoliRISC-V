@@ -9,10 +9,10 @@ package core_pkg;
     IType = 7'b0000011,
     SType = 7'b0100011,
     BType = 7'b1100011,
-    Lui =  7'b0110111,
+    Lui = 7'b0110111,
     Auipc = 7'b0010111,
-    Jal =   7'b1101111,
-    Jalr =  7'b1100111,
+    Jal = 7'b1101111,
+    Jalr = 7'b1100111,
     Fence = 7'b0001111,
     SystemType = 7'b1110011
   } opcode_t;
@@ -27,9 +27,9 @@ package core_pkg;
 
   typedef struct packed {
     logic [11:0] imm;
-    logic [4:0] rs1;
-    logic [2:0] funct3;
-    logic [4:0] rd;
+    logic [4:0]  rs1;
+    logic [2:0]  funct3;
+    logic [4:0]  rd;
   } i_type_t;
 
   typedef struct packed {
@@ -50,12 +50,12 @@ package core_pkg;
 
   typedef struct packed {
     logic [19:0] imm;
-    logic [4:0] rd;
+    logic [4:0]  rd;
   } u_type_t;
 
   typedef struct packed {
     logic [19:0] imm;
-    logic [4:0] rd;
+    logic [4:0]  rd;
   } j_type_t;
 
   typedef union packed {

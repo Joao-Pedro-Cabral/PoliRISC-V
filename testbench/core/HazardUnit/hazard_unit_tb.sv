@@ -72,17 +72,17 @@ module hazard_unit_tb ();
       {reg_we_ex, reg_we_mem} = $urandom();
       {mem_rd_en_ex, mem_rd_en_mem} = $urandom();
       {store_id, zicsr_ex} = $urandom();
-      {stall_id, stall_if} = $urandom();
-      {flush_id, flush_ex} = $urandom();
       #5;
       check_hazard(rs1_id, rd_ex, rd_mem, reg_we_ex, reg_we_mem, mem_rd_en_ex, mem_rd_en_mem,
                    zicsr_ex, 1'b0, hazard_type, stall1_id, stall1_if, flush1_id, flush1_ex);
-      check_hazard(rs2_id, rd_ex, rd_mem, reg_we_ex, reg_we_mem, mem_rd_en_ex, mem_rd_en_mem, 1'b0,
-                   zicsr_ex, hazard_type, stall2_id, stall2_if, flush2_id, flush2_ex);
+      check_hazard(rs2_id & {5{rs_used}}, rd_ex, rd_mem, reg_we_ex, reg_we_mem, mem_rd_en_ex,
+                   mem_rd_en_mem, zicsr_ex, store_id, hazard_type, stall2_id, stall2_if, flush2_id,
+                   flush2_ex);
       CHECK_STALL_IF : assert (stall_if === (stall1_if || stall2_if));
       CHECK_STALL_ID : assert (stall_id === (stall1_id || stall2_id));
       CHECK_FLUSH_ID : assert (flush_id === (flush1_id || flush2_id));
       CHECK_FLUSH_EX : assert (flush_ex === (flush1_ex || flush2_ex));
+      #5;
     end
     $stop();
   end : verify_dut
