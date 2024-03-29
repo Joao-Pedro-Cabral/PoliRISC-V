@@ -49,7 +49,7 @@ module branch_decoder_unit_tb;
           test_cond_branch;
         end
         default: begin
-          $display("ERROR: undefined branch value");
+          $display("ERROR: undefined branch");
           $error;
         end
       endcase
@@ -92,72 +92,37 @@ module branch_decoder_unit_tb;
 
   task automatic branch_taken(cond_branch_t cond_branch);
     read_data_1 = $urandom;
-    unique case (cond_branch)
-      Beq: begin
-        read_data_2 = read_data_1;
-      end
-      Bne: begin
-        do begin read_data_2 = $urandom;
-            end while ($signed(read_data_1) == $signed(read_data_2));
-      end
-      Blt: begin
-        do begin read_data_2 = $urandom;
-            end while ($signed(read_data_1) >= $signed(read_data_2));
-      end
-      Bge: begin
-        do begin read_data_2 = $urandom;
-            end while ($signed(read_data_1) < $signed(read_data_2));
-      end
-      Bltu: begin
-        do begin
-          read_data_2 = $urandom;
-        end while (read_data_1 >= read_data_2);
-      end
-      Bgeu: begin
-        do begin
-          read_data_2 = $urandom;
-        end while (read_data_1 < read_data_2);
-      end
-      default: begin
-        $display("ERROR: undefined conditional branch value");
-        $error;
-      end
-    endcase
+    do begin
+      read_data_2 = $urandom;
+    end while (!is_cond_branch_taken(
+        cond_branch, read_data_1, read_data_2
+    ));
   endtask
 
   task automatic branch_not_taken(cond_branch_t cond_branch);
     read_data_1 = $urandom;
+    do begin
+      read_data_2 = $urandom;
+    end while (is_cond_branch_taken(
+        cond_branch, read_data_1, read_data_2
+    ));
+  endtask
+
+  function automatic bit is_cond_branch_taken(input cond_branch_t cond_branch,
+                                              input logic [Width-1:0] rd_dat_1,
+                                              input logic [Width-1:0] rd_dat_2);
     unique case (cond_branch)
-      Beq: begin
-        do begin read_data_2 = $urandom;
-            end while ($signed(read_data_1) == $signed(read_data_2));
-      end
-      Bne: begin
-        read_data_2 = read_data_1;
-      end
-      Blt: begin
-        do begin read_data_2 = $urandom;
-            end while ($signed(read_data_1) < $signed(read_data_2));
-      end
-      Bge: begin
-        do begin read_data_2 = $urandom;
-            end while ($signed(read_data_1) >= $signed(read_data_2));
-      end
-      Bltu: begin
-        do begin
-          read_data_2 = $urandom;
-        end while (read_data_1 < read_data_2);
-      end
-      Bgeu: begin
-        do begin
-          read_data_2 = $urandom;
-        end while (read_data_1 >= read_data_2);
-      end
+      Beq:  return $signed(rd_dat_1) == $signed(rd_dat_2);
+      Bne:  return $signed(rd_dat_1) != $signed(rd_dat_2);
+      Blt:  return $signed(rd_dat_1) < $signed(rd_dat_2);
+      Bge:  return $signed(rd_dat_1) >= $signed(rd_dat_2);
+      Bltu: return rd_dat_1 < rd_dat_2;
+      Bgeu: return rd_dat_1 >= rd_dat_2;
+
       default: begin
-        $display("ERROR: undefined conditional branch value");
+        $display("ERROR: undefined conditional branch");
         $error;
       end
     endcase
-  endtask
-
+  endfunction
 endmodule
