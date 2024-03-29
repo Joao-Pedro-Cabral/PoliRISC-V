@@ -1,11 +1,3 @@
-//
-//! @file   ULA.v
-//! @brief  ULA RISC-V RV64I
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module ULA (
     A,

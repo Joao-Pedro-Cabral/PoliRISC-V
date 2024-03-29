@@ -1,11 +1,3 @@
-//
-//! @file   single_port_ram.v
-//! @brief  Implementação de uma RAM de porta única com byte enable, escrita síncrona e leitura assíncrona
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-02-22
-//
-
-`include "macros.vh"
 
 module single_port_ram #(
     parameter RAM_INIT_FILE = "ram_init_file.mif",

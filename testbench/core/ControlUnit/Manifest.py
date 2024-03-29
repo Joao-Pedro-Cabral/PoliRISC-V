@@ -9,5 +9,6 @@ modules = {
         "../../../rtl/memory/Controller",
         "../../../rtl/memory/RAM",
         "../../../rtl/memory/ROM",
+        "../../../utils/globals"
     ],
 }

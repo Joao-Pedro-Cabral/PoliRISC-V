@@ -1,11 +1,3 @@
-//
-//! @file   full_barrel_shifter.v
-//! @brief  Barrel Shifter para shift arimético e lógico para a direita e lógico para a esquerda
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-02-03
-//
-
-`include "macros.vh"
 
 module full_barrel_shifter #(
     parameter integer XLEN = 32

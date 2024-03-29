@@ -1,33 +1,9 @@
 
-//
-//! @file   control_unit_tb.v
-//! @brief  Testbench da control_unit
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-03-03
-//
-
-// Ideia do testbench: testar ciclo a ciclo o comportamento da UC
-// de acordo com a instrução executada
-// Para isso considero as seguintes hipóteses:
-// RAM, ROM, CSR_mem e DF estão corretos.
-// Com isso, basta testar se a UC consegue enviar os sinais corretos
-// a partir dos sinais de entrada provenientes da RAM, ROM, CSR_mem e DF.
-// Para isso irei verificar as saídas da UC
-
-`include "macros.vh"
-`include "extensions.vh"
-
-`ifdef RV64I
-`define BYTE_NUM 8
-`define DATA_SIZE 64
-`else
-`define BYTE_NUM 4
-`define DATA_SIZE 32
-`endif
-
 `define ASSERT(condition) if (!(condition)) $stop
 
 module control_unit_tb ();
+  import extensions_pkg::*;
+  import macros_pkg::*;
   // Parâmetros determinados pelas extensões
   `ifdef RV64I
     localparam integer HasRV64I = 1;

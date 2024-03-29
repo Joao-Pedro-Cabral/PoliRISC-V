@@ -1,11 +1,3 @@
-//
-//! @file   ROM.v
-//! @brief  Memória ROM com 2**ADDR_SIZE palavras de tamanho WORD_SIZE, com OFFSET
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-22
-//
-
-`include "macros.vh"
 
 module ROM (
     CLK_I,

@@ -1,11 +1,3 @@
-//
-//! @file   register_d.v
-//! @brief  Register D com reset assíncrono
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module register_d (
     clock,

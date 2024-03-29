@@ -4,7 +4,7 @@ files = [
 ]
 
 modules = {
-    "local" : [
+    "local": [
         "../Adder",
         "../CSR",
         "../ImmediateExtender",

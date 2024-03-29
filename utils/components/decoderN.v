@@ -1,11 +1,3 @@
-//
-//! @file   decoderN.v
-//! @brief  Decoder genérico(N para 2^N)
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module decoderN (
     A,

@@ -1,14 +1,6 @@
 
-`include "macros.vh"
-`include "extensions.vh"
-
-`ifdef RV64I
-`define DATA_SIZE 64
-`else
-`define DATA_SIZE 32
-`endif
-
 module CSR_mem #(
+    parameter integer DATA_SIZE = 64,
     parameter integer CLOCK_CYCLES = 100
 ) (
     input wire CLK_I,
@@ -17,20 +9,21 @@ module CSR_mem #(
     input wire STB_I,
     input wire WE_I,
     input wire [2:0] ADR_I,
-    input wire [`DATA_SIZE-1:0] DAT_I,
-    output reg [`DATA_SIZE-1:0] DAT_O,
+    input wire [DATA_SIZE-1:0] DAT_I,
+    output reg [DATA_SIZE-1:0] DAT_O,
     output reg ACK_O,
-    output wire [`DATA_SIZE-1:0] msip,
+    output wire [DATA_SIZE-1:0] msip,
     output wire [63:0] mtime,
     output wire [63:0] mtimecmp
 );
 
-  wire [`DATA_SIZE-1:0] msip_;
+  wire [DATA_SIZE-1:0] msip_;
   wire [63:0] mtime_;
   wire [63:0] mtimecmp_;
   wire tick;
   wire [$clog2(CLOCK_CYCLES)-1:0] cycles;
   wire rd_en, wr_en;
+  wire [63:0] mtime_load, mtimecmp_d;
 
   // Wishbone
   assign rd_en = CYC_I & STB_I & ~WE_I;
@@ -39,7 +32,7 @@ module CSR_mem #(
   // Registradores mapeados em memória
   // MSIP
   register_d #(
-      .N(`DATA_SIZE),
+      .N(DATA_SIZE),
       .reset_value(0)
   ) msip_reg (
       .clock(CLK_I),
@@ -56,15 +49,13 @@ module CSR_mem #(
       .clock(CLK_I),
       .reset(RST_I),
       .load((ADR_I[1:0] == 2'b10) && wr_en),
-`ifdef RV64I
-      .load_value(DAT_I),
-`else
-      .load_value(ADR_I[2] ? {DAT_I, mtime_[31:0]} : {mtime_[63:32], DAT_I}),
-`endif
+      .load_value(mtime_load),
       .inc_enable(tick),
       .dec_enable(1'b0),
       .value(mtime_)
   );
+  assign mtime_load = (DATA_SIZE == 64) ? DAT_I :
+                      (ADR_I[2] ? {DAT_I, mtime_[31:0]} : {mtime_[63:32], DAT_I});
   sync_parallel_counter #(
       .size($clog2(CLOCK_CYCLES)),
       .init_value(0)
@@ -87,25 +78,18 @@ module CSR_mem #(
       .clock(CLK_I),
       .reset(RST_I),
       .enable((ADR_I[1:0] == 2'b11) && wr_en),
-`ifdef RV64I
-      .D(DAT_I),
-`else
-      .D(ADR_I[2] ? {DAT_I, mtimecmp_[31:0]} : {mtimecmp_[63:32], DAT_I}),
-`endif
+      .D(mtimecmp_d),
       .Q(mtimecmp_)
   );
-
+  assign mtimecmp_d = (DATA_SIZE == 64) ? DAT_I :
+                      (ADR_I[2] ? {DAT_I,  mtimecmp_[31:0]} : { mtimecmp_[63:32], DAT_I});
   // Lógica de leitura
   always @(*) begin
     case (ADR_I[1:0])
       2'b00:   DAT_O = msip_;
-`ifdef RV64I
-      2'b10:   DAT_O = mtime_;
-      2'b11:   DAT_O = mtimecmp_;
-`else
-      2'b10:   DAT_O = ADR_I[2] ? mtime_[63:32] : mtime_[31:0];
-      2'b11:   DAT_O = ADR_I[2] ? mtimecmp_[63:32] : mtimecmp_[31:0];
-`endif
+      2'b10:   DAT_O = (DATA_SIZE == 64) ? mtime_ : (ADR_I[2] ? mtime_[63:32] : mtime_[31:0]);
+      2'b11:   DAT_O = (DATA_SIZE == 64) ? mtimecmp_ :
+                       (ADR_I[2] ? mtimecmp_[63:32] : mtimecmp_[31:0]);
       default: DAT_O = 0;
     endcase
   end

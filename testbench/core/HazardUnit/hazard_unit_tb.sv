@@ -32,11 +32,8 @@ module hazard_unit_tb ();
     flush_ex = 1'b0;
     unique case (hazard_type)
       HazardDecode: begin
-        if (detect_hazard(
-                rs, rd_ex, reg_we_ex, !zicsr_ex
-            ) || detect_hazard(
-                rs, rd_mem, reg_we_mem, mem_rd_en_mem
-            )) begin
+        if (detect_hazard(rs, rd_ex, reg_we_ex, !zicsr_ex) ||
+            detect_hazard(rs, rd_mem, reg_we_mem, mem_rd_en_mem)) begin
           stall_id = 1'b1;
           stall_if = 1'b1;
           flush_ex = 1'b1;

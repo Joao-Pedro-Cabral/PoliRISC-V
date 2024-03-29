@@ -1,11 +1,3 @@
-//
-//! @file   mux2to1.v
-//! @brief  Multiplexador 2 para 1
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module mux2to1 (
     A,

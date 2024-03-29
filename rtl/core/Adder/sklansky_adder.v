@@ -1,11 +1,3 @@
-//
-//! @file   sklansky_adder.v
-//! @brief  Implementação do somador condicional de Sklansky
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-02-21
-//
-
-`include "macros.vh"
 
 module sklansky_adder #(
     // quantidade de bits em cada número

@@ -1,17 +1,17 @@
 
 action = "simulation"
 sim_tool = "modelsim"
-sim_top = "branch_decode_unit_tb"
-use_mif = False
+sim_top = "control_unit_tb"
+use_mif = True
 gui_mode = True
 mif_name = "branches.mif"
 rom_mif_path = "./MIFs/memory/ROM/core/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/core.mif"
-lista_de_extensoes = ["TrapReturn", "M", "ZICSR"]
+lista_de_extensoes = ["RV64I"]
 vsim_args = " -do vsim_gui.do -voptargs=+acc " if gui_mode else " -c -do vsim_tcl.do "
 
 # gerar arquivo de extensões
-extension_file = open("extensions.vh", 'w')
+extension_file = open("../utils/globals/extensions.vh", 'w')
 for extensao in lista_de_extensoes:
     extension_file.write("`define " + extensao + '\n')
 extension_file.close()
@@ -31,6 +31,6 @@ else:
 
 modules = {
     "local": [
-        "../testbench"
+        "../testbench/core//ControlUnit"
     ],
 }

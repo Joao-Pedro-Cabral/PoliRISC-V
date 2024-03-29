@@ -1,27 +1,14 @@
-//
-//! @file   Dataflow.v
-//! @brief  Dataflow do RV32I/RV64I
-//! @author João Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-03-04
-//
 
-`include "macros.vh"
-`include "extensions.vh"
-
-`ifdef RV64I
-`define DATA_SIZE 64
-`else
-`define DATA_SIZE 32
-`endif
-
-module Dataflow (
+module Dataflow #(
+  parameter integer DATA_SIZE = 32
+) (
     // Common
     input wire clock,
     input wire reset,
     // Memory
-    input wire [`DATA_SIZE-1:0] rd_data,
-    output wire [`DATA_SIZE-1:0] wr_data,
-    output wire [`DATA_SIZE-1:0] mem_addr,
+    input wire [DATA_SIZE-1:0] rd_data,
+    output wire [DATA_SIZE-1:0] wr_data,
+    output wire [DATA_SIZE-1:0] mem_addr,
     // From Control Unit
     input wire alua_src,
     input wire alub_src,
@@ -42,20 +29,16 @@ module Dataflow (
     input wire ecall,
     input wire illegal_instruction,
     // Trap Return
-`ifdef TrapReturn
     input wire mret,
     input wire sret,
-`endif
     // Interrupts from Memory
     input wire external_interrupt,
-    input wire [`DATA_SIZE-1:0] mem_msip,
+    input wire [DATA_SIZE-1:0] mem_msip,
     input wire [63:0] mem_mtime,
     input wire [63:0] mem_mtimecmp,
-`ifdef ZICSR
     input wire csr_wr_en,
     input wire [1:0] csr_op,
     input wire csr_imm,
-`endif
     // To Control Unit
     output wire [6:0] opcode,
     output wire [2:0] funct3,
@@ -70,48 +53,43 @@ module Dataflow (
   // Fios intermediários
   // Register File
   wire [           4:0] rs1_addr;
-  wire [`DATA_SIZE-1:0] rs1;
-  wire [`DATA_SIZE-1:0] rs2;
-  wire [`DATA_SIZE-1:0] rd;
+  wire [DATA_SIZE-1:0] rs1;
+  wire [DATA_SIZE-1:0] rs2;
+  wire [DATA_SIZE-1:0] rd;
   // Extensor de Imediato
-  wire [`DATA_SIZE-1:0] immediate;
+  wire [DATA_SIZE-1:0] immediate;
   // ULA
-  wire [`DATA_SIZE-1:0] aluA;
-  wire [`DATA_SIZE-1:0] aluB;
-  wire [`DATA_SIZE-1:0] aluY;
-  wire [`DATA_SIZE-1:0] muxaluY_out;  // aluY or sign_extended(aluY[31:0])
+  wire [DATA_SIZE-1:0] aluA;
+  wire [DATA_SIZE-1:0] aluB;
+  wire [DATA_SIZE-1:0] aluY;
+  wire [DATA_SIZE-1:0] muxaluY_out;  // aluY or sign_extended(aluY[31:0])
   // Somador PC + 4
-  wire [`DATA_SIZE-1:0] pc_plus_4;
-  wire [`DATA_SIZE-1:0] cte_4 = 4;
+  wire [DATA_SIZE-1:0] pc_plus_4;
+  wire [DATA_SIZE-1:0] cte_4 = 4;
   // Somador PC + Imediato
-  wire [`DATA_SIZE-1:0] pc_plus_immediate;
+  wire [DATA_SIZE-1:0] pc_plus_immediate;
   // PC
-  wire [`DATA_SIZE-1:0] pc;
-  reg  [`DATA_SIZE-1:0] new_pc;
+  wire [DATA_SIZE-1:0] pc;
+  reg  [DATA_SIZE-1:0] new_pc;
   // Instruction Register(IR)
   wire [          31:0] ir;
   // CSR
-  wire [`DATA_SIZE-1:0] trap_addr;
+  wire [DATA_SIZE-1:0] trap_addr;
   wire                  _trap;
   wire [           1:0] _privilege_mode;
   // Trap Return
-`ifdef TrapReturn
-  wire [`DATA_SIZE-1:0] mepc;
-  wire [`DATA_SIZE-1:0] sepc;
-`endif
+  wire [DATA_SIZE-1:0] mepc;
+  wire [DATA_SIZE-1:0] sepc;
   // ZICSR
-`ifdef ZICSR
-  wire [`DATA_SIZE-1:0] csr_rd_data;
-  wire [`DATA_SIZE-1:0] csr_mask_rd_data;
-  wire [`DATA_SIZE-1:0] csr_wr_data;
-  wire [`DATA_SIZE-1:0] csr_aux_wr;
-`endif
+  wire [DATA_SIZE-1:0] csr_rd_data;
+  wire [DATA_SIZE-1:0] csr_mask_rd_data;
+  wire [DATA_SIZE-1:0] csr_wr_data;
+  wire [DATA_SIZE-1:0] csr_aux_wr;
 
   // Instanciação de Componentes
   // Register File
-`ifdef ZICSR  // Com ZICSR há 4 possíveis origens do rd
   gen_mux #(
-      .size(`DATA_SIZE),
+      .size(DATA_SIZE),
       .N(2)
   ) mux11 (
       .A({pc_plus_4, rd_data, csr_mask_rd_data, muxaluY_out}),
@@ -123,12 +101,10 @@ module Dataflow (
   assign csr_mask_rd_data[9] = (ir[31:20] == 12'h344 || ir[31:20] == 12'h144)
                                             ? (csr_rd_data[9] | external_interrupt)
                                             : csr_rd_data[9];
-  assign csr_mask_rd_data[`DATA_SIZE-1:10] = csr_rd_data[`DATA_SIZE-1:10];
-`else  // Sem ZICSR: 3 origens -> Economizar 1 mux
-  assign rd = wr_reg_src[1] ? (wr_reg_src[0] ? pc_plus_4 : rd_data) : muxaluY_out;
-`endif
+  assign csr_mask_rd_data[DATA_SIZE-1:10] = csr_rd_data[DATA_SIZE-1:10];
+
   register_file #(
-      .size(`DATA_SIZE),
+      .size(DATA_SIZE),
       .N(5)
   ) int_reg_state (
       .clock(clock),
@@ -146,22 +122,18 @@ module Dataflow (
 `ifdef RV64I
   assign aluA = alua_src ? pc : (aluy_src ? {{32{rs1[31]}}, rs1[31:0]} : rs1);
   assign aluB = alub_src ? immediate : (aluy_src ? {{32{rs2[31]}}, rs2[31:0]} : rs2);
-  assign muxaluY_out[`DATA_SIZE-1:32] = aluy_src ? {32{aluY[31]}} : aluY[`DATA_SIZE-1:32];
+  assign muxaluY_out[DATA_SIZE-1:32] = aluy_src ? {32{aluY[31]}} : aluY[DATA_SIZE-1:32];
 `else
   assign aluA = alua_src ? pc : rs1;
   assign aluB = alub_src ? immediate : rs2;
 `endif
 
   ULA #(
-      .N(`DATA_SIZE)
+      .N(DATA_SIZE)
   ) alu (
       .A(aluA),
       .B(aluB),
-      `ifdef M
       .seletor(alu_src),
-      `else
-      .seletor({1'b0, alu_src[2:0]}),
-      `endif
       .sub(sub),
       .arithmetic(arithmetic),
       .Y(aluY),
@@ -172,7 +144,7 @@ module Dataflow (
   );
   // Somador PC + 4
   sklansky_adder #(
-      .INPUT_SIZE(`DATA_SIZE)
+      .INPUT_SIZE(DATA_SIZE)
   ) pc_4 (
       .A(pc),
       .B(cte_4),
@@ -182,17 +154,17 @@ module Dataflow (
   );
   // Somador PC + Imediato
   sklansky_adder #(
-      .INPUT_SIZE(`DATA_SIZE)
+      .INPUT_SIZE(DATA_SIZE)
   ) pc_immediate (
-      .A(alupc_src ? {rs1[`DATA_SIZE-1:1], 1'b0} : pc),
-      .B({immediate[`DATA_SIZE-1:1], 1'b0}),
+      .A(alupc_src ? {rs1[DATA_SIZE-1:1], 1'b0} : pc),
+      .B({immediate[DATA_SIZE-1:1], 1'b0}),
       .c_in(1'b0),
       .c_out(),
       .S(pc_plus_immediate)
   );
   // PC
   register_d #(
-      .N(`DATA_SIZE),
+      .N(DATA_SIZE),
       .reset_value(0)
   ) pc_register (
       .clock(clock),
@@ -203,16 +175,14 @@ module Dataflow (
   );
   always @(*) begin
     if (_trap) new_pc = trap_addr;
-    `ifdef TrapReturn
     else if (mret) new_pc = mepc;
     else if (sret) new_pc = sepc;
-    `endif
     else if (pc_src) new_pc = pc_plus_immediate;
     else new_pc = pc_plus_4;
   end
   // Immediate Extender
   immediate_extender #(
-      .N(`DATA_SIZE)
+      .N(DATA_SIZE)
   ) estende_imediato (
       .instruction(ir),
       .immediate  (immediate)
@@ -249,29 +219,15 @@ module Dataflow (
       .pc(pc),
       .instruction(ir),
       // CSR RW interface
-`ifdef ZICSR
       .wr_en(csr_wr_en & (~csr_op[1] | (|ir[19:15]))),
       .addr(ir[31:20]),
       .wr_data(csr_wr_data),
       .rd_data(csr_rd_data),
-`else
-      .wr_en(1'b0),
-      .addr(12'b0),
-      .wr_data(`DATA_SIZE'b0),
-      .rd_data(),
-`endif
-      // MRET & SRET
-`ifdef TrapReturn
+      // TrapReturn
       .mret(mret),
       .sret(sret),
       .mepc(mepc),
       .sepc(sepc)
-`else
-      .mret(1'b0),
-      .sret(1'b0),
-      .mepc(),
-      .sepc()
-`endif
   );
 
 
@@ -281,11 +237,9 @@ module Dataflow (
   assign muxaluY_out[31:0] = aluY[31:0];
 
   // Zicsr
-`ifdef ZICSR
   assign csr_aux_wr = csr_imm ? $unsigned(ir[19:15]) : rs1;
   assign csr_wr_data = csr_op[1] ? (csr_op[0] ? (csr_rd_data & (~csr_aux_wr))
                         : (csr_rd_data | csr_aux_wr)) : csr_aux_wr;
-`endif
 
   // Saídas
   // Memory

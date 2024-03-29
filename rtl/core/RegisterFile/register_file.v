@@ -1,11 +1,3 @@
-//
-//! @file   register_file.v
-//! @brief  Register File com x0 = 0
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module register_file (
     clock,

@@ -1,11 +1,3 @@
-//
-//! @file   edge_detector.v
-//! @brief  Circuito para detectar borda de subida/descida
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @date   2023-05-03
-//
-
-`include "macros.vh"
 
 module edge_detector #(
     parameter integer RESET_VALUE = 0,

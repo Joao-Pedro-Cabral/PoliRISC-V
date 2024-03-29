@@ -1,11 +1,3 @@
-//
-//! @file hexa7seg.v
-//! @brief Decodificador de hexadecimal para display de 7 segmentos
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @date 2023-05-03
-//
-
-`include "macros.vh"
 
 module hexa7seg (
     input  wire [3:0] hexa,

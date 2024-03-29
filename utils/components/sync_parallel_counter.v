@@ -1,6 +1,4 @@
 
-`include "macros.vh"
-
 module sync_parallel_counter (
     clock,
     reset,

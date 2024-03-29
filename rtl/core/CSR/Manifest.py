@@ -1,4 +1,4 @@
 files = [
-    "CSR.v",
-    "CSR_mem.v"
+    "CSR.sv",
+    "CSR_mem.sv"
 ]

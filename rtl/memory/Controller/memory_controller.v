@@ -1,13 +1,3 @@
-//
-//! @file   memory_controller.v
-//! @brief  Implementação de um controlador de barramento para memórias
-//          e dispositivos
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-04-24
-//
-
-`include "macros.vh"
-`include "extensions.vh"
 
 module memory_controller #(
     parameter integer BYTE_AMNT = 8,
