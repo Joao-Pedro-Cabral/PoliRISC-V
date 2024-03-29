@@ -1,7 +1,7 @@
 
 action = "simulation"
 sim_tool = "modelsim"
-sim_top = "immediate_extender_tb"
+sim_top = "branch_decode_unit_tb"
 use_mif = False
 gui_mode = True
 mif_name = "branches.mif"
