@@ -1,9 +1,10 @@
 files = [
-    "ImmediateExtender_tb.v"
+    "immediate_extender_tb.sv"
 ]
 
 modules = {
     "local": [
-        "../../../rtl/core/ImmediateExtender"
+        "../../../rtl/core/ImmediateExtender",
+        "../../../utils/globals"
     ],
 }

@@ -6,6 +6,6 @@ modules = {
     "local": [
         "../Dataflow",
         "../../../rtl/core/ForwardingUnit",
-        "../../../utils/global_pkg"
+        "../../../utils/globals"
     ],
 }

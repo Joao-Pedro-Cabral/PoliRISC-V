@@ -1,9 +1,9 @@
 files = [
-    "ImmediateExtender.v"
+    "immediate_extender.sv"
 ]
 
 modules = {
     "local": [
-        "../../../utils/components"
+        "../../../utils/globals"
     ],
 }

@@ -5,6 +5,6 @@ files = [
 modules = {
     "local": [
         "../../../rtl/core/HazardUnit",
-        "../../../utils/global_pkg"
+        "../../../utils/globals"
     ],
 }

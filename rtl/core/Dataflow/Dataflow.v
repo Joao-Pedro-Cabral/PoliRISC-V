@@ -211,7 +211,7 @@ module Dataflow (
     else new_pc = pc_plus_4;
   end
   // Immediate Extender
-  ImmediateExtender #(
+  immediate_extender #(
       .N(`DATA_SIZE)
   ) estende_imediato (
       .instruction(ir),

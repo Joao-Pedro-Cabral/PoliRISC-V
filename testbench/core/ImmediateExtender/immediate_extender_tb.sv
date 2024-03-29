@@ -1,16 +1,10 @@
-//
-//! @file   ImmediateExtender_tb.v
-//! @brief  Testbench Extensor de Imediato
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-20
-//
 
-`include "macros.vh"
-
-module ImmediateExtender_tb ();
+module immediate_extender_tb ();
+  import macros_pkg::*;
+  import instruction_pkg::*;
   // portas do DUT
-  reg [31:0] instruction;
-  wire [63:0] immediate;
+  instruction_t instruction;
+  logic [63:0] immediate;
   // possíveis imediatos gerados
   wire [63:0] I_type = {{53{instruction[31]}}, instruction[30:20]};
   wire [63:0] S_type = {{53{instruction[31]}}, instruction[30:25], instruction[11:7]};
@@ -43,7 +37,9 @@ module ImmediateExtender_tb ();
   assign instruction_opcode[8] = 7'b0011011;
 
   // instanciando o DUT
-  ImmediateExtender DUT (
+  immediate_extender #(
+    .N(64)
+  ) DUT (
       .instruction(instruction),
       .immediate  (immediate)
   );

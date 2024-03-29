@@ -1,7 +1,7 @@
 
 action = "simulation"
 sim_tool = "modelsim"
-sim_top = "hazard_unit_tb"
+sim_top = "immediate_extender_tb"
 use_mif = False
 gui_mode = True
 mif_name = "branches.mif"

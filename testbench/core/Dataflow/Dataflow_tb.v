@@ -305,7 +305,7 @@ module Dataflow_tb ();
   );
 
   // Componentes auxiliares para a verificação
-  ImmediateExtender #(
+  immediate_extender #(
       .N(`DATA_SIZE)
   ) extensor_imediato (
       .immediate  (immediate),

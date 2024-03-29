@@ -1,12 +1,12 @@
 
-package core_pkg;
+package instruction_pkg;
 
   typedef enum logic [6:0] {
     UlaRType = 7'b0110011,
     UlaRWType = 7'b0111011,
     UlaIType = 7'b0010011,
     UlaIWType = 7'b0011011,
-    IType = 7'b0000011,
+    LoadType = 7'b0000011,
     SType = 7'b0100011,
     BType = 7'b1100011,
     Lui = 7'b0110111,
