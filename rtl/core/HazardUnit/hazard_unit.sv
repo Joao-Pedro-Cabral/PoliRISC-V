@@ -2,7 +2,7 @@ import hazard_unit_pkg::*;
 
 module hazard_unit (
     input hazard_t hazard_type,
-    input logic rs_used,
+    input rs_used_t rs_used,
     input logic [4:0] rs1_id,
     input logic [4:0] rs2_id,
     input logic [4:0] rd_ex,

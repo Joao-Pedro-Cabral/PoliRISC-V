@@ -7,7 +7,7 @@ module hazard_unit_tb ();
 
   // DUT Signals
   hazard_t hazard_type;
-  logic rs_used;
+  rs_used_t rs_used;
   logic [4:0] rs1_id, rs2_id, rd_ex, rd_mem;
   logic reg_we_ex, reg_we_mem;
   logic mem_rd_en_ex, mem_rd_en_mem;
@@ -64,7 +64,7 @@ module hazard_unit_tb ();
     logic flush1_ex, flush2_ex;
     repeat (number_of_tests) begin
       hazard_type = hazard_t'($urandom() % hazard_type.num());
-      rs_used = $urandom();
+      rs_used = rs_used_t'($urandom());
       {rs1_id, rs2_id, rd_ex, rd_mem} = $urandom();
       {reg_we_ex, reg_we_mem} = $urandom();
       {mem_rd_en_ex, mem_rd_en_mem} = $urandom();

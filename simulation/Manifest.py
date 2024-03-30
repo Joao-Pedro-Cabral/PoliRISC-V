@@ -31,6 +31,6 @@ else:
 
 modules = {
     "local": [
-        "../testbench/core//ControlUnit"
+        "../testbench/core/ControlUnit"
     ],
 }

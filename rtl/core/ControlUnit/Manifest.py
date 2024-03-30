@@ -1,3 +1,12 @@
 files = [
-    "control_unit.v"
+    "control_unit.sv"
 ]
+
+modules = {
+    "local": [
+        "../BranchDecoderUnit",
+        "../ForwardingUnit",
+        "../HazardUnit",
+        "../ULA"
+    ],
+}

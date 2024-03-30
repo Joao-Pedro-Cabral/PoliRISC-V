@@ -8,4 +8,9 @@ package hazard_unit_pkg;
     HazardException
   } hazard_t;
 
+  typedef enum logic {
+    OnlyRs1,
+    Rs1AndRs2
+  } rs_used_t;
+
 endpackage
