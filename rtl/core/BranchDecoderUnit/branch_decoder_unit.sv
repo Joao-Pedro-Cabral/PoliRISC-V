@@ -7,7 +7,7 @@ module branch_decoder_unit #(
     input cond_branch_t cond_branch_type,
     input logic [Width-1:0] read_data_1,
     input logic [Width-1:0] read_data_2,
-    output logic [1:0] pc_src
+    output pc_src_t pc_src
 );
 
   logic cond_branch_taken;
@@ -17,11 +17,11 @@ module branch_decoder_unit #(
   // Main Logic
   always_comb begin : pc_src_proc
     unique case (branch_type)
-      NoBranch: pc_src = 2'b00;
-      Mret: pc_src = 2'b01;
-      Sret: pc_src = 2'b10;
-      Jump: pc_src = 2'b11;
-      default: pc_src = cond_branch_taken ? 2'b11 : 2'b00;  // CondBranch
+      NoBranch: pc_src = PcPlus4;
+      Sret: pc_src = Sepc;
+      Mret: pc_src = Mepc;
+      Jump: pc_src = PcOrReadDataPlusImm;
+      default: pc_src = cond_branch_taken ? PcOrReadDataPlusImm : PcPlus4;  // CondBranch
     endcase
   end : pc_src_proc
 
@@ -32,8 +32,8 @@ module branch_decoder_unit #(
       Bne: cond_branch_taken = ~zero;
       Blt: cond_branch_taken = negative ^ overflow;
       Bge: cond_branch_taken = ~(negative ^ overflow);
-      Bltu: cond_branch_taken = carry_out;
-      Bgeu: cond_branch_taken = ~carry_out;
+      Bltu: cond_branch_taken = ~carry_out;
+      Bgeu: cond_branch_taken = carry_out;
       default: cond_branch_taken = 1'b0;
     endcase
   end : cond_branch_taken_proc

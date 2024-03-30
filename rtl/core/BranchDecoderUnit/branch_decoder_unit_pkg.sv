@@ -18,4 +18,12 @@ package branch_decoder_unit_pkg;
     Bgeu
   } cond_branch_t;
 
+  typedef enum logic [1:0] {
+    PcPlus4,
+    Sepc,
+    Mepc,
+    PcOrReadDataPlusImm
+  } pc_src_t;
+
+
 endpackage

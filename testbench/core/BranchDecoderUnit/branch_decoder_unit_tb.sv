@@ -1,22 +1,19 @@
-import branch_decoder_unit_pkg::*;
 
 module branch_decoder_unit_tb;
+  import branch_decoder_unit_pkg::*;
+  import macros_pkg::*;
+
   localparam integer Seed = 69420;
-  localparam integer IntervalBetweenTests = 1;
-  localparam integer Width = 32;
+  localparam integer Interval = 1;
+  localparam integer Width = 64;
 
   branch_t branch_type;
   cond_branch_t cond_branch_type;
   logic [Width-1:0] read_data_1;
   logic [Width-1:0] read_data_2;
-  logic [1:0] pc_src;
+  pc_src_t pc_src;
 
-  localparam logic [1:0] PcPlus4Src = 2'b00;
-  localparam logic [1:0] SepcSrc = 2'b01;
-  localparam logic [1:0] MepcSrc = 2'b10;
-  localparam logic [1:0] PcOrReadDataPlusImmSrc = 2'b11;
-
-  branch_decoder_unit #(.Width) DUT (.*);
+  branch_decoder_unit #(.Width(Width)) DUT (.*);
 
   // test vars
   branch_t branch_type_vec[branch_type.num()];
@@ -30,30 +27,37 @@ module branch_decoder_unit_tb;
       branch_type = branch_type_vec[i];
       unique case (branch_type_vec[i])
         NoBranch: begin
-          #IntervalBetweenTests;
-          assert (pc_src == PcPlus4Src);
+          #Interval;
+          NO_BRANCH :
+          assert (pc_src == PcPlus4) $display("Case %s: OK", branch_type_vec[i].name());
+          else $stop;
         end
         Mret: begin
-          #IntervalBetweenTests;
-          assert (pc_src == MepcSrc);
+          #Interval;
+          MRET :
+          assert (pc_src == Mepc) $display("Case %s: OK", branch_type_vec[i].name());
+          else $stop;
         end
         Sret: begin
-          #IntervalBetweenTests;
-          assert (pc_src == SepcSrc);
+          #Interval;
+          SRET :
+          assert (pc_src == Sepc) $display("Case %s: OK", branch_type_vec[i].name());
+          else $stop;
         end
         Jump: begin
-          #IntervalBetweenTests;
-          assert (pc_src == PcOrReadDataPlusImmSrc);
+          #Interval;
+          JUMP :
+          assert (pc_src == PcOrReadDataPlusImm) $display("Case %s: OK", branch_type_vec[i].name());
+          else $stop;
         end
         CondBranch: begin
           test_cond_branch;
         end
         default: begin
           $display("ERROR: undefined branch");
-          $error;
+          $stop;
         end
       endcase
-      $display("Case %s: OK", branch_type_vec[i].name());
     end
     $display("EOT!");
   end
@@ -79,21 +83,26 @@ module branch_decoder_unit_tb;
     foreach (cond_branch_type_vec[j]) begin
       cond_branch_type = cond_branch_type_vec[j];
       branch_taken(cond_branch_type_vec[j]);
-      #IntervalBetweenTests;
-      assert (pc_src == PcOrReadDataPlusImmSrc);
-      $display("Taken %s branch case: OK", cond_branch_type_vec[j].name());
+      #Interval;
+      COND_BRANCH_TAKEN :
+      assert (pc_src == PcOrReadDataPlusImm)
+        $display("Taken %s branch case: OK", cond_branch_type_vec[j].name());
+      else $stop;
 
       branch_not_taken(cond_branch_type_vec[j]);
-      #IntervalBetweenTests;
-      assert (pc_src == PcPlus4Src);
-      $display("Not taken %s branch case: OK", cond_branch_type_vec[j].name());
+      #Interval;
+      COND_BRANCH_NOT_TAKEN :
+      assert (pc_src == PcPlus4)
+        $display("Not taken %s branch case: OK", cond_branch_type_vec[j].name());
+      else $stop;
     end
   endtask
 
   task automatic branch_taken(cond_branch_t cond_branch);
     read_data_1 = $urandom;
     do begin
-      read_data_2 = $urandom;
+      read_data_2 = cond_branch == Beq ? read_data_1 : $urandom;
+      #Interval;
     end while (!is_cond_branch_taken(
         cond_branch, read_data_1, read_data_2
     ));
@@ -102,7 +111,8 @@ module branch_decoder_unit_tb;
   task automatic branch_not_taken(cond_branch_t cond_branch);
     read_data_1 = $urandom;
     do begin
-      read_data_2 = $urandom;
+      read_data_2 = cond_branch == Bne ? read_data_1 : $urandom;
+      #Interval;
     end while (is_cond_branch_taken(
         cond_branch, read_data_1, read_data_2
     ));
@@ -121,7 +131,7 @@ module branch_decoder_unit_tb;
 
       default: begin
         $display("ERROR: undefined conditional branch");
-        $error;
+        $stop;
       end
     endcase
   endfunction

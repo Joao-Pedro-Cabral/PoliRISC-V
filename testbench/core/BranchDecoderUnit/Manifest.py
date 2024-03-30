@@ -4,7 +4,7 @@ files = [
 
 modules = {
     "local": [
-        "../../../utils/global_pkg"
-        "../../../rtl/core/BranchDecoderUnit",
+        "../../../utils/globals",
+        "../../../rtl/core/BranchDecoderUnit"
     ],
 }
