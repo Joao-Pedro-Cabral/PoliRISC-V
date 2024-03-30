@@ -10,16 +10,16 @@ package alu_pkg;
     ShiftRightLogic,
     Or,
     And,
-    Sub = 5'b01000,
-    ShiftRightArithmetic = 5'b01101,
-    Mul = 5'b10000,
+    Mul,
     MulHigh,
     MulHighSignedUnsigned,
     MulHighUnsigned,
     Div,
     DivUnsigned,
     Rem,
-    RemUnsigned
+    RemUnsigned,
+    Sub,
+    ShiftRightArithmetic = 5'b10101
   } alu_op_t;
 
 endpackage

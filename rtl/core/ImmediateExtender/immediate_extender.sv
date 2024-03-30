@@ -13,7 +13,7 @@ module immediate_extender #(
   always_comb begin : gen_immediate
     imm = 0;
     unique case (instruction.opcode)
-      UlaIType, UlaIWType, LoadType, Jalr: imm = $signed(instruction.fields.i_type.imm);  // I-Type
+      AluIType, AluIWType, LoadType, Jalr: imm = $signed(instruction.fields.i_type.imm);  // I-Type
       SType: imm = $signed({instruction.fields.s_type.imm2, instruction.fields.s_type.imm1});
       BType: imm = $signed({instruction[31], instruction[7], instruction[30:25], instruction[11:8],
                       1'b0});

@@ -1,9 +1,10 @@
 files = [
-    "register_file_tb.v"
+    "register_file_tb.sv"
 ]
 
 modules = {
-    "local" : [
-        "../../../rtl/core/RegisterFile"
+    "local": [
+        "../../../rtl/core/RegisterFile",
+        "../../../utils/globals"
     ],
 }

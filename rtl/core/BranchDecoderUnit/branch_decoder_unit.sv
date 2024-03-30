@@ -49,7 +49,7 @@ module branch_decoder_unit #(
       .S(sub_res)
   );
 
-  // flags da ULA
+  // flags da ALU
   assign negative = sub_res[Width-1];
   assign overflow = (read_data_1[Width-1] ^ read_data_2[Width-1]) &
                     (read_data_1[Width-1] ^ sub_res[Width-1]);

@@ -70,19 +70,19 @@ module control_unit #(
     cond_branch_type = Beq;
 
     unique case (opcode)  // synthesis parallel_case
-      UlaRType, UlaRWType: begin
+      AluRType, AluRWType: begin
         aluy_src = opcode[3];
-        alu_op = alu_op_t'({funct7[0], funct7[5], funct3});
+        alu_op = alu_op_t'({funct7[5], funct7[0], funct3});
         wr_reg_en = 1'b1;
         hazard_type = HazardExecute;
         rs_used = Rs1AndRs2;
         forwarding_type = Type1;
       end
 
-      UlaIType, UlaIWType: begin
+      AluIType, AluIWType: begin
         alub_src = 1'b1;
         aluy_src = opcode[3];
-        alu_op = alu_op_t'({1'b0, funct7[5] & (funct3 == 3'b101), funct3});
+        alu_op = alu_op_t'({funct7[5] & (funct3 == 3'b101), 1'b0, funct3});
         wr_reg_en = 1'b1;
         hazard_type = HazardExecute;
         forwarding_type = Type1;

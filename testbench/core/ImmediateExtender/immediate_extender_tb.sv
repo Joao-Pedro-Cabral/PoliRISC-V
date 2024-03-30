@@ -12,10 +12,10 @@ module immediate_extender_tb ();
   // FIXME: tirar isso quando tivermos acesso ao randomize()
   function automatic opcode_t get_random_opcode();
     unique case($urandom()%13)
-      0:  return UlaRType;
-      1:  return UlaRWType;
-      2:  return UlaIType;
-      3:  return UlaIWType;
+      0:  return AluRType;
+      1:  return AluRWType;
+      2:  return AluIType;
+      3:  return AluIWType;
       4:  return LoadType;
       5:  return SType;
       6:  return BType;
@@ -30,7 +30,7 @@ module immediate_extender_tb ();
 
   function automatic logic [63:0] get_immediate(input instruction_t instruction);
     unique case(instruction.opcode)
-      UlaIType, UlaIWType, LoadType, Jalr: return {{53{instruction[31]}}, instruction[30:20]};
+      AluIType, AluIWType, LoadType, Jalr: return {{53{instruction[31]}}, instruction[30:20]};
       SType: return {{53{instruction[31]}}, instruction[30:25], instruction[11:7]};
       BType: return {{52{instruction[31]}}, instruction[7], instruction[30:25],
                     instruction[11:8], 1'b0};

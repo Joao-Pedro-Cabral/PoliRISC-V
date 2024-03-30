@@ -1,10 +1,10 @@
 files = [
-    "sklansky_adder_tb.sv"
+    "alu_tb.sv"
 ]
 
 modules = {
     "local": [
-        "../../../rtl/core/Adder",
+        "../../../rtl/core/ALU",
         "../../../utils/globals"
     ],
 }

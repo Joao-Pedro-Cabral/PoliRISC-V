@@ -1,9 +1,9 @@
 
 action = "simulation"
 sim_tool = "modelsim"
-sim_top = "branch_decoder_unit_tb"
+sim_top = "alu_tb"
 use_mif = False
-gui_mode = True
+gui_mode = False
 mif_name = "branches.mif"
 rom_mif_path = "./MIFs/memory/ROM/core/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/core.mif"
@@ -31,6 +31,6 @@ else:
 
 modules = {
     "local": [
-        "../testbench/core/BranchDecoderUnit"
+        "../testbench/core/ALU"
     ],
 }

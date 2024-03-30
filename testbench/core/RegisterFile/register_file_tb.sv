@@ -1,13 +1,8 @@
-//
-//! @file   register_file_tb.v
-//! @brief  Testbench para Register File com x0 = 0
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module register_file_tb ();
+
+  import macros_pkg::*;
+
   // portas do DUT
   reg           clock;
   reg           reset;

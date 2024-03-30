@@ -1,14 +1,7 @@
 
-//
-//! @file   barrel_shifter_r_tb.v
-//! @brief  Testbench para Barrel Shifter para direita (aritmético e lógico)
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
-
 module barrel_shifter_r_tb ();
+
+  import macros_pkg::*;
 
   // portas do DUT
   reg [7:0] A;
@@ -55,7 +48,7 @@ module barrel_shifter_r_tb ();
       A = B[j];
       shamt = j;
       #1;
-      if ($signed(Y) !== ($signed(B[j][7:0]) >>> $signed(j)))  // fazer signed aaaaaaa
+      if ($signed(Y) !== ($signed(B[j][7:0]) >>> $signed(j)))
         $display("Error: B[%d] = %b, Y = %b", j, B[j], Y);
       #1;
     end

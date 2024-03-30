@@ -1,12 +1,7 @@
-//! @file   left_barrel_shifter.v
-//! @brief  Testbench para o Barrel Shifter lógico para a esquerda
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-03-04
-//
-
-`include "macros.vh"
 
 module left_barrel_shifter_tb;
+
+  import macros_pkg::*;
 
   localparam integer QntdTestes = 32;
 
@@ -29,7 +24,7 @@ module left_barrel_shifter_tb;
 
   integer i;
   initial begin
-    $readmemb("./MIFs/core/ULA/casos_de_teste_lbs.mif", casos_de_teste);
+    $readmemb("./MIFs/core/Shifter/casos_de_teste_lbs.mif", casos_de_teste);
     {in_data, shamt} = 0;
 
     $display("SOT!");

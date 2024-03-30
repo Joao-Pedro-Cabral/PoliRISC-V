@@ -1,29 +1,20 @@
 
-module ULA (
-    A,
-    B,
-    seletor,
-    sub,
-    arithmetic,
-    Y,
-    zero,
-    negative,
-    carry_out,
-    overflow
-);
-  parameter integer N = 16;
-  input wire [N-1:0] A;
-  input wire [N-1:0] B;
-  input wire [3:0] seletor;
-  input wire sub;
-  input wire arithmetic;  // 1: SRA, 0 : SRL
-  output wire [N-1:0] Y;
-  output wire zero;
-  output wire negative;
-  output wire carry_out;
-  output wire overflow;
+import alu_pkg::*;
 
-  // sinais para as 8 operações da ULA
+module alu #(
+    parameter integer N = 16
+) (
+    input  logic [N-1:0] A,
+    input  logic [N-1:0] B,
+    input alu_op_t alu_op,
+    output logic [N-1:0] Y,
+    output logic zero,
+    output logic negative,
+    output logic carry_out,
+    output logic overflow
+);
+
+  // sinais para as 8 operações da ALU
   wire [N-1:0] add_sub;
   wire [N-1:0] sll;
   wire [N-1:0] slt;
@@ -46,10 +37,10 @@ module ULA (
   wire carry_out_;
   wire overflow_;
 
+  wire sub_ = alu_op inside {SetLessThan, SetLessThanUnsigned, Sub};
+  wire arithmetic_ = alu_op === ShiftRightArithmetic;
 
-  wire sub_ = sub | (~seletor[2] & seletor[1]);
-
-  // operações da ULA
+  // operações da ALU
   // operações aritméticas
   sklansky_adder #(
       .INPUT_SIZE(N)
@@ -74,7 +65,7 @@ module ULA (
   ) shifter_right (
       .A(A),
       .shamt(B[$clog2(N)-1:0]),
-      .arithmetic(arithmetic),
+      .arithmetic(arithmetic_),
       .Y(sr)
   );
 
@@ -92,7 +83,7 @@ module ULA (
   assign _rem = $signed(A) % $signed(B);
   assign _remu = A % B;
 
-  // multiplexador de saída da ULA
+  // multiplexador de saída da ALU
   gen_mux #(
       .size(N),
       .N(4)
@@ -115,11 +106,11 @@ module ULA (
         sll,
         add_sub
       }),
-      .S(seletor),
+      .S(alu_op[3:0]),
       .Y(Y)
   );
 
-  // flags da ULA
+  // flags da ALU
   assign negative_ = add_sub[N-1];
   assign overflow_ = (~(A[N-1] ^ B[N-1] ^ sub_)) & (A[N-1] ^ add_sub[N-1]);
   assign zero      = ~(|add_sub);

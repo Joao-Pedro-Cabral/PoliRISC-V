@@ -1,7 +1,7 @@
 
-`include "macros.vh"
-
 module sklansky_adder_tb ();
+  import macros_pkg::*;
+
   parameter integer N = 64;
 
   // Tamanho dos operandos

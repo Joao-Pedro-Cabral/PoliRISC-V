@@ -1,12 +1,7 @@
-//! @file   full_barrel_shifter_tb.v
-//! @brief  Testbench para o Barrel Shifter completo e unificado (shift lógico para esquerda e lógico e aritmético para a direita)
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-03-01
-//
-
-`include "macros.vh"
 
 module full_barrel_shifter_tb;
+
+  import macros_pkg::*;
 
   localparam integer QntdTestes = 96;
 
@@ -33,7 +28,7 @@ module full_barrel_shifter_tb;
 
   integer i;
   initial begin
-    $readmemb("./MIFs/core/ULA/casos_de_teste_fbs.mif", casos_de_teste);
+    $readmemb("./MIFs/core/Shifter/casos_de_teste_fbs.mif", casos_de_teste);
     {in_data, shamt, left_or_right_shift, arithmetic_right_shift} = 0;
 
     $display("SOT!");
