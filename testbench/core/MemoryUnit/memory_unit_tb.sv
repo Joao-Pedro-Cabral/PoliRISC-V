@@ -37,6 +37,7 @@ module memory_unit_tb;
     simultaneous_mem_ops(1'b0);
     simultaneous_mem_ops(1'b1);
     $display("EOT!");
+    $stop;
   end
 
   task automatic init_vars;
@@ -67,13 +68,17 @@ module memory_unit_tb;
   endtask
 
   task automatic only_inst_mem_read_test;
-    rd_data_mem  = 1'b0;
-    wr_data_mem  = 1'b0;
+    rd_data_mem = 1'b0;
+    wr_data_mem = 1'b0;
     inst_mem_ack = 1'b0;
+    inst_mem_rd_dat = $urandom;
     @(negedge clock);
 
     WAIT_INST_MEM_TRANSITION_TEST :
     assert (busy & inst_mem_en & ~data_mem_en & ~data_mem_we)
+    else $stop;
+    INST_MEM_DAT_NE_TEST :
+    assert (inst_mem_dat !== inst_mem_rd_dat)
     else $stop;
 
     wait_time = $urandom;
@@ -88,7 +93,10 @@ module memory_unit_tb;
     @(negedge clock);
 
     IDLE_TRANSITION_TEST :
-    assert (~busy & ~inst_mem_en & ~data_mem_en & ~data_mem_we)
+    assert (~busy & inst_mem_en & ~data_mem_en & ~data_mem_we)
+    else $stop;
+    INST_MEM_DAT_EQ_TEST :
+    assert (inst_mem_dat === inst_mem_rd_dat)
     else $stop;
 
     @(posedge clock);
@@ -108,11 +116,15 @@ module memory_unit_tb;
     @(negedge clock);
 
     WAIT_DATA_MEM_TRANSITION_TEST :
-    assert (busy & ~inst_mem_en & data_mem_en & (data_mem_we == rd_or_wr))
+    assert (busy & inst_mem_en & data_mem_en & (data_mem_we == rd_or_wr))
     else $stop;
 
     @(posedge clock);
     inst_mem_ack = 1'b0;
+    @(negedge clock);
+    INST_MEM_DAT_EQ_TEST :
+    assert (inst_mem_dat === inst_mem_rd_dat)
+    else $stop;
     @(negedge clock);
 
     WAIT_DATA_MEM :
@@ -124,11 +136,18 @@ module memory_unit_tb;
     @(negedge clock);
 
     IDLE_TRANSITION_TEST :
-    assert (~busy & ~inst_mem_en & ~data_mem_en & ~data_mem_we)
+    assert (~busy & ~inst_mem_en & data_mem_en & (data_mem_we == rd_or_wr))
     else $stop;
 
     @(posedge clock);
     data_mem_ack = 1'b0;
+    rd_data_mem  = 1'b0;
+    wr_data_mem  = 1'b0;
+    if (~rd_or_wr) begin
+      DATA_MEM_DAT_EQ_TEST :
+      assert (data_mem_dat === data_mem_rd_dat)
+      else $stop;
+    end
     #(ClockPeriod / 4);
 
     IDLE_TEST :
@@ -144,11 +163,18 @@ module memory_unit_tb;
     @(negedge clock);
 
     WAIT_INST_MEM_TRANSITION_TEST :
-    assert (busy & inst_mem_en & ~data_mem_en & ~data_mem_we)
+    assert (busy & inst_mem_en & data_mem_en & (data_mem_we == rd_or_wr))
     else $stop;
 
     @(posedge clock);
     data_mem_ack = 1'b0;
+    rd_data_mem  = 1'b0;
+    wr_data_mem  = 1'b0;
+    if (~rd_or_wr) begin
+      DATA_MEM_DAT_EQ_TEST :
+      assert (data_mem_dat === data_mem_rd_dat)
+      else $stop;
+    end
     @(negedge clock);
 
     WAIT_INST_MEM :
@@ -160,11 +186,14 @@ module memory_unit_tb;
     @(negedge clock);
 
     IDLE_TRANSITION_TEST :
-    assert (~busy & ~inst_mem_en & ~data_mem_en & ~data_mem_we)
+    assert (~busy & inst_mem_en & ~data_mem_en & ~data_mem_we)
     else $stop;
 
     @(posedge clock);
     inst_mem_ack = 1'b0;
+    INST_MEM_DAT_EQ_TEST :
+    assert (inst_mem_dat === inst_mem_rd_dat)
+    else $stop;
     #(ClockPeriod / 4);
 
     IDLE_TEST :
@@ -181,12 +210,22 @@ module memory_unit_tb;
     @(negedge clock);
 
     IDLE_TRANSITION_TEST :
-    assert (~busy & ~inst_mem_en & ~data_mem_en & ~data_mem_we)
+    assert (~busy & inst_mem_en & data_mem_en & (data_mem_we == rd_or_wr))
     else $stop;
 
     @(posedge clock);
     inst_mem_ack = 1'b0;
     data_mem_ack = 1'b0;
+    rd_data_mem  = 1'b0;
+    wr_data_mem  = 1'b0;
+    INST_MEM_DAT_EQ_TEST :
+    assert (inst_mem_dat === inst_mem_rd_dat)
+    else $stop;
+    if (~rd_or_wr) begin
+      DATA_MEM_DAT_EQ_TEST :
+      assert (data_mem_dat === data_mem_rd_dat)
+      else $stop;
+    end
     #(ClockPeriod / 4);
 
     IDLE_TEST :
@@ -197,16 +236,22 @@ module memory_unit_tb;
   task automatic wait_any_mem_test(input bit rd_or_wr);
     rd_data_mem = ~rd_or_wr;
     wr_data_mem = rd_or_wr;
+    inst_mem_rd_dat = $urandom;
+    data_mem_rd_dat = $urandom;
     @(negedge clock);
 
     WAIT_ANY_MEM_TRANSITION_TEST :
     assert (busy & inst_mem_en & data_mem_en & (data_mem_we == rd_or_wr))
     else $stop;
+    INST_MEM_DAT_NE_TEST :
+    assert (inst_mem_dat !== inst_mem_rd_dat)
+    else $stop;
+    DATA_MEM_DAT_NE_TEST :
+    assert (data_mem_dat !== data_mem_rd_dat)
+    else $stop;
 
     @(posedge clock);
-    rd_data_mem = 1'b0;
-    wr_data_mem = 1'b0;
-    wait_time   = $urandom;
+    wait_time = $urandom;
     #(wait_time);
 
     WAIT_ANY_MEM_TEST :
@@ -217,5 +262,3 @@ module memory_unit_tb;
   always #(ClockPeriod / 2) clock = ~clock;
 
 endmodule
-
-

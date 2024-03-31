@@ -60,6 +60,7 @@ module branch_decoder_unit_tb;
       endcase
     end
     $display("EOT!");
+    $stop;
   end
 
   task automatic init_test_vars;
