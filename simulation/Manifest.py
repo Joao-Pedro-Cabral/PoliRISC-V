@@ -31,10 +31,6 @@ else:
 
 modules = {
     "local": [
-<<<<<<< HEAD
         "../testbench/core/MemoryUnit"
-=======
-        "../testbench/core/ControlUnit"
->>>>>>> 8c84edd (Tesbench para UC 32 bits completo)
     ],
 }
