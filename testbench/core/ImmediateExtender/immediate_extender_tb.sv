@@ -9,25 +9,6 @@ module immediate_extender_tb ();
   instruction_t instruction;
   logic [63:0] immediate;
 
-  // FIXME: tirar isso quando tivermos acesso ao randomize()
-  function automatic opcode_t get_random_opcode();
-    unique case($urandom()%13)
-      0:  return AluRType;
-      1:  return AluRWType;
-      2:  return AluIType;
-      3:  return AluIWType;
-      4:  return LoadType;
-      5:  return SType;
-      6:  return BType;
-      7:  return Lui;
-      8:  return Auipc;
-      9:  return Jal;
-      10: return Jalr;
-      11: return Fence;
-      default: return SystemType;
-    endcase
-  endfunction
-
   function automatic logic [63:0] get_immediate(input instruction_t instruction);
     unique case(instruction.opcode)
       AluIType, AluIWType, LoadType, Jalr: return {{53{instruction[31]}}, instruction[30:20]};
@@ -53,7 +34,7 @@ module immediate_extender_tb ();
   initial begin : verify_dut
     $display("SOT!");
     repeat(number_of_tests) begin
-      instruction.opcode = get_random_opcode();
+      instruction.opcode = gen_random_opcode(1'b1);
       instruction[31:7] = $urandom();
       #5;
       CHECK_IMMEDIATE: assert (immediate ==? get_immediate(instruction));

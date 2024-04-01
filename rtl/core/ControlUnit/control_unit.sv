@@ -3,7 +3,7 @@ import instruction_pkg::*;
 import alu_pkg::*;
 import forwarding_unit_pkg::*;
 import hazard_unit_pkg::*;
-import branch_unit_pkg::*;
+import branch_decoder_unit_pkg::*;
 
 module control_unit #(
     parameter integer BYTE_NUM = 8
@@ -18,14 +18,15 @@ module control_unit #(
     // Sinais de Controle do Fluxo de Dados
     output reg alua_src,
     output reg alub_src,
-    output reg aluy_src,
-    output alut_op_t alu_op,
+    output reg aluy_src, // only used in RV64I
+    output alu_op_t alu_op,
     output reg alupc_src,
     output reg [1:0] wr_reg_src,
     output reg wr_reg_en,
-    output reg                 mem_rd_en,
-    output reg                 mem_wr_en,
+    output reg mem_rd_en,
+    output reg mem_wr_en,
     output reg [BYTE_NUM-1:0] mem_byte_en,
+    output reg mem_unsigned,
     output reg csr_imm,
     output reg [1:0] csr_op,
     output reg csr_wr_en,
@@ -34,7 +35,7 @@ module control_unit #(
     output reg illegal_instruction,
     output reg ecall,
     output hazard_t hazard_type,
-    output reg rs_used,
+    output rs_used_t rs_used,
     output forwarding_type_t forwarding_type,
     output branch_t branch_type,
     output cond_branch_t cond_branch_type
@@ -56,6 +57,7 @@ module control_unit #(
     mem_wr_en    = 1'b0;
     mem_rd_en    = 1'b0;
     mem_byte_en  = 0;
+    mem_unsigned = 1'b0;
     csr_wr_en    = 1'b0;
     csr_imm      = 1'b0;
     csr_op       = 2'b00;
@@ -94,6 +96,7 @@ module control_unit #(
         wr_reg_en = 1'b1;
         mem_rd_en = 1'b1;
         mem_byte_en = byte_en;
+        mem_unsigned = funct3[2];
         hazard_type = HazardExecute;
         forwarding_type = Type1;
       end
@@ -148,8 +151,8 @@ module control_unit #(
       SystemType: begin
         illegal_instruction = 1'b1;
         hazard_type = HazardException;
-        unique if (funct3 === 0) begin
-          unique if (funct7 === 0) begin
+        if (funct3 === 0) begin
+          if (funct7 === 0) begin
             ecall = 1'b1;
             illegal_instruction = 1'b0;
           end else if((funct7 == 7'h18 && privilege_mode == 2'b11) ||
@@ -160,19 +163,17 @@ module control_unit #(
             illegal_instruction = 1'b0;
             hazard_type = NoHazard;
           end
-        end else if (funct3 !== 3'b100) begin
-          if(privilege_mode >= funct7[4:3]) begin
-            wr_reg_en = 1'b1;
-            wr_reg_src = 2'b01;
-            // não significa que algum CSR será escrito
-            csr_wr_en = 1'b1;
-            csr_imm = funct3[2];
-            csr_op  = funct3[1:0];
-            illegal_instruction = csr_addr_invalid;
-            hazard_type = csr_addr_invalid ? HazardException : HazardDecode;
-            rs_used = Rs1AndRs2;
-            forwarding_type = Type1;
-          end
+        end else if (funct3 !== 3'b100 && privilege_mode >= funct7[6:5]) begin
+          wr_reg_en = 1'b1;
+          wr_reg_src = 2'b01;
+          // não significa que algum CSR será escrito
+          csr_wr_en = 1'b1;
+          csr_imm = funct3[2];
+          csr_op  = funct3[1:0];
+          illegal_instruction = csr_addr_invalid;
+          hazard_type = csr_addr_invalid ? HazardException :
+                        (funct3[2] ? NoHazard : HazardDecode);
+          forwarding_type = funct3[2] ? NoType : Type2;
         end
       end
 

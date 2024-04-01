@@ -11,7 +11,7 @@ lista_de_extensoes = ["RV64I"]
 vsim_args = " -do vsim_gui.do -voptargs=+acc " if gui_mode else " -c -do vsim_tcl.do "
 
 # gerar arquivo de extensões
-extension_file = open("../utils/globals/extensions.vh", 'w')
+extension_file = open("extensions.vh", 'w')
 for extensao in lista_de_extensoes:
     extension_file.write("`define " + extensao + '\n')
 extension_file.close()
@@ -31,6 +31,10 @@ else:
 
 modules = {
     "local": [
+<<<<<<< HEAD
         "../testbench/core/MemoryUnit"
+=======
+        "../testbench/core/ControlUnit"
+>>>>>>> 8c84edd (Tesbench para UC 32 bits completo)
     ],
 }

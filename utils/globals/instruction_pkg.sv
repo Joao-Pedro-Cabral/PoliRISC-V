@@ -72,4 +72,95 @@ package instruction_pkg;
     opcode_t opcode;
   } instruction_t;
 
+  // FIXME: tirar isso quando tivermos acesso ao randomize()
+  function automatic opcode_t gen_random_opcode(input logic rv64i);
+    unique case(rv64i ? $urandom()%13 : $urandom()%11)
+      0:  return AluRType;
+      1:  return AluIType;
+      2:  return LoadType;
+      3:  return SType;
+      4:  return BType;
+      5:  return Lui;
+      6:  return Auipc;
+      7:  return Jal;
+      8:  return Jalr;
+      9:  return Fence;
+      10: return SystemType;
+      11: return AluRWType; //only RV64I
+      default:  return AluIWType; // only RV64I
+    endcase
+  endfunction
+
+  // FIXME: tirar isso quando tivermos acesso ao randomize()
+  function automatic logic [2:0] gen_random_funct3(input opcode_t opcode, input logic rv64i);
+    unique case(opcode)
+      AluRType, AluIType, Lui, Auipc, Jal: return $urandom();
+      LoadType: begin
+        if(rv64i) begin
+          return ($urandom()%2) ? (4 + $urandom()%3) : ($urandom()%4);
+        end else begin
+          return ($urandom()%2) ? (4 + $urandom()%2) : ($urandom()%3);
+        end
+      end
+      SType: begin
+        return rv64i ? ($urandom()%4) : ($urandom()%3);
+      end
+      BType: begin
+        unique case ($urandom()%6)
+          0: return 3'b000;
+          1: return 3'b001;
+          2: return 3'b100;
+          3: return 3'b101;
+          4: return 3'b110;
+          default: return 3'b111;
+        endcase
+      end
+      Jalr, Fence: return 0;
+      AluRWType, AluIWType: begin // It's assumed that rv64i == 1
+        unique case($urandom()%3)
+          0: return 3'b000;
+          1: return 3'b001;
+          default: return 3'b101;
+        endcase
+      end
+      default: begin // SystemType
+        unique case ($urandom()%24) // Equal prob between Ecall, Sret, Mret and Zicsr
+          0: return 3'b001;
+          1: return 3'b010;
+          2: return 3'b011;
+          3: return 3'b101;
+          4: return 3'b110;
+          5: return 3'b111;
+          default: return 3'b000;
+        endcase
+      end
+    endcase
+  endfunction
+
+  // FIXME: tirar isso quando tivermos acesso ao randomize()
+  function automatic logic [6:0] gen_random_funct7(input opcode_t opcode, input logic [2:0] funct3,
+                                                   input logic rv64i);
+    unique case(opcode)
+      LoadType, SType, BType, Lui, Auipc, Jal, Jalr, Fence: return $urandom();
+      AluRType, AluRWType: begin
+        return (($urandom()%2) ? 7'h01 : ((funct3 === 3'b000 || funct3 === 3'b101)
+               ? (($urandom()%2) ? 7'h20 : 7'h00) : 7'h00));
+      end
+      AluIType, AluIWType: begin
+        return ((funct3 === 3'b000) ? (($urandom()%2) ? 7'h20 : 7'h00) : 7'h00);
+      end
+      default: begin // System
+        if(funct3 === 3'b000) begin
+          unique case($urandom()%4)
+            0, 1: return 7'h00;
+            2: return 7'h08;
+            default: return 7'h18;
+          endcase
+        end else begin // FIXME: Implement funct7 for Zicsr
+          return $urandom();
+        end
+      end
+    endcase
+  endfunction
+
 endpackage

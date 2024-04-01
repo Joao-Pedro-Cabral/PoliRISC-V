@@ -1,14 +1,14 @@
 files = [
-    "control_unit_tb.v"
+    "control_unit_tb.sv"
 ]
 
 modules = {
     "local": [
         "../../../rtl/core/ControlUnit",
-        "../../../rtl/core/Dataflow",
-        "../../../rtl/memory/Controller",
-        "../../../rtl/memory/RAM",
-        "../../../rtl/memory/ROM",
+        "../../../rtl/core/BranchDecoderUnit",
+        "../../../rtl/core/ForwardingUnit",
+        "../../../rtl/core/HazardUnit",
+        "../../../rtl/core/ALU",
         "../../../utils/globals"
     ],
 }

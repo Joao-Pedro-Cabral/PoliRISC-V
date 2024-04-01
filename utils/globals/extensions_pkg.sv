@@ -1,6 +1,7 @@
 
+`include "extensions.vh"
+
 package extensions_pkg;
-  `include "extensions.vh";
   `ifdef RV64I
     localparam int DataSize = 64;
     localparam int ByteNum = 8;

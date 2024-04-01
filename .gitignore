@@ -24,7 +24,6 @@ simulation/RAM.mif
 
 # arquivos de automação de simulação (hdlmake + scripts python)
 *macros.vh
-*extensions*.vh
 *__pycache__
 simulation/log.txt
 
