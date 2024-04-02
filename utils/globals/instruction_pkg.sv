@@ -116,11 +116,21 @@ package instruction_pkg;
         endcase
       end
       Jalr, Fence: return 0;
-      AluRWType, AluIWType: begin // It's assumed that rv64i == 1
+      AluIWType: begin // It's assumed that rv64i == 1
         unique case($urandom()%3)
           0: return 3'b000;
           1: return 3'b001;
           default: return 3'b101;
+        endcase
+      end
+      AluRWType: begin // It's assumed that rv64i == 1
+        unique case($urandom()%6)
+          0: return 3'b000;
+          1: return 3'b001;
+          2: return 3'b100;
+          3: return 3'b101;
+          4: return 3'b110;
+          default: return 3'b111;
         endcase
       end
       default: begin // SystemType
@@ -142,12 +152,19 @@ package instruction_pkg;
                                                    input logic rv64i);
     unique case(opcode)
       LoadType, SType, BType, Lui, Auipc, Jal, Jalr, Fence: return $urandom();
-      AluRType, AluRWType: begin
+      AluRType: begin
         return (($urandom()%2) ? 7'h01 : ((funct3 === 3'b000 || funct3 === 3'b101)
                ? (($urandom()%2) ? 7'h20 : 7'h00) : 7'h00));
       end
+      AluRWType: begin
+        unique case(funct3)
+          3'b100, 3'b110, 3'b111: return 7'h01;
+          3'b101, 3'b000: return ($urandom()%2) ? 7'h01 : (($urandom()%2) ? 7'h20 : 7'h00);
+          default return 7'h00; // 3'b001
+        endcase
+      end
       AluIType, AluIWType: begin
-        return ((funct3 === 3'b000) ? (($urandom()%2) ? 7'h20 : 7'h00) : 7'h00);
+        return ($urandom()%2) ? 7'h20 : 7'h00;
       end
       default: begin // System
         if(funct3 === 3'b000) begin

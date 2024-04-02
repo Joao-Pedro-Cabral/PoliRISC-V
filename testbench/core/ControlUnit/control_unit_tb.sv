@@ -61,7 +61,7 @@ module control_unit_tb ();
           AluIType, AluIWType, LoadType, SType, BType, Jalr, Fence, SystemType: begin
             if(funct3 === lut[i].funct3) begin
               // SRLI e SRAI: funct7
-              if(opcode === AluIType && funct3 === 3'b101) begin
+              if(opcode inside {AluIType, AluIWType} && funct3 === 3'b101) begin
                 if(funct7 ==? lut[i].funct7) return lut[i];
               end else if(opcode === SystemType) begin
                 if(funct3 === 3'b000 && funct7 === lut[i].funct7) begin // ECALL, MRET, SRET
@@ -136,7 +136,7 @@ module control_unit_tb ();
 
   // DUT
   control_unit #(
-    .BYTE_NUM(4)
+    .BYTE_NUM(ByteNum)
   ) DUT (
     .opcode(opcode),
     .funct3(funct3),
