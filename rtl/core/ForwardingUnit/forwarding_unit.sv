@@ -22,6 +22,21 @@ module forwarding_unit (
     output forwarding_t forward_rs2_mem
 );
 
+  function automatic bit valid_forwarding(input logic reg_we, input logic [4:0] rs,
+                                          input logic [4:0] rd);
+    return reg_we && rs && rd == rs;
+  endfunction
+
+  function automatic bit forward(input forwarding_src_bundle_t src_bundle,
+                                 ref forwarding_dst_bundle_t dst_bundle);
+    if (valid_forwarding(src_bundle.reg_we, dst_bundle.rs, src_bundle.rd)) begin
+      dst_bundle.forward_rs = src_bundle.target_forwarding;
+      return 1'b1;
+    end
+    dst_bundle.forward_rs = NoForwarding;
+    return 1'b0;
+  endfunction
+
   forwarding_dst_bundle_t rs1_id_bundle;
   forwarding_dst_bundle_t rs2_id_bundle;
   always_comb begin : forward_rsx_id_proc

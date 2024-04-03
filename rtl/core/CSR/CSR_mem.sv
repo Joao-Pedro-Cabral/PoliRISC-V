@@ -3,18 +3,18 @@ module CSR_mem #(
     parameter integer DATA_SIZE = 64,
     parameter integer CLOCK_CYCLES = 100
 ) (
-    input wire CLK_I,
-    input wire RST_I,
-    input wire CYC_I,
-    input wire STB_I,
-    input wire WE_I,
-    input wire [2:0] ADR_I,
-    input wire [DATA_SIZE-1:0] DAT_I,
-    output reg [DATA_SIZE-1:0] DAT_O,
-    output reg ACK_O,
-    output wire [DATA_SIZE-1:0] msip,
-    output wire [63:0] mtime,
-    output wire [63:0] mtimecmp
+    input  logic CLK_I,
+    input  logic RST_I,
+    input  logic CYC_I,
+    input  logic STB_I,
+    input  logic WE_I,
+    input  logic [2:0] ADR_I,
+    input  logic [DATA_SIZE-1:0] DAT_I,
+    output logic [DATA_SIZE-1:0] DAT_O,
+    output logic ACK_O,
+    output logic [DATA_SIZE-1:0] msip,
+    output logic [63:0] mtime,
+    output logic [63:0] mtimecmp
 );
 
   wire [DATA_SIZE-1:0] msip_;

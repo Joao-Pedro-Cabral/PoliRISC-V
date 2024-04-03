@@ -7,6 +7,7 @@ modules = {
         "../BranchDecoderUnit",
         "../ForwardingUnit",
         "../HazardUnit",
-        "../ALU"
+        "../ALU",
+        "../CSR"
     ],
 }

@@ -4,7 +4,7 @@ files = [
 
 modules = {
     "local": [
-        "../Dataflow",
+        "../../../rtl/core/Dataflow",
         "../../../rtl/core/ForwardingUnit",
         "../../../utils/globals"
     ],

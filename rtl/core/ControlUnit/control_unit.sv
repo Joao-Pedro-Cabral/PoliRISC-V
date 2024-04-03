@@ -4,6 +4,7 @@ import alu_pkg::*;
 import forwarding_unit_pkg::*;
 import hazard_unit_pkg::*;
 import branch_decoder_unit_pkg::*;
+import csr_pkg::*;
 
 module control_unit #(
     parameter integer BYTE_NUM = 8
@@ -12,7 +13,7 @@ module control_unit #(
     input opcode_t opcode,
     input wire [2:0] funct3,
     input wire [6:0] funct7,
-    input wire [1:0] privilege_mode,
+    input privilege_mode_t privilege_mode,
     input wire csr_addr_invalid,
 
     // Sinais de Controle do Fluxo de Dados
@@ -155,8 +156,8 @@ module control_unit #(
           if (funct7 === 0) begin
             ecall = 1'b1;
             illegal_instruction = 1'b0;
-          end else if((funct7 == 7'h18 && privilege_mode == 2'b11) ||
-                      (funct7 == 7'h08 && privilege_mode[0])) begin
+          end else if((funct7 == 7'h18 && privilege_mode == Machine) ||
+                      (funct7 == 7'h08 && (privilege_mode inside {Machine, Supervisor}))) begin
             mret = funct7[4];
             sret = ~funct7[4];
             branch_type = funct7[4] ? Mret : Sret;

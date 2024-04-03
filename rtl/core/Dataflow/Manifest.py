@@ -9,7 +9,7 @@ modules = {
         "../CSR",
         "../ImmediateExtender",
         "../RegisterFile",
-        "../ULA",
+        "../ALU",
         "../../../utils/components"
     ],
 }

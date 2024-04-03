@@ -9,6 +9,7 @@ modules = {
         "../../../rtl/core/ForwardingUnit",
         "../../../rtl/core/HazardUnit",
         "../../../rtl/core/ALU",
+        "../../../rtl/core/CSR",
         "../../../utils/globals"
     ],
 }

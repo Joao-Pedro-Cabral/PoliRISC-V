@@ -7,6 +7,7 @@ module control_unit_tb ();
   import branch_decoder_unit_pkg::*;
   import macros_pkg::*;
   import extensions_pkg::*;
+  import csr_pkg::*;
 
   // Parameters
   localparam integer Line = (DataSize == 64) ? 72 : 55;
@@ -82,8 +83,8 @@ module control_unit_tb ();
   endfunction
 
   function automatic control_unit_output_t check_exception(
-    input logic [6:0] opcode, input logic [2:0] funct3,
-    input logic [6:0] funct7, input logic [1:0] privilege_mode,
+    input opcode_t opcode, input logic [2:0] funct3,
+    input logic [6:0] funct7, input privilege_mode_t privilege_mode,
     input logic csr_addr_invalid, input control_unit_output_t expected_output);
     control_unit_output_t new_expected_output;
     begin
@@ -112,21 +113,12 @@ module control_unit_tb ();
     end
   endfunction
 
-  // FIXME: Por isso no csr_pkg
-  function automatic logic [1:0] gen_random_privilege_mode();
-    unique case($urandom()%3)
-      0: return 2'b00;
-      1: return 2'b01;
-      default: return 2'b11;
-    endcase
-  endfunction
-
   // Variables and Nets
   // DUT Signals
   opcode_t opcode;
   logic [2:0] funct3;
   logic [6:0] funct7;
-  logic [1:0] privilege_mode;
+  privilege_mode_t privilege_mode;
   logic csr_addr_invalid;
   lut_line_t expected_output;
   control_unit_output_t dut_output;
