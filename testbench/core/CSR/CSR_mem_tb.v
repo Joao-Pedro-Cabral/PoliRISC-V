@@ -1,63 +1,50 @@
-`include "macros.vh"
-`include "extensions.vh"
-
-`ifdef RV64I
-`define DATA_SIZE 64
-`else
-`define DATA_SIZE 32
-`endif
-
-`define ASSERT(cond, message) if (!(cond)) begin $display message ; $stop; end
 
 module CSR_mem_tb ();
 
+  import extensions_pkg::*;
+
+  localparam integer IsRV64I = (DataSize == 64);
+
   localparam integer Seed = 69_420;
   localparam integer AmntOfTests = 3000;
+  localparam integer ClockCycles = 100;
 
+  // DUT
   // Inputs
-  reg clock;
-  reg reset;
-  wire cyc_i, stb_i, we_i;
-  reg rd_en;
-  reg wr_en;
-  reg [2:0] addr;
-  reg [`DATA_SIZE-1:0] wr_data;
+  logic clock, reset;
+  logic [DataSize-1:0] wr_data;
+  logic [2:0] addr;
+  wishbone_if #(.DATA_SIZE(DataSize), .ADDR_SIZE(3)) wb_if (.*);
 
   // Outputs
-  wire [`DATA_SIZE-1:0] rd_data;
-  wire ack;
-  wire [`DATA_SIZE-1:0] msip;
-  wire [63:0] mtime;
-  wire [63:0] mtimecmp;
+  logic ack;
+  logic [DataSize-1:0] msip, rd_data;
+  logic [63:0] mtime, mtimecmp;
 
   // Auxiliares
-  reg [63:0] mtime_data;
-  wire [6:0] cycles;
-  wire tick;
-  reg tick_;
-  reg [63:0] mtime_;
+  logic [63:0] expected_data;
+  logic [6:0] cycles;
+  logic tick;
+  logic tick_;
+  logic [63:0] mtime_;
 
   CSR_mem #(
-      .CLOCK_CYCLES(100)
+      .CLOCK_CYCLES(ClockCycles)
   ) DUT (
-      .CLK_I(clock),
-      .RST_I(reset),
-      .CYC_I(cyc_i),
-      .STB_I(stb_i),
-      .WE_I(we_i),
-      .ADR_I(addr),
-      .DAT_I(wr_data),
-      .DAT_O(rd_data),
-      .ACK_O(ack),
+      .wb_if_s(wb_if),
       .msip(msip),
       .mtime(mtime),
       .mtimecmp(mtimecmp)
   );
 
   // Wishbone
-  assign cyc_i = rd_en | wr_en;
-  assign stb_i = rd_en | wr_en;
-  assign we_i  = wr_en;
+  assign wb_if.primary.cyc = rd_en | wr_en;
+  assign wb_if.primary.stb = rd_en | wr_en;
+  assign wb_if.primary.we  = wr_en;
+  assign wb_if.primary.addr = addr;
+  assign wb_if.primary.dat_o_p = wr_data;
+  assign ack = wb_if.primary.ack;
+  assign rd_data = wb_if.primary.dat_i_p;
 
   sync_parallel_counter #(
       .size(7),
@@ -71,12 +58,12 @@ module CSR_mem_tb ();
       .dec_enable(1'b0),
       .value(cycles)
   );
-  assign tick = (cycles == 99);
+  assign tick = (cycles == (ClockCycles - 1));
 
   event   write_data_event;
   integer j;
   always @(write_data_event) begin
-    for (j = 0; j < `DATA_SIZE / 32; j = j + 1) begin
+    for (j = 0; j < DataSize / 32; j = j + 1) begin
       wr_data[32*j+:32] <= $urandom;
     end
   end
@@ -85,7 +72,7 @@ module CSR_mem_tb ();
     begin
       rd_en = 1'b0;
       @(negedge clock);
-      `ASSERT(ack === 1'b1, ("[CheckRead]\nack = 0b%d", ack))
+      CHECK_ACK_READ: assert (ack === 1'b1);
       case (addr[1:0])
         2'b00: begin
           `ASSERT(rd_data === DUT.msip_,
@@ -156,98 +143,58 @@ module CSR_mem_tb ();
         end
 `endif
         default: begin
-          `ASSERT(rd_data === `DATA_SIZE'b0,
+          `ASSERT(rd_data === DataSize'b0,
                   ("[CheckRead]\naddr = 0x%x,\nrd_data = 0x%x", addr, rd_data))
         end
       endcase
     end
   endtask
 
+  // TODO: Create enum to addr
   task automatic CheckWrite;
     begin
       wr_en  = 1'b0;
       tick_  = tick;
       mtime_ = mtime;
       @(negedge clock);
-      `ASSERT(ack === 1'b1, ("[CheckWrite]\nack = 0b%d", ack))
+      CHECK_ACK_WRITE: assert (ack === 1'b1);
       case (addr[1:0])
         2'b00: begin
-          `ASSERT(wr_data === DUT.msip_,
-                  ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.msip_ = 0x%x",
-                  addr, wr_data, DUT.msip_))
-
-          `ASSERT(wr_data === msip,
-                  ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nmsip = 0x%x", addr, wr_data, msip))
+          CHECK_MSIP_WRITE: assert (wr_data === msip);
+          CHECK_RD_MSIP_WRITE: assert (wr_data === rd_data);
         end
-
-`ifdef RV64I
         2'b10: begin
-          if (tick_) wr_data = wr_data + 1;
-          else wr_data = wr_data;
-          `ASSERT(wr_data === DUT.mtime_,
-                  ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtime_ = 0x%x",
-                  addr, wr_data, DUT.mtime_))
-
-          `ASSERT(
-              wr_data === mtime,
-              ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nmtime = 0x%x", addr, wr_data, mtime))
+          if(IsRV64I) begin
+            if (tick_) expected_data = wr_data + 1;
+            else expected_data = wr_data;
+          end else begin
+            if (tick_) begin
+              if (addr[2]) expected_data = {wr_data, mtime_[31:0]} + 1;
+              else expected_data = {mtime_[63:32], wr_data} + 1;
+            end else begin
+              if (addr[2]) expected_data = {wr_data, mtime_[31:0]};
+              else expected_data = {mtime_[63:32], wr_data};
+            end
+          end
+          CHECK_MTIME_WRITE: assert (expected_data === mtime);
+          CHECK_RD_MTIME_WRITE: assert (expected_data === rd_data);
         end
         2'b11: begin
-          `ASSERT(wr_data === DUT.mtimecmp_,
-                  ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtimecmp_ = 0x%x",
-                  addr, wr_data, DUT.mtimecmp_))
-
-          `ASSERT(wr_data === mtimecmp,
-                  ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nmtimecmp = 0x%x",
-                  addr, wr_data, mtimecmp))
+          CHECK_MTIMECMP_WRITE: assert (wr_data === (IsRV64I ? mtimecmp :
+                                (addr[2] ? mtimecmp[63:32] : mtimecmp[31:0])));
         end
-`else
-        2'b10: begin
-          if (tick_) begin
-            if (addr[2]) mtime_data = {wr_data, mtime_[31:0]} + 1;
-            else mtime_data = {mtime_[63:32], wr_data} + 1;
-          end else begin
-            if (addr[2]) mtime_data = {wr_data, mtime_[31:0]};
-            else mtime_data = {mtime_[63:32], wr_data};
-          end
-          `ASSERT(mtime_data === DUT.mtime_,
-                  ("[CheckWrite]\naddr = 0x%x,\nmtime_data = 0x%x,\nDUT.mtime_ = 0x%x",
-                  addr, mtime_data, DUT.mtime_))
-
-          `ASSERT(mtime_data === mtime,
-                  ("[CheckWrite]\naddr = 0x%x,\nmtime_data = 0x%x,\nmtime = 0x%x",
-                  addr, mtime_data, mtime))
-        end
-        2'b11: begin
-          if (addr[2]) begin
-            `ASSERT(
-                wr_data === DUT.mtimecmp_[63:32],
-                ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtime_[63:32] = 0x%x", addr, wr_data, DUT.mtimecmp_[63:32]))
-
-            `ASSERT(
-                wr_data === mtimecmp[63:32],
-                ("[CheckWrite]\naddr = 0x%x,\nrd_data = 0x%x,\nmtimecmp[63:32] = 0x%x", addr, rd_data, mtimecmp[63:32]))
-          end else begin
-            `ASSERT(wr_data === DUT.mtimecmp_[31:0],
-                    ("[CheckWrite]\naddr = 0x%x,\nwr_data = 0x%x,\nDUT.mtime_[31:0] = 0x%x",
-                    addr, wr_data, DUT.mtimecmp_[31:0]))
-
-            `ASSERT(wr_data === mtimecmp[31:0],
-                    ("[CheckWrite]\naddr = 0x%x,\nrd_data = 0x%x,\nmtimecmp[31:0] = 0x%x",
-                    addr, rd_data, mtimecmp[31:0]))
-          end
-        end
-`endif
         default: begin  // Nothing to do (addr = 2'b01)
         end
       endcase
     end
   endtask
 
+  always #1 clock = ~clock;
+
   // Initial para estimular o DUT
-  integer i;
   initial begin
     clock = 1'b0;
+    reset = 1'b0;
 
     @(negedge clock);
     addr  = $urandom(Seed);  // inicializando a Seed
@@ -256,9 +203,9 @@ module CSR_mem_tb ();
     addr  = 3'b0;
     reset = 1'b0;
 
-    $display(" SOT: [%0t]", $time);
+    $display("SOT: [%0t]", $time);
 
-    for (i = 0; i < AmntOfTests; i = i + 1) begin
+    repeat(AmntOfTests) begin
       rd_en = $urandom;
       wr_en = ~rd_en;
       addr  = $urandom;
@@ -278,8 +225,5 @@ module CSR_mem_tb ();
     $display("EOT: [%0t]", $time);
     $stop;
   end
-
-
-  always #1 clock = ~clock;
 
 endmodule

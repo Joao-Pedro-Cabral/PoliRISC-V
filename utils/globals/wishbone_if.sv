@@ -10,9 +10,22 @@ interface wishbone_if #(
 
   logic cyc, stb, we, ack;
   logic [ADDR_SIZE-1:0] addr;
-  logic [DATA_SIZE-1:0] dat_i, dat_o;
+  logic [DATA_SIZE-1:0] dat_i_p, dat_o_p, dat_i_s, dat_o_s;
 
-  modport primary(input clock, reset, ack, dat_o, output addr, cyc, stb, we, dat_i);
-  modport secondary(input clock, reset, addr, cyc, stb, we, dat_i, output ack, dat_o);
+  modport primary(input clock, reset, ack, dat_i_p, output addr, cyc, stb, we, dat_o_p,
+                  import rd_en, wr_en);
+  modport secondary(input clock, reset, addr, cyc, stb, we, dat_i_s, output ack, dat_o_s,
+                  import rd_en, wr_en);
+
+  assign dat_i_p = dat_o_s;
+  assign dat_i_s = dat_o_p;
+
+  function automatic logic rd_en();
+    return cyc & stb & ~we;
+  endfunction
+
+  function automatic logic wr_en();
+    return cyc & stb & we;
+  endfunction
 
 endinterface : wishbone_if
