@@ -9,6 +9,8 @@ module csr_mem #(
     output logic [63:0] mtimecmp
 );
 
+  import csr_mem_pkg::*;
+
   logic [DATA_SIZE-1:0] msip_;
   logic [63:0] mtime_;
   logic [63:0] mtimecmp_;
@@ -32,18 +34,18 @@ module csr_mem #(
   ) msip_reg (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .enable((wb_if_s.addr[1:0] == 2'b00) && wr_en),
+      .enable((wb_if_s.addr[1:0] == Msip) && wr_en),
       .D(wb_if_s.dat_i_s),
       .Q(msip_)
   );
-  // MTIMER
+  // MTIME
   sync_parallel_counter #(
       .size(64),
       .init_value(0)
   ) mtime_counter (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .load((wb_if_s.addr[1:0] == 2'b10) && wr_en),
+      .load((wb_if_s.addr[1:0] == Mtime) && wr_en),
       .load_value(mtime_load),
       .inc_enable(tick),
       .dec_enable(1'b0),
@@ -66,14 +68,14 @@ module csr_mem #(
   );
   // timer roda numa frequência menor -> tick
   assign tick = (cycles == CLOCK_CYCLES - 1);
-  //MTIMERCMP
+  //MTIMECMP
   register_d #(
       .N(64),
       .reset_value(0)
   ) mtimecmp_reg (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .enable((wb_if_s.addr[1:0] == 2'b11) && wr_en),
+      .enable((wb_if_s.addr[1:0] == Mtimecmp) && wr_en),
       .D(mtimecmp_d),
       .Q(mtimecmp_)
   );
@@ -83,11 +85,11 @@ module csr_mem #(
   // Lógica de leitura
   always_comb begin
     case (wb_if_s.addr[1:0])
-      2'b00: wb_if_s.dat_o_s = msip_;
-      2'b10:
+      Msip: wb_if_s.dat_o_s = msip_;
+      Mtime:
       wb_if_s.dat_o_s = (DATA_SIZE == 64) ? mtime_ :
                        (wb_if_s.addr[2] ? mtime_[63:32] : mtime_[31:0]);
-      2'b11:
+      Mtimecmp:
       wb_if_s.dat_o_s = (DATA_SIZE == 64) ? mtimecmp_ :
                        (wb_if_s.addr[2] ? mtimecmp_[63:32] : mtimecmp_[31:0]);
       default: wb_if_s.dat_o_s = 0;

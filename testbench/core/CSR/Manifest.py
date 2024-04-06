@@ -1,11 +1,11 @@
 files = [
-    "CSR_tb.v",
-    "CSR_mem_tb.v"
+    "csr_mem_tb.sv"
 ]
 
 modules = {
     "local" : [
         "../../../rtl/core/CSR",
-        "../../../utils/components"
+        "../../../utils/components",
+        "../../../utils/globals"
     ],
 }
