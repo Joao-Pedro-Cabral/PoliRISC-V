@@ -1,4 +1,3 @@
-
 package forwarding_unit_pkg;
 
   typedef enum logic [1:0] {
@@ -22,7 +21,7 @@ package forwarding_unit_pkg;
   } forwarding_src_bundle_t;
 
   typedef struct {
-    logic [4:0] rs;
+    logic [4:0]  rs;
     forwarding_t forward_rs;
   } forwarding_dst_bundle_t;
 

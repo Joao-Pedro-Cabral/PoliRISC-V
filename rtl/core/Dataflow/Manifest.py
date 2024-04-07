@@ -1,5 +1,5 @@
 files = [
-    "Dataflow.v",
+    "dataflow.sv",
     "dataflow_pkg.sv"
 ]
 

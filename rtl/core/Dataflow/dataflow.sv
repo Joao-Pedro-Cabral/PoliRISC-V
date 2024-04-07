@@ -1,6 +1,8 @@
+import hazard_unit_pkg::*;
+import dataflow_pkg::*;
 
-module Dataflow #(
-  parameter integer DATA_SIZE = 32
+module dataflow #(
+    parameter integer DATA_SIZE = 32
 ) (
     // Common
     input wire clock,
@@ -25,6 +27,7 @@ module Dataflow #(
     input wire wr_reg_en,
     input wire ir_en,
     input wire mem_addr_src,
+    input forwarding_type_t forwarding_type,
     // Interrupts/Exceptions from UC
     input wire ecall,
     input wire illegal_instruction,
@@ -48,43 +51,93 @@ module Dataflow #(
     output wire carry_out,
     output wire overflow,
     output wire csr_addr_exception,
-    output wire [1:0] privilege_mode
+    output wire [1:0] privilege_mode,
+    // From Forwarding Unit
+    input forwarding_t forward_rs1_id,
+    input forwarding_t forward_rs2_id,
+    input forwarding_t forward_rs1_ex,
+    input forwarding_t forward_rs2_ex,
+    input forwarding_t forward_rs2_mem,
+    // To Forwarding Unit
+    output forwarding_type_t forwarding_type_id,
+    output forwarding_type_t forwarding_type_ex,
+    output forwarding_type_t forwarding_type_mem,
+    output logic reg_we_mem,
+    output logic reg_we_wb,
+    output logic zicsr_ex,
+    output logic [4:0] rd_ex,
+    output logic [4:0] rd_mem,
+    output logic [4:0] rd_wb,
+    output logic [4:0] rs1_id,
+    output logic [4:0] rs2_id,
+    output logic [4:0] rs1_ex,
+    output logic [4:0] rs2_ex,
+    output logic [4:0] rs2_mem,
+    // From Hazard Unit
+    input logic stall_if,
+    input logic stall_id,
+    input logic flush_id,
+    input logic flush_ex,
+    // To Hazard Unit
+    output hazard_t hazard_type,
+    output rs_used_t rs_used,
+    output logic [4:0] rs1_id,
+    output logic [4:0] rs2_id,
+    output logic [4:0] rd_ex,
+    output logic [4:0] rd_mem,
+    output logic reg_we_ex,
+    output logic reg_we_mem,
+    output logic mem_rd_en_ex,
+    output logic mem_rd_en_mem,
+    output logic zicsr_ex,
+    output logic store_id
 );
+
+  // Pipeline registers
+  if_id_t                  if_id_reg;
+  id_ex_t                  id_ex_reg;
+  ex_mem_t                 ex_mem_reg;
+  mem_wb_t                 mem_wb_reg;
+
   // Fios intermediários
   // Register File
-  wire [           4:0] rs1_addr;
-  wire [DATA_SIZE-1:0] rs1;
-  wire [DATA_SIZE-1:0] rs2;
-  wire [DATA_SIZE-1:0] rd;
+  wire     [          4:0] rs1_addr;
+  wire     [DATA_SIZE-1:0] rs1;
+  wire     [DATA_SIZE-1:0] rs2;
+  wire     [DATA_SIZE-1:0] rd;
   // Extensor de Imediato
-  wire [DATA_SIZE-1:0] immediate;
+  wire     [DATA_SIZE-1:0] immediate;
   // ULA
-  wire [DATA_SIZE-1:0] aluA;
-  wire [DATA_SIZE-1:0] aluB;
-  wire [DATA_SIZE-1:0] aluY;
-  wire [DATA_SIZE-1:0] muxaluY_out;  // aluY or sign_extended(aluY[31:0])
+  wire     [DATA_SIZE-1:0] aluA;
+  wire     [DATA_SIZE-1:0] aluB;
+  wire     [DATA_SIZE-1:0] aluY;
+  wire     [DATA_SIZE-1:0] muxaluY_out;  // aluY or sign_extended(aluY[31:0])
   // Somador PC + 4
-  wire [DATA_SIZE-1:0] pc_plus_4;
-  wire [DATA_SIZE-1:0] cte_4 = 4;
+  wire     [DATA_SIZE-1:0] pc_plus_4;
+  wire     [DATA_SIZE-1:0] cte_4 = 4;
   // Somador PC + Imediato
-  wire [DATA_SIZE-1:0] pc_plus_immediate;
+  wire     [DATA_SIZE-1:0] pc_plus_immediate;
   // PC
-  wire [DATA_SIZE-1:0] pc;
-  reg  [DATA_SIZE-1:0] new_pc;
+  wire     [DATA_SIZE-1:0] pc;
+  reg      [DATA_SIZE-1:0] new_pc;
   // Instruction Register(IR)
-  wire [          31:0] ir;
+  wire     [         31:0] ir;
   // CSR
-  wire [DATA_SIZE-1:0] trap_addr;
-  wire                  _trap;
-  wire [           1:0] _privilege_mode;
+  wire     [DATA_SIZE-1:0] trap_addr;
+  wire                     _trap;
+  wire     [          1:0] _privilege_mode;
   // Trap Return
-  wire [DATA_SIZE-1:0] mepc;
-  wire [DATA_SIZE-1:0] sepc;
+  wire     [DATA_SIZE-1:0] mepc;
+  wire     [DATA_SIZE-1:0] sepc;
   // ZICSR
-  wire [DATA_SIZE-1:0] csr_rd_data;
-  wire [DATA_SIZE-1:0] csr_mask_rd_data;
-  wire [DATA_SIZE-1:0] csr_wr_data;
-  wire [DATA_SIZE-1:0] csr_aux_wr;
+  wire     [DATA_SIZE-1:0] csr_rd_data;
+  wire     [DATA_SIZE-1:0] csr_mask_rd_data;
+  wire     [DATA_SIZE-1:0] csr_wr_data;
+  wire     [DATA_SIZE-1:0] csr_aux_wr;
+
+  // IF stage
+
+  // IF stage
 
   // Instanciação de Componentes
   // Register File
