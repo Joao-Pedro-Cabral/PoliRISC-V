@@ -1,10 +1,14 @@
 files = [
+    "csr.sv",
     "csr_mem.sv",
+    "csr_mem_pkg.sv",
     "csr_pkg.sv"
 ]
 
 modules = {
     "local": [
-        "../../../utils/globals"
+      "../Adder",
+      "../../../utils/components",
+      "../../../utils/globals"
     ],
 }
