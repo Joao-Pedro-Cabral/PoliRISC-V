@@ -14,7 +14,7 @@ package csr_pkg;
     CsrRC,
     CsrMret,
     CsrSret
-  } cs_op_t;
+  } csr_op_t;
 
   typedef enum logic [3:0] {
     SIE = 4'h1,

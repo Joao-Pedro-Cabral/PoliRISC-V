@@ -10,7 +10,7 @@ module csr #(
     input  logic clock,
     input  logic reset,
     input  logic trap_en,
-    input  cs_op_t csr_op,
+    input  csr_op_t csr_op,
     input  logic [11:0] addr,
     input  logic [DATA_SIZE-1:0] wr_data,
     input  logic external_interrupt,

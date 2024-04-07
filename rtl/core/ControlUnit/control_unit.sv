@@ -29,10 +29,7 @@ module control_unit #(
     output reg [BYTE_NUM-1:0] mem_byte_en,
     output reg mem_unsigned,
     output reg csr_imm,
-    output reg [1:0] csr_op,
-    output reg csr_wr_en,
-    output reg mret,
-    output reg sret,
+    output csr_op_t csr_op,
     output reg illegal_instruction,
     output reg ecall,
     output hazard_t hazard_type,
@@ -59,11 +56,8 @@ module control_unit #(
     mem_rd_en    = 1'b0;
     mem_byte_en  = 0;
     mem_unsigned = 1'b0;
-    csr_wr_en    = 1'b0;
     csr_imm      = 1'b0;
-    csr_op       = 2'b00;
-    mret         = 1'b0;
-    sret         = 1'b0;
+    csr_op       = CsrNoOp;
     illegal_instruction = 1'b0;
     ecall        = 1'b0;
     hazard_type = NoHazard;
@@ -158,8 +152,7 @@ module control_unit #(
             illegal_instruction = 1'b0;
           end else if((funct7 == 7'h18 && privilege_mode == Machine) ||
                       (funct7 == 7'h08 && (privilege_mode inside {Machine, Supervisor}))) begin
-            mret = funct7[4];
-            sret = ~funct7[4];
+            csr_op = funct7[4] ? CsrMret : CsrSret;
             branch_type = funct7[4] ? Mret : Sret;
             illegal_instruction = 1'b0;
             hazard_type = NoHazard;
@@ -167,10 +160,8 @@ module control_unit #(
         end else if (funct3 !== 3'b100 && privilege_mode >= funct7[6:5]) begin
           wr_reg_en = 1'b1;
           wr_reg_src = 2'b01;
-          // não significa que algum CSR será escrito
-          csr_wr_en = 1'b1;
           csr_imm = funct3[2];
-          csr_op  = funct3[1:0];
+          csr_op  = csr_op_t'(funct3[1:0]);
           illegal_instruction = csr_addr_invalid;
           hazard_type = csr_addr_invalid ? HazardException :
                         (funct3[2] ? NoHazard : HazardDecode);

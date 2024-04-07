@@ -11,7 +11,7 @@ module control_unit_tb ();
 
   // Parameters
   localparam integer Line = (DataSize == 64) ? 72 : 55;
-  localparam integer Column = (DataSize == 64) ? 59 : 55;
+  localparam integer Column = (DataSize == 64) ? 57 : 53;
   localparam integer NumberOfTests = 100000;
 
   // Data Types
@@ -28,10 +28,7 @@ module control_unit_tb ();
     logic [ByteNum-1:0] mem_byte_en;
     logic mem_unsigned;
     logic csr_imm;
-    logic [1:0] csr_op;
-    logic csr_wr_en;
-    logic mret;
-    logic sret;
+    logic [2:0] csr_op;
     logic ecall;
     logic [1:0] hazard_type;
     logic rs_used;
@@ -148,9 +145,6 @@ module control_unit_tb ();
     .mem_unsigned(dut_output.mem_unsigned),
     .csr_imm(dut_output.csr_imm),
     .csr_op(dut_output.csr_op),
-    .csr_wr_en(dut_output.csr_wr_en),
-    .mret(dut_output.mret),
-    .sret(dut_output.sret),
     .illegal_instruction(dut_output.illegal_instruction),
     .ecall(dut_output.ecall),
     .hazard_type(dut_output.hazard_type),

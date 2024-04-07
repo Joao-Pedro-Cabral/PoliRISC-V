@@ -25,5 +25,4 @@ package branch_decoder_unit_pkg;
     PcOrReadDataPlusImm
   } pc_src_t;
 
-
 endpackage
