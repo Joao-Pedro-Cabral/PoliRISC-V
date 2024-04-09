@@ -7,10 +7,15 @@ module dataflow #(
     // Common
     input wire clock,
     input wire reset,
-    // Memory
+    // Instruction Memory
+    input wire [DATA_SIZE-1:0] inst,
+    output wire [DATA_SIZE-1:0] inst_mem_addr,
+    // Data Memory
     input wire [DATA_SIZE-1:0] rd_data,
     output wire [DATA_SIZE-1:0] wr_data,
-    output wire [DATA_SIZE-1:0] mem_addr,
+    output wire [DATA_SIZE-1:0] data_mem_addr,
+    // From Memory Unit
+    input logic mem_busy,
     // From Control Unit
     input wire alua_src,
     input wire alub_src,
@@ -136,7 +141,38 @@ module dataflow #(
   wire     [DATA_SIZE-1:0] csr_aux_wr;
 
   // IF stage
+  always_ff @(posedge clock iff (~stall_if && ~mem_busy) or posedge reset) begin
+    if (reset) if_id_reg <= '0;
+    else if (flush_id) if_id_reg <= '0;
+    else begin
+      if_id_reg.pc <= new_pc;
+      if_id_reg.pc_plus_4 <= pc_plus_4;
+      if_id_reg.inst <= inst;
+    end
+  end
 
+  always_comb begin
+    if (_trap) new_pc = trap_addr;
+    else if (mret) new_pc = mepc;
+    else if (sret) new_pc = sepc;
+    else if (pc_src) new_pc = pc_plus_immediate;
+    else new_pc = pc_plus_4;
+  end
+
+  // PC
+  register_d #(
+      .N(DATA_SIZE),
+      .reset_value(0)
+  ) pc_register (
+      .clock(clock),
+      .reset(reset),
+      .enable(~stall_if && ~mem_busy),
+      .D(new_pc),
+      .Q(pc)
+  );
+
+  // Memory
+  assign inst_mem_addr = pc;
   // IF stage
 
   // Instanciação de Componentes
@@ -215,24 +251,6 @@ module dataflow #(
       .c_out(),
       .S(pc_plus_immediate)
   );
-  // PC
-  register_d #(
-      .N(DATA_SIZE),
-      .reset_value(0)
-  ) pc_register (
-      .clock(clock),
-      .reset(reset),
-      .enable(pc_en),
-      .D(new_pc),
-      .Q(pc)
-  );
-  always @(*) begin
-    if (_trap) new_pc = trap_addr;
-    else if (mret) new_pc = mepc;
-    else if (sret) new_pc = sepc;
-    else if (pc_src) new_pc = pc_plus_immediate;
-    else new_pc = pc_plus_4;
-  end
   // Immediate Extender
   immediate_extender #(
       .N(DATA_SIZE)
@@ -251,13 +269,11 @@ module dataflow #(
       .D(rd_data[31:0]),
       .Q(ir)
   );
-  // Memory
-  assign mem_addr = mem_addr_src ? aluY : pc;
   // CSR
   CSR csr_bank (
       .clock(clock),
       .reset(reset),
-      .trap_en(pc_en),
+      .trap_en(~stall_if && ~mem_busy),
       // Interrupt/Exception Signals
       .ecall(ecall),
       .illegal_instruction(illegal_instruction),
