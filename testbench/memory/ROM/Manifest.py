@@ -1,9 +1,10 @@
 files = [
-    "ROM_tb.v",
+    "rom_tb.sv",
 ]
 
 modules = {
     "local" : [
-        "../../../rtl/memory/ROM"
+        "../../../rtl/memory/ROM",
+        "../../../utils/globals"
     ]
 }

@@ -1,9 +1,9 @@
 files = [
-    "ROM.v"
+    "rom.sv"
 ]
 
 modules = {
     "local": [
-        "../../../utils/components"
+        "../../../utils/globals"
     ],
 }
