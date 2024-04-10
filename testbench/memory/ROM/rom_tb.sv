@@ -5,7 +5,7 @@ module rom_tb ();
 
   // sinais do DUT
   logic clock = 1'b0, reset = 1'b0;
-  wishbone_if #(.DATA_SIZE(32), .ADDR_SIZE(6)) wb_if (.*);
+  wishbone_if #(.DATA_SIZE(32), .BYTE_SIZE(8), .ADDR_SIZE(6)) wb_if (.*);
   // sinais intermediários
   reg [31:0] memory[15:0];
   reg [5:0] addr;
@@ -14,7 +14,6 @@ module rom_tb ();
   // instanciar o DUT
   rom #(
       .ROM_INIT_FILE("./MIFs/memory/ROM/rom_init_file.mif"),
-      .WORD_SIZE(8),
       .BUSY_CYCLES(2)
   ) DUT (
       .wb_if_s(wb_if)
@@ -30,6 +29,7 @@ module rom_tb ();
     wb_if.primary.cyc = 0;
     wb_if.primary.stb = 0;
     wb_if.primary.we = 0;
+    wb_if.primary.sel = 0;
     wb_if.primary.addr = 0;
     @(negedge clock);
     for (i = 0; i < 256; i = i + 1) begin
