@@ -1,5 +1,6 @@
 files = [
-    "instruction_cache_control.v",
-    "instruction_cache_path.v",
-    "instruction_cache.v"
+    "cache_control.sv",
+    "cache_path.sv",
+    "cache.sv",
+    "cache_pkg.sv"
 ]

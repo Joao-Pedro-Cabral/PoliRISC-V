@@ -20,8 +20,10 @@ module cache_control (
     /* Interface com o Fluxo de Dados */
     input  logic hit,
     input  logic dirty,
+    input  logic crtl_wr_en_d,
     output logic sample_crtl_inputs,
     output logic set_valid_tag,
+    output logic set_data,
     output logic set_dirty
     /* //// */
 
@@ -47,7 +49,8 @@ module cache_control (
       CompareTag: begin
         if(hit) begin
           set_valid_tag = 1'b1;
-          set_dirty = wr_en;
+          set_dirty = crtl_wr_en_d;
+          set_data = crtl_wr_en_d;
           crtl_ack = 1'b1;
           next_state = Idle;
         end else if(dirty) begin
@@ -58,6 +61,7 @@ module cache_control (
       end
       Allocate: begin
         mem_rd_en = 1'b1;
+        set_data = ack;
         next_state = mem_ack ? Allocate : CompareTag;
       end
       WriteBack: begin
@@ -65,7 +69,7 @@ module cache_control (
         next_state = mem_ack ? WriteBack : Allocate;
       end
       default: begin // Idle
-        if(mem_rd_en || mem_wr_en) begin
+        if(crtl_rd_en || crtl_wr_en) begin
           sample_crtl_inputs = 1'b1;
           next_state = CompareTag;
         end
