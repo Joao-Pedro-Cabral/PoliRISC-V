@@ -7,27 +7,27 @@ import csr_pkg::*;
 module csr #(
     parameter integer DATA_SIZE = 64
 ) (
-    input  logic clock,
-    input  logic reset,
-    input  logic trap_en,
-    input  csr_op_t csr_op,
-    input  logic [11:0] addr,
-    input  logic [DATA_SIZE-1:0] wr_data,
-    input  logic external_interrupt,
-    input  logic msip,
-    input  logic [DATA_SIZE-1:0] pc,
-    input  logic [31:0] instruction,
-    input  logic [63:0] mtime,
-    input  logic [63:0] mtimecmp,
-    input  logic illegal_instruction,
-    input  logic ecall,
+    input logic clock,
+    input logic reset,
+    input logic trap_en,
+    input csr_op_t csr_op,
+    input logic [11:0] addr,
+    input logic [DATA_SIZE-1:0] wr_data,
+    input logic external_interrupt,
+    input logic msip,
+    input logic [DATA_SIZE-1:0] pc,
+    input logic [31:0] instruction,
+    input logic [63:0] mtime,
+    input logic [63:0] mtimecmp,
+    input logic illegal_instruction,
+    input logic ecall,
     output logic [DATA_SIZE-1:0] rd_data,
     output logic addr_exception,
     output logic [DATA_SIZE-1:0] mepc,
     output logic [DATA_SIZE-1:0] sepc,
     output logic [DATA_SIZE-1:0] trap_addr,
     output logic trap,
-    output logic [1:0] privilege_mode
+    output privilege_mode_t privilege_mode
 );
 
   // Defines
@@ -39,9 +39,31 @@ module csr #(
   logic [DATA_SIZE-1:0] wr_data_, rd_data_;
 
   // CSR
-  logic [DATA_SIZE-1:0] mstatus, sstatus, misa, mvendorid, marchid, mimpid, mhartid, mtvec, stvec,
-                        mideleg, medeleg, mip, mip_, sip, mie_, sie_, mscratch, sscratch, mepc_,
-                        sepc_, mcause, scause, mtval, stval;
+  logic [DATA_SIZE-1:0]
+      mstatus,
+      sstatus,
+      misa,
+      mvendorid,
+      marchid,
+      mimpid,
+      mhartid,
+      mtvec,
+      stvec,
+      mideleg,
+      medeleg,
+      mip,
+      mip_,
+      sip,
+      mie_,
+      sie_,
+      mscratch,
+      sscratch,
+      mepc_,
+      sepc_,
+      mcause,
+      scause,
+      mtval,
+      stval;
 
   // MCAUSE Au
   // Exception Code
@@ -57,12 +79,11 @@ module csr #(
   // Checks if write to mcause is legal
   function automatic logic check_cause_write(input reg [DATA_SIZE-1:0] cause, input reg is_mcause);
     reg interrupt;
-    reg [DATA_SIZE-2:0] code;
+    interrupt_t code;
     begin
       interrupt = cause[DATA_SIZE-1];
-      code = cause[DATA_SIZE-2:0];
-      if (interrupt)
-        return code inside {SSI, MSI, STI, MTI, SEI, MEI};
+      code = interrupt_t'(cause[DATA_SIZE-2:0]);
+      if (interrupt) return code inside {SSI, MSI, STI, MTI, SEI, MEI};
       else begin  // Exception
         if (is_mcause) return code inside {II, ECU, ECS, ECM};
         else return code inside {II, ECU, ECS};
@@ -73,17 +94,17 @@ module csr #(
   // Logic
 
   // Control Logic (Mask Inputs)
-  assign mret_ = (csr_op == CsrMret) & !_trap;
-  assign sret_ = (csr_op == CsrSret) & !_trap;
+  assign mret_  = (csr_op == CsrMret) & !_trap;
+  assign sret_  = (csr_op == CsrSret) & !_trap;
   assign wr_en_ = (csr_op inside {CsrRW, CsrRS, CsrRC}) & !_trap;
 
   // Input data
   always_comb begin
     wr_data_ = wr_data;
-    unique case(csr_op)
+    unique case (csr_op)
       CsrRS: wr_data_ = wr_data | rd_data_;
       CsrRC: wr_data_ = wr_data & (~rd_data_);
-      default: begin // wr_data_ = wr_data
+      default: begin  // wr_data_ = wr_data
       end
     endcase
   end
@@ -91,22 +112,32 @@ module csr #(
   // XSTATUS
   logic sie, mie, spie, mpie, spp;
   privilege_mode_t mpp;
-  assign mstatus = '{SIE: sie, MIE: mie, SPIE: spie, SPP: spp, MPP+1: mpp[1], MPP: mpp, default: 0};
+  assign mstatus = '{
+          SIE: sie,
+          MIE: mie,
+          SPIE: spie,
+          SPP: spp,
+          MPP + 1: mpp[1],
+          MPP: mpp,
+          default: 0
+      };
   assign sstatus = '{SIE: sie, SPIE: spie, SPP: spp, default: 0};
   always_ff @(posedge clock, posedge reset) begin
-    if (reset) {mie, mpie, mpp} <= 0;
-    else if (m_trap) begin
+    if (reset) begin
+      {mie, mpie} <= 0;
+      mpp <= Machine;
+    end else if (m_trap) begin
       mie  <= 1'b0;
       mpie <= mie;
       mpp  <= priv;
     end else if (mret_) begin
       mie  <= mpie;
       mpie <= 1'b1;
-      mpp  <= 2'b00;
+      mpp  <= Machine;
     end else if (wr_en_ && (addr == Mstatus)) begin
       mie  <= wr_data_[MIE];
       mpie <= wr_data_[MPIE];
-      if (wr_data_[MPP+1:MPP] != 2'b10) mpp <= wr_data_[MPP+1:MPP];
+      if (wr_data_[MPP+1:MPP] != 2'b10) mpp <= privilege_mode_t'(wr_data_[MPP+1:MPP]);
     end
   end
 
@@ -172,37 +203,44 @@ module csr #(
 
   // MIDELEG
   always_ff @(posedge clock, posedge reset) begin
-    if(reset) mideleg <= 0;
-    else if(wr_en_ && (addr == Mideleg)) mideleg <= '{SSI: wr_data_[SSI], STI: wr_data_[STI],
-                                                      SEI: wr_data_[SEI], default: 0};
+    if (reset) mideleg <= 0;
+    else if (wr_en_ && (addr == Mideleg))
+      mideleg <= '{SSI: wr_data_[SSI], STI: wr_data_[STI], SEI: wr_data_[SEI], default: 0};
   end
 
   // MEDELEG
   always_ff @(posedge clock, posedge reset) begin
-    if(reset) medeleg <= 0;
-    else if(wr_en_ && (addr == Medeleg)) medeleg <= '{II: wr_data_[II], ECS: wr_data_[ECS],
-                                                      ECU: wr_data_[ECU], default: 0};
+    if (reset) medeleg <= 0;
+    else if (wr_en_ && (addr == Medeleg))
+      medeleg <= '{II: wr_data_[II], ECS: wr_data_[ECS], ECU: wr_data_[ECU], default: 0};
   end
 
   // XIP
   logic ssip, stip, seip;
-  assign mip = '{SSI: ssip, MSI: msip, STI: stip, MTI: (mtime >= mtimecmp), SEI: seip,
-                 MEI: external_interrupt, default: 0};
+  assign mip = '{
+          SSI: ssip,
+          MSI: msip,
+          STI: stip,
+          MTI: (mtime >= mtimecmp),
+          SEI: seip,
+          MEI: external_interrupt,
+          default: 0
+      };
   assign sip = '{SSI: ssip, STI: stip, SEI: seip, default: 0};
   always_ff @(posedge clock, posedge reset) begin
-    if(reset) begin
+    if (reset) begin
       stip <= 0;
       seip <= 0;
-    end else if(wr_en_ && addr == Mip) begin
+    end else if (wr_en_ && addr == Mip) begin
       stip <= wr_data_[STI];
       seip <= wr_data_[SEI];
     end
   end
 
   always_ff @(posedge clock, posedge reset) begin
-    if(reset) begin
+    if (reset) begin
       ssip <= 0;
-    end else if(wr_en_ && addr inside {Mip, Sip}) begin
+    end else if (wr_en_ && addr inside {Mip, Sip}) begin
       ssip <= wr_data_[SSI];
     end
   end
@@ -215,11 +253,11 @@ module csr #(
   assign mie_ = '{SSI: ssie, MSI: msie, STI: stie, MTI: mtie, SEI: seie, MEI: meie, default: 0};
   assign sie_ = '{SSI: ssie, STI: stie, SEI: seie, default: 0};
   always_ff @(posedge clock, posedge reset) begin
-    if(reset) begin
+    if (reset) begin
       msie <= 0;
       mtie <= 0;
       meie <= 0;
-    end else if(wr_en_ && addr == Mie) begin
+    end else if (wr_en_ && addr == Mie) begin
       msie <= wr_data_[MSI];
       mtie <= wr_data_[MTI];
       meie <= wr_data_[MEI];
@@ -227,11 +265,11 @@ module csr #(
   end
 
   always_ff @(posedge clock, posedge reset) begin
-    if(reset) begin
+    if (reset) begin
       ssie <= 0;
       stie <= 0;
       seie <= 0;
-    end else if(wr_en_ && addr inside {Mie, Sie}) begin
+    end else if (wr_en_ && addr inside {Mie, Sie}) begin
       ssie <= wr_data_[SSI];
       stie <= wr_data_[STI];
       seie <= wr_data_[SEI];
@@ -439,11 +477,11 @@ module csr #(
     if (exception_vector[0]) cause_sync = II;
     else if (|exception_vector[3:1]) cause_sync = {2'b10, priv};
   end
-  assign cause = async_trap ? cause_async : cause_sync;  // Interrupt > Exception
+  assign cause  = async_trap ? cause_async : cause_sync;  // Interrupt > Exception
   assign m_trap = m_trap_ & trap_en;
   assign s_trap = s_trap_ & trap_en;
-  assign _trap = m_trap | s_trap;
-  assign trap = _trap;
+  assign _trap  = m_trap | s_trap;
+  assign trap   = _trap;
 
   // Trap Address
   logic [DATA_SIZE-3:0] m_trap_addr_vet, s_trap_addr_vet;
