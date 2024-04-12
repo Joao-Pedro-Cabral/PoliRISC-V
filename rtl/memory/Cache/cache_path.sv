@@ -18,7 +18,6 @@ module cache_path #(
     /* //// */
 
     /* Interface com o controlador de memória */
-    input  logic crtl_rd_en,
     input  logic crtl_wr_en,
     input  logic [ADDR_SIZE-1:0] crtl_addr,
     input  logic [DATA_SIZE:-10] crtl_wr_data,
