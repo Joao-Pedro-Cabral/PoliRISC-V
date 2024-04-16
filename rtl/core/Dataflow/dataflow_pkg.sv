@@ -37,7 +37,6 @@ package dataflow_pkg;
     logic aluy_src;
 `endif
     alu_op_t alu_op;
-    logic alupc_src;
     logic [1:0] wr_reg_src;  // TODO: create enum?
     logic wr_reg_en;
     forwarding_type_t forwarding_type;

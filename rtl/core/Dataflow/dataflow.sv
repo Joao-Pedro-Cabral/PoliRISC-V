@@ -2,6 +2,7 @@ import csr_pkg::*;
 import dataflow_pkg::*;
 import hazard_unit_pkg::*;
 import instruction_pkg::*;
+import branch_decoder_unit_pkg::*;
 
 module dataflow #(
     parameter integer DATA_SIZE = 32
@@ -26,8 +27,6 @@ module dataflow #(
 `endif
     input alu_op_t alu_op,
     input wire alupc_src,
-    input wire pc_src,
-    input wire pc_en,
     input wire [1:0] wr_reg_src,
     input wire wr_reg_en,
     input logic mem_rd_en,
@@ -92,8 +91,13 @@ module dataflow #(
     output logic mem_rd_en_ex,
     output logic mem_rd_en_mem,
     //output logic zicsr_ex,
-    output logic store_id
-    // TODO: add branch decoder unit signals
+    output logic store_id,
+    // Branch Decode Unit
+    input pc_src_t pc_src,
+    output branch_t branch_type,
+    output cond_branch_t cond_branch_type,
+    output logic [Width-1:0] read_data_1,
+    output logic [Width-1:0] read_data_2
 );
 
   // Pipeline registers
@@ -146,13 +150,24 @@ module dataflow #(
     end
   end
 
-  // PC
   always_comb begin
-    if (_trap) new_pc = trap_addr;
-    else if (csr_op == CsrMret) new_pc = mepc;
-    else if (csr_op == CsrSret) new_pc = sepc;
-    else if (pc_src) new_pc = pc_plus_immediate;
-    else new_pc = pc_plus_4;
+    unique case (pc_src)
+      PcPlus4: begin
+        new_pc = trap_addr;
+      end
+      Sepc: begin
+        new_pc = sepc;
+      end
+      Mepc: begin
+        new_pc = mepc;
+      end
+      PcOrReadDataPlusImm: begin
+        new_pc = pc_plus_immediate;
+      end
+      default: begin
+        new_pc = pc_plus_4;
+      end
+    endcase
   end
   register_d #(
       .N(DATA_SIZE),
@@ -171,6 +186,46 @@ module dataflow #(
 
 
   // ID stage
+  logic [DATA_SIZE-1:0] forwarded_rs1, forwarded_rs2;
+  always_comb begin : id_forwarding_logic
+    // FIXME: forwarding
+    unique case (forward_rs1_id)
+      NoForwarding: begin
+        forwarded_rs1 = rs1;
+      end
+      ForwardFromEx: begin
+        forwarded_rs1 = id_ex_reg.csr_read_data;
+      end
+      ForwardFromMem: begin
+        forwarded_rs1 = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+      end
+      ForwardFromWb: begin
+        forwarded_rs1 = mem_wb_reg.read_data_1;
+      end
+      default: begin
+        forwarded_rs1 = rs1;
+      end
+    endcase
+
+    unique case (forward_rs2_id)
+      NoForwarding: begin
+        forwarded_rs2 = rs2;
+      end
+      ForwardFromEx: begin
+        forwarded_rs2 = id_ex_reg.read_data_2;
+      end
+      ForwardFromMem: begin
+        forwarded_rs2 = ex_mem_reg.read_data_2;
+      end
+      ForwardFromWb: begin
+        forwarded_rs2 = mem_wb_reg.read_data_2;
+      end
+      default: begin
+        forwarded_rs2 = rs2;
+      end
+    endcase
+  end : id_forwarding_logic
+
   always_ff @(posedge clock iff (~stall_id && ~mem_busy) or posedge reset) begin
     if (reset) id_ex_reg <= '0;
     else if (flush_ex) id_ex_reg <= '0;
@@ -178,14 +233,14 @@ module dataflow #(
       id_ex_reg.pc <= if_id_reg.pc;
       id_ex_reg.pc_plus_4 <= if_id_reg.pc_plus_4;
       id_ex_reg.rs1 <= rs1_addr;
-      id_ex_reg.read_data_1 <= rs1;
+      id_ex_reg.read_data_1 <= forwarded_rs1;
       id_ex_reg.rs2 <= if_id_reg.inst[24:20];
-      id_ex_reg.read_data_2 <= rs2;
+      id_ex_reg.read_data_2 <= forwarded_rs2;
       id_ex_reg.rd <= if_id_reg.inst[11:7];
       id_ex_reg.imm <= immediate;
       id_ex_reg.csr_read_data <= csr_mask_rd_data;
-      id_ex_reg.zicsr <= if_id_reg.inst.opcode == SystemType &&
-        ~if_id_reg.inst.fields.i_type.funct3;
+      id_ex_reg.zicsr <=
+        if_id_reg.inst.opcode == SystemType && ~if_id_reg.inst.fields.i_type.funct3;
       id_ex_reg.mem_read_enable <= mem_rd_en;
       id_ex_reg.mem_wr_en <= mem_wr_en;
       id_ex_reg.mem_byte_en <= mem_byte_en;
@@ -195,18 +250,15 @@ module dataflow #(
       id_ex_reg.aluy_src <= aluy_src;
 `endif
       id_ex_reg.alu_op <= alu_op;
-      id_ex_reg.alupc_src <= alupc_src;  // TODO: analyze the use of alupc_src in the file
+      id_ex_reg.wr_reg_src <= wr_reg_src;
+      id_ex_reg.wr_reg_en <= wr_reg_en;
+      id_ex_reg.forwarding_type <= forwarding_type;
     end
   end
 
   // Register File
   // Instanciação de Componentes
   // caso seja realizada uma leitura do SEIP(9) é preciso realizar o OR com o external_interrupt
-  assign csr_mask_rd_data[8:0] = csr_rd_data[8:0];
-  assign csr_mask_rd_data[9] = (if_id_reg.inst[31:20] == 12'h344 || if_id_reg.inst[31:20] == 12'h144)
-                                            ? (csr_rd_data[9] | external_interrupt)
-                                            : csr_rd_data[9];
-  assign csr_mask_rd_data[DATA_SIZE-1:10] = csr_rd_data[DATA_SIZE-1:10];
   assign rs1_addr = if_id_reg.inst[19:15] & {5{(~(if_id_reg.inst[4] & if_id_reg.inst[2]))}};
   register_file #(
       .size(DATA_SIZE),
@@ -231,6 +283,12 @@ module dataflow #(
       .immediate  (immediate)
   );
   // CSR
+  assign csr_mask_rd_data[8:0] = csr_rd_data[8:0];
+  assign csr_mask_rd_data[9] =
+    (if_id_reg.inst[31:20] == 12'h344 || if_id_reg.inst[31:20] == 12'h144)
+                                            ? (csr_rd_data[9] | external_interrupt)
+                                            : csr_rd_data[9];
+  assign csr_mask_rd_data[DATA_SIZE-1:10] = csr_rd_data[DATA_SIZE-1:10];
   CSR csr_bank (
       .clock(clock),
       .reset(reset),
@@ -247,7 +305,7 @@ module dataflow #(
       .trap(_trap),
       .privilege_mode(_privilege_mode),
       .addr_exception(csr_addr_exception),
-      .pc(pc),
+      .pc(if_id_reg.pc),
       .instruction(if_id_reg.inst),
       // CSR RW interface
       .addr(if_id_reg.inst[31:20]),
@@ -257,7 +315,18 @@ module dataflow #(
       .mepc(mepc),
       .sepc(sepc)
   );
+  always_comb begin : branch_type_logic
 
+  end
+  branch_decoder_unit #(
+      .Width(DATA_SIZE)
+  ) branch_decoder_unit_inst (
+      .branch_type(branch_type),
+      .cond_branch_type(cond_branch_type),
+      .read_data_1(read_data_1),
+      .read_data_2(read_data_2),
+      .pc_src(pc_src)
+  );
   // ID stage
 
   // ULA
@@ -298,7 +367,7 @@ module dataflow #(
   sklansky_adder #(
       .INPUT_SIZE(DATA_SIZE)
   ) pc_immediate (
-      .A(alupc_src ? {rs1[DATA_SIZE-1:1], 1'b0} : pc),
+      .A(alupc_src ? {forwarded_rs1[DATA_SIZE-1:1], 1'b0} : if_id_reg.pc),
       .B({immediate[DATA_SIZE-1:1], 1'b0}),
       .c_in(1'b0),
       .c_out(),
@@ -318,7 +387,7 @@ module dataflow #(
   assign muxaluY_out[31:0] = aluY[31:0];
 
   // Zicsr
-  assign csr_aux_wr = csr_imm ? $unsigned(if_id_reg.inst[19:15]) : rs1;
+  assign csr_aux_wr = csr_imm ? $unsigned(if_id_reg.inst[19:15]) : forwarded_rs1;
 
   // Saídas
   // Memory
@@ -328,5 +397,7 @@ module dataflow #(
   assign funct3 = if_id_reg.inst[14:12];
   assign funct7 = if_id_reg.inst[31:25];
   assign privilege_mode = _privilege_mode;
+
+  assign store_id = id_ex_reg.mem_write_enable;
 
 endmodule
