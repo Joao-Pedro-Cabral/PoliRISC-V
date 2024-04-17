@@ -1,9 +1,11 @@
 files = [
-    "instruction_cache_tb.v"
+    "cache_tb.sv"
 ]
 
 modules = {
     "local" : [
-        "../../../rtl/memory/Cache"
+        "../../../rtl/memory/Cache",
+        "../../../rtl/memory/RAM",
+        "../../../utils/globals"
     ]
 }

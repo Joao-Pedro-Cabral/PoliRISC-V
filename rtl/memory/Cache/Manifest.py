@@ -4,3 +4,9 @@ files = [
     "cache.sv",
     "cache_pkg.sv"
 ]
+
+modules = {
+    "local" : [
+        "../../../utils/globals"
+    ]
+}
