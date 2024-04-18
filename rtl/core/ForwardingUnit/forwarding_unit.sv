@@ -7,6 +7,7 @@ module forwarding_unit (
     input logic reg_we_mem,
     input logic reg_we_wb,
     input logic zicsr_ex,
+    input logic zicsr_mem,
     input logic [4:0] rd_ex,
     input logic [4:0] rd_mem,
     input logic [4:0] rd_wb,
@@ -44,9 +45,13 @@ module forwarding_unit (
     forwarding_src_bundle_t mem_bundle;
     forwarding_src_bundle_t wb_bundle;
 
-    ex_bundle     = '{reg_we: zicsr_ex, rd: rd_ex, target_forwarding: ForwardFromEx};
-    mem_bundle    = '{reg_we: reg_we_mem, rd: rd_mem, target_forwarding: ForwardFromMem};
-    wb_bundle     = '{reg_we: reg_we_wb, rd: rd_wb, target_forwarding: ForwardFromWb};
+    ex_bundle = '{reg_we: zicsr_ex, rd: rd_ex, target_forwarding: ForwardFromEx};
+    mem_bundle = '{
+        reg_we: reg_we_mem | zicsr_mem,
+        rd: rd_mem,
+        target_forwarding: ForwardFromMem
+    };
+    wb_bundle = '{reg_we: reg_we_wb, rd: rd_wb, target_forwarding: ForwardFromWb};
     rs1_id_bundle = '{rs: rs1_id, forward_rs: NoForwarding};
     rs2_id_bundle = '{rs: rs2_id, forward_rs: NoForwarding};
 
@@ -89,8 +94,8 @@ module forwarding_unit (
     forwarding_src_bundle_t mem_bundle;
     forwarding_src_bundle_t wb_bundle;
 
-    mem_bundle    = '{reg_we: reg_we_mem, rd: rd_mem, target_forwarding: ForwardFromMem};
-    wb_bundle     = '{reg_we: reg_we_wb, rd: rd_wb, target_forwarding: ForwardFromWb};
+    mem_bundle = '{reg_we: reg_we_mem, rd: rd_mem, target_forwarding: ForwardFromMem};
+    wb_bundle = '{reg_we: reg_we_wb, rd: rd_wb, target_forwarding: ForwardFromWb};
     rs1_ex_bundle = '{rs: rs1_ex, forward_rs: NoForwarding};
     rs2_ex_bundle = '{rs: rs2_ex, forward_rs: NoForwarding};
 
