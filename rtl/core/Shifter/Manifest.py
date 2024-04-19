@@ -1,7 +1,7 @@
 files = [
-    "barrel_shifter_r.v",
-    "full_barrel_shifter.v",
-    "left_barrel_shifter.v"
+    "barrel_shifter_r.sv",
+    "full_barrel_shifter.sv",
+    "left_barrel_shifter.sv"
 ]
 
 modules = {
