@@ -27,7 +27,7 @@ module control_unit #(
     output reg mem_rd_en,
     output reg mem_wr_en,
     output reg [BYTE_NUM-1:0] mem_byte_en,
-    output reg mem_unsigned,
+    output reg mem_signed,
     output reg csr_imm,
     output csr_op_t csr_op,
     output reg illegal_instruction,
@@ -55,7 +55,7 @@ module control_unit #(
     mem_wr_en    = 1'b0;
     mem_rd_en    = 1'b0;
     mem_byte_en  = 0;
-    mem_unsigned = 1'b0;
+    mem_signed = 1'b0;
     csr_imm      = 1'b0;
     csr_op       = CsrNoOp;
     illegal_instruction = 1'b0;
@@ -91,7 +91,7 @@ module control_unit #(
         wr_reg_en = 1'b1;
         mem_rd_en = 1'b1;
         mem_byte_en = byte_en;
-        mem_unsigned = funct3[2];
+        mem_signed = ~funct3[2];
         hazard_type = HazardExecute;
         forwarding_type = Type1;
       end

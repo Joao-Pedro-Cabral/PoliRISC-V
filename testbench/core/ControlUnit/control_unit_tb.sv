@@ -26,7 +26,7 @@ module control_unit_tb ();
     logic mem_wr_en;
     logic mem_rd_en;
     logic [ByteNum-1:0] mem_byte_en;
-    logic mem_unsigned;
+    logic mem_signed;
     logic csr_imm;
     logic [2:0] csr_op;
     logic ecall;
@@ -142,7 +142,7 @@ module control_unit_tb ();
     .mem_rd_en(dut_output.mem_rd_en),
     .mem_wr_en(dut_output.mem_wr_en),
     .mem_byte_en(dut_output.mem_byte_en),
-    .mem_unsigned(dut_output.mem_unsigned),
+    .mem_signed(dut_output.mem_signed),
     .csr_imm(dut_output.csr_imm),
     .csr_op(dut_output.csr_op),
     .illegal_instruction(dut_output.illegal_instruction),
