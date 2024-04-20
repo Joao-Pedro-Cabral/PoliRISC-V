@@ -15,6 +15,8 @@ module dataflow #(
     output wire [DATA_SIZE-1:0] inst_mem_addr,
     // Data Memory
     input wire [DATA_SIZE-1:0] rd_data,
+    output wire rd_en,
+    output wire wr_en,
     output wire [DATA_SIZE-1:0] wr_data,
     output wire [DATA_SIZE-1:0] data_mem_addr,
     // From Memory Unit
@@ -145,7 +147,16 @@ module dataflow #(
       if_id_reg.inst <= inst;
     end
   end
-
+  // Somador PC + 4
+  sklansky_adder #(
+      .INPUT_SIZE(DATA_SIZE)
+  ) pc_4 (
+      .A(pc),
+      .B(cte_4),
+      .c_in(1'b0),
+      .c_out(),
+      .S(pc_plus_4)
+  );
   always_comb begin
     unique case (pc_src)
       PcPlus4: begin
@@ -179,41 +190,41 @@ module dataflow #(
 
 
   // ID stage
-  logic [DATA_SIZE-1:0] forwarded_rs1, forwarded_rs2;
+  logic [DATA_SIZE-1:0] forwarded_rs1_id, forwarded_rs2_id;
   always_comb begin : id_forwarding_logic
     unique case (forward_rs1_id)
       NoForwarding: begin
-        forwarded_rs1 = rs1;
+        forwarded_rs1_id = rs1;
       end
       ForwardFromEx: begin
-        forwarded_rs1 = id_ex_reg.csr_read_data;
+        forwarded_rs1_id = id_ex_reg.csr_read_data;
       end
       ForwardFromMem: begin
-        forwarded_rs1 = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+        forwarded_rs1_id = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
       end
       ForwardFromWb: begin
-        forwarded_rs1 = rd;
+        forwarded_rs1_id = rd;
       end
       default: begin
-        forwarded_rs1 = rs1;
+        forwarded_rs1_id = rs1;
       end
     endcase
 
     unique case (forward_rs2_id)
       NoForwarding: begin
-        forwarded_rs2 = rs2;
+        forwarded_rs2_id = rs2;
       end
       ForwardFromEx: begin
-        forwarded_rs2 = id_ex_reg.csr_read_data;
+        forwarded_rs2_id = id_ex_reg.csr_read_data;
       end
       ForwardFromMem: begin
-        forwarded_rs2 = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+        forwarded_rs2_id = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
       end
       ForwardFromWb: begin
-        forwarded_rs2 = rd;
+        forwarded_rs2_id = rd;
       end
       default: begin
-        forwarded_rs2 = rs2;
+        forwarded_rs2_id = rs2;
       end
     endcase
   end : id_forwarding_logic
@@ -225,9 +236,9 @@ module dataflow #(
       id_ex_reg.pc <= if_id_reg.pc;
       id_ex_reg.pc_plus_4 <= if_id_reg.pc_plus_4;
       id_ex_reg.rs1 <= rs1_addr;
-      id_ex_reg.read_data_1 <= forwarded_rs1;
+      id_ex_reg.read_data_1 <= forwarded_rs1_id;
       id_ex_reg.rs2 <= if_id_reg.inst[24:20];
-      id_ex_reg.read_data_2 <= forwarded_rs2;
+      id_ex_reg.read_data_2 <= forwarded_rs2_id;
       id_ex_reg.rd <= if_id_reg.inst[11:7];
       id_ex_reg.imm <= immediate;
       id_ex_reg.csr_read_data <= csr_mask_rd_data;
@@ -275,6 +286,16 @@ module dataflow #(
       .instruction(if_id_reg.inst),
       .immediate  (immediate)
   );
+  // Somador PC + Imediato
+  sklansky_adder #(
+      .INPUT_SIZE(DATA_SIZE)
+  ) pc_immediate (
+      .A(alupc_src ? {forwarded_rs1_id[DATA_SIZE-1:1], 1'b0} : if_id_reg.pc),
+      .B({immediate[DATA_SIZE-1:1], 1'b0}),
+      .c_in(1'b0),
+      .c_out(),
+      .S(pc_plus_immediate)
+  );
   // CSR
   assign csr_mask_rd_data[8:0] = csr_rd_data[8:0];
   assign csr_mask_rd_data[9] =
@@ -282,7 +303,7 @@ module dataflow #(
                                             ? (csr_rd_data[9] | external_interrupt)
                                             : csr_rd_data[9];
   assign csr_mask_rd_data[DATA_SIZE-1:10] = csr_rd_data[DATA_SIZE-1:10];
-  assign csr_aux_wr = csr_imm ? $unsigned(if_id_reg.inst[19:15]) : forwarded_rs1;
+  assign csr_aux_wr = csr_imm ? $unsigned(if_id_reg.inst[19:15]) : forwarded_rs1_id;
   CSR csr_bank (
       .clock(clock),
       .reset(reset),
@@ -323,20 +344,74 @@ module dataflow #(
   );
   // ID stage
 
+
+  // EX stage
+  logic [DATA_SIZE-1:0] forwarded_rs1_ex, forwarded_rs2_ex;
+  always_comb begin : ex_forwarding_logic
+    unique case (forward_rs1_ex)
+      NoForwarding, ForwardFromEx: begin
+        forwarded_rs1_ex = id_ex_reg.read_data_1;
+      end
+      ForwardFromMem: begin
+        forwarded_rs1_ex = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+      end
+      ForwardFromWb: begin
+        forwarded_rs1_ex = rd;
+      end
+      default: begin
+        forwarded_rs1_ex = id_ex_reg.read_data_1;
+      end
+    endcase
+
+    unique case (forward_rs2_ex)
+      NoForwarding, ForwardFromEx: begin
+        forwarded_rs2_ex = id_ex_reg.read_data_2;
+      end
+      ForwardFromMem: begin
+        forwarded_rs2_ex = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+      end
+      ForwardFromWb: begin
+        forwarded_rs2_ex = rd;
+      end
+      default: begin
+        forwarded_rs2_ex = id_ex_reg.read_data_2;
+      end
+    endcase
+  end : ex_forwarding_logic
+
+  always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
+    if (reset) ex_mem_reg <= '0;
+    else begin
+      ex_mem_reg.pc_plus_4 <= id_ex_reg.pc_plus_4;
+      ex_mem_reg.rs2 <= id_ex_reg.rs2;
+      ex_mem_reg.rd <= id_ex_reg.rd;
+      ex_mem_reg.csr_read_data <= id_ex_reg.csr_read_data;
+      ex_mem_reg.zicsr <= id_ex_reg.zicsr;
+      ex_mem_reg.alu_y <= muxaluY_out;
+      ex_mem_reg.write_data <= id_ex_reg.read_data_2;
+      ex_mem_reg.mem_read_enable <= id_ex_reg.mem_read_enable;
+      ex_mem_reg.mem_write_enable <= id_ex_reg.mem_write_enable;
+      ex_mem_reg.mem_byte_en <= id_ex_reg.mem_byte_enable;
+      ex_mem_reg.wr_reg_src <= id_ex_reg.wr_reg_src;
+      ex_mem_reg.wr_reg_en <= id_ex_reg.wr_reg_en;
+      ex_mem_reg.forwarding_type <= id_ex_reg.forwarding_type;
+    end
+  end
+
   // ULA
 `ifdef RV64I
   assign aluA =
     id_ex_reg.alua_src ?
       id_ex_reg.pc : (id_ex_reg.aluy_src ?
-        {{32{id_ex_reg.read_data_1[31]}}, id_ex_reg.read_data_1[31:0]} : id_ex_reg.read_data_1);
+        {{32{forwarded_rs1_ex[31]}}, forwarded_rs1_ex[31:0]} : forwarded_rs1_ex);
   assign aluB =
     id_ex_reg.alub_src ?
       id_ex_reg.imm : (id_ex_reg.aluy_src ?
-        {{32{id_ex_reg.read_data_2[31]}}, id_ex_reg.read_data_2[31:0]} : id_ex_reg.read_data_2);
+        {{32{forwarded_rs2_ex[31]}}, forwarded_rs2_ex[31:0]} : forwarded_rs2_ex);
   assign muxaluY_out[DATA_SIZE-1:32] = id_ex_reg.aluy_src ? {32{aluY[31]}} : aluY[DATA_SIZE-1:32];
 `else
-  assign aluA = id_ex_reg.alua_src ? id_ex_reg.pc : id_ex_reg.read_data_1;
-  assign aluB = id_ex_reg.alub_src ? id_ex_reg.imm : id_ex_reg.read_data_2;
+  assign aluA = id_ex_reg.alua_src ? id_ex_reg.pc : forwarded_rs1_ex;
+  assign aluB = id_ex_reg.alub_src ? id_ex_reg.imm : forwarded_rs2_ex;
 `endif
   // Mascarar LUI no Rs1
   assign muxaluY_out[31:0] = aluY[31:0];
@@ -353,26 +428,37 @@ module dataflow #(
       .carry_out(),
       .overflow()
   );
-  // Somador PC + 4
-  sklansky_adder #(
-      .INPUT_SIZE(DATA_SIZE)
-  ) pc_4 (
-      .A(pc),
-      .B(cte_4),
-      .c_in(1'b0),
-      .c_out(),
-      .S(pc_plus_4)
-  );
-  // Somador PC + Imediato
-  sklansky_adder #(
-      .INPUT_SIZE(DATA_SIZE)
-  ) pc_immediate (
-      .A(alupc_src ? {forwarded_rs1[DATA_SIZE-1:1], 1'b0} : if_id_reg.pc),
-      .B({immediate[DATA_SIZE-1:1], 1'b0}),
-      .c_in(1'b0),
-      .c_out(),
-      .S(pc_plus_immediate)
-  );
+  // EX stage
+
+
+  // MEM stage
+  logic [DATA_SIZE-1:0] forwarded_rs1_mem, forwarded_rs2_mem;
+  always_comb begin : ex_forwarding_logic
+    unique case (forward_rs2_mem)
+      NoForwarding, ForwardFromEx, ForwardFromMem: begin
+        forwarded_rs2_mem = ex_mem_reg.write_data;
+      end
+      ForwardFromWb: begin
+        forwarded_rs2_mem = rd;
+      end
+      default: begin
+        forwarded_rs2_mem = ex_mem_reg.write_data;
+      end
+    endcase
+  end : ex_forwarding_logic
+
+  always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
+    if (reset) mem_wb_reg <= '0;
+    else begin
+      mem_wb_reg.pc_plus_4 <= ex_mem_reg.pc_plus_4;
+      mem_wb_reg.rd <= ex_mem_reg.rd;
+      mem_wb_reg.csr_read_data <= ex_mem_reg.csr_read_data;
+      mem_wb_reg.alu_y <= ex_mem_reg.alu_y;
+      mem_wb_reg.read_data <= rd_data;
+      mem_wb_reg.wr_reg_src <= ex_mem_reg.wr_reg_src;
+      mem_wb_reg.wr_reg_en <= ex_mem_reg.wr_reg_en;
+    end
+  end
   gen_mux #(
       .size(DATA_SIZE),
       .N(2)
@@ -381,12 +467,15 @@ module dataflow #(
       .S(mem_wb_reg.wr_reg_src),
       .Y(rd)
   );
+  // MEM stage
 
   // Saídas
   // Memory
   assign inst_mem_addr = pc;
   assign data_mem_addr = ex_mem_reg.alu_y;
-  assign wr_data = ex_mem_reg.read_data_2;
+  assign rd_en = ex_mem_reg.mem_read_enable;
+  assign wr_en = ex_mem_reg.mem_write_enable;
+  assign wr_data = forwarded_rs2_mem;
   // Control Unit
   assign opcode = if_id_reg.inst[6:0];
   assign funct3 = if_id_reg.inst[14:12];
