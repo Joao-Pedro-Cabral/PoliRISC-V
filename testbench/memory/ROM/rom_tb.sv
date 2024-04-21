@@ -29,6 +29,7 @@ module rom_tb ();
     wb_if.primary.cyc = 0;
     wb_if.primary.stb = 0;
     wb_if.primary.we = 0;
+    wb_if.primary.tgd = 0;
     wb_if.primary.sel = 0;
     wb_if.primary.addr = 0;
     @(negedge clock);

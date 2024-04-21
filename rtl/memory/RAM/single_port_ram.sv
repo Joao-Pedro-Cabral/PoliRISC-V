@@ -17,7 +17,7 @@ module single_port_ram #(
     offset_and_truncate_address = addr + offset;
   endfunction
 
-  reg [ByteSize-1:0] ram[2**AddrSize-1:0];
+  reg [ByteSize-1:0] ram[$unsigned(2**AddrSize-1):0];
 
   initial begin
     $readmemb(RAM_INIT_FILE, ram);

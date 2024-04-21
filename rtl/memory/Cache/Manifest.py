@@ -7,6 +7,7 @@ files = [
 
 modules = {
     "local" : [
+        "../../core/Shifter",
         "../../../utils/globals"
     ]
 }

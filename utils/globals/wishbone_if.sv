@@ -9,14 +9,14 @@ interface wishbone_if #(
     input reset
 );
 
-  logic cyc, stb, we, ack;
+  logic cyc, stb, we, ack, tgd;
   logic [ADDR_SIZE-1:0] addr;
   logic [DATA_SIZE/BYTE_SIZE-1:0] sel;
   logic [DATA_SIZE-1:0] dat_i_p, dat_o_p, dat_i_s, dat_o_s;
 
-  modport primary(input clock, reset, ack, dat_i_p, output addr, cyc, stb, we, sel, dat_o_p,
+  modport primary(input clock, reset, ack, dat_i_p, output addr, cyc, stb, we, sel, tgd, dat_o_p,
                   import rd_en, wr_en);
-  modport secondary(input clock, reset, addr, cyc, stb, we, sel, dat_i_s, output ack, dat_o_s,
+  modport secondary(input clock, reset, addr, cyc, stb, we, tgd, sel, dat_i_s, output ack, dat_o_s,
                   import rd_en, wr_en);
 
   assign dat_i_p = dat_o_s;

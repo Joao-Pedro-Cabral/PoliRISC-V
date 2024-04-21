@@ -46,6 +46,7 @@ module csr_mem_tb ();
   assign wb_if.primary.stb = rd_en | wr_en;
   assign wb_if.primary.we  = wr_en;
   assign wb_if.primary.sel = 0;
+  assign wb_if.primary.tgd = 0;
   assign wb_if.primary.addr = addr;
   assign wb_if.primary.dat_o_p = wr_data;
   assign ack = wb_if.primary.ack;
