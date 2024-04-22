@@ -1,13 +1,8 @@
-//
-//! @file   sync_parallel_counter_tb.v
-//! @brief  Testbench do Contador
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @date   2023-04-29
-//
-
-`include "macros.vh"
 
 module sync_parallel_counter_tb ();
+
+  import macros_pkg::*;
+
   // DUT
   reg clock, reset, inc_enable, dec_enable, load;
   reg  [2:0] load_value;

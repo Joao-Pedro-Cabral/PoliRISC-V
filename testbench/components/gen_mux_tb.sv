@@ -1,13 +1,8 @@
-//
-//! @file   gen_mux_tb.v
-//! @brief  Testbench para Multiplexador genérico(2^N para 1)
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module gen_mux_tb ();
+
+  import macros_pkg::*;
+
   // portas do DUT
   wire [3:0] A [7:0];
   reg  [2:0] S;

@@ -1,13 +1,8 @@
-//
-//! @file   register_d_tb.v
-//! @brief  Testbench para register D com reset assíncrono
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module register_d_tb ();
+
+  import macros_pkg::*;
+
   // Fios do DUT
   reg clock, reset, enable;
   reg [3:0] D;

@@ -1,13 +1,8 @@
-//
-//! @file   decoderN_tb.v
-//! @brief  Testbench para Decoder genérico(N para 2^N)
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-12
-//
-
-`include "macros.vh"
 
 module decoderN_tb ();
+
+  import macros_pkg::*;
+
   // portas do DUT
   reg [3:0] A;
   reg enable;
