@@ -3,13 +3,13 @@ module priority_encoder_tb();
 
   import macros_pkg::*;
 
-  localparam integer NumberOfTests = 16;
+  localparam integer N = 16;
 
-  logic [15:0] A;
-  logic [3:0] Y, expected_data;
+  logic [N-1:0] A;
+  logic [N == 1 ? 0 : $clog2(N)-1:0] Y, expected_data;
 
   priority_encoder #(
-    .N(16)
+    .N(N)
   ) DUT (
     .A(A),
     .Y(Y)
@@ -19,9 +19,10 @@ module priority_encoder_tb();
     $display("SOT!");
     A = 0;
     #5;
-    for(int i = 0; i < NumberOfTests; i ++) begin
+    for(int i = 0; i < 2**N; i ++) begin
       A = i;
-      expected_data = $clog2(A+1);
+      if(i == 0) expected_data = 0;
+      else expected_data = $clog2(A+1) - 1;
       #2;
       CHK_Y: assert(Y === expected_data);
       #3;

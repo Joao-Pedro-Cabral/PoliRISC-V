@@ -8,6 +8,7 @@ files = [
 modules = {
     "local" : [
         "../../core/Shifter",
-        "../../../utils/globals"
+        "../../../utils/globals",
+        "../../../utils/components"
     ]
 }

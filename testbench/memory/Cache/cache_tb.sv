@@ -3,18 +3,19 @@ module cache_tb ();
 
   import macros_pkg::*;
 
-  localparam integer AmntOfTests = 10_000;
+  localparam integer AmntOfTests = 50_000;
   localparam integer ClockPeriod = 10;
   localparam integer BusyCycles = 5;
 
-  localparam integer CacheSize = 2048;
+  localparam integer CacheSize = 8192;
+  localparam integer SetSize = 8;
   localparam integer BlockSize = 128;
   localparam integer AddrSize = 32;
   localparam integer DataSize = 32;
   localparam integer ByteSize = 8;
   localparam integer SelSize = DataSize/ByteSize;
 
-  localparam integer MemAddrSize = 13;
+  localparam integer MemAddrSize = 15;
 
   localparam string InitFile = "./MIFs/memory/ROM/bios/de10nano_bios.mif";
 
@@ -25,7 +26,7 @@ module cache_tb ();
   logic rd_signed;
   logic [ByteSize-1:0] mem [2**MemAddrSize-1:0];
   logic [DataSize-1:0] wr_data, rd_data, aligned_data, expected_data;
-  logic [2:0] access_to_same_addr;
+  logic [1:0] access_to_same_addr;
   /* //// */
 
   function automatic logic [SelSize-1:0] gen_random_sel();
@@ -72,7 +73,8 @@ module cache_tb ();
   );
 
   cache #(
-      .CACHE_SIZE(CacheSize)
+      .CACHE_SIZE(CacheSize),
+      .SET_SIZE(SetSize)
   ) DUT (.*);
 
   // Generate Clock

@@ -1,6 +1,7 @@
 
 module cache #(
-    parameter integer CACHE_SIZE = 16384
+    parameter integer CACHE_SIZE = 16384,
+    parameter integer SET_SIZE = 2
 ) (
     wishbone_if.secondary wb_if_ctrl,
     wishbone_if.primary wb_if_mem
@@ -12,7 +13,8 @@ module cache #(
   localparam integer ByteSize = DataSize/$size(wb_if_ctrl.sel);
   localparam integer SelSize = $size(wb_if_mem.sel);
 
-  logic hit, dirty, ctrl_wr_en_d, sample_ctrl_inputs, set_valid, set_tag, set_data, set_dirty;
+  logic hit, dirty, ctrl_wr_en_d, sample_ctrl_inputs, set_valid, set_tag, set_data, set_dirty,
+        random_gen_en;
   logic mem_rd_en, mem_wr_en, ctrl_rd_en, ctrl_wr_en;
 
   // Assume that both clocks and reset are equal
@@ -35,11 +37,13 @@ module cache #(
       .set_valid,
       .set_tag,
       .set_data,
-      .set_dirty
+      .set_dirty,
+      .random_gen_en
   );
 
   cache_path #(
       .CACHE_SIZE(CACHE_SIZE),
+      .SET_SIZE(SET_SIZE),
       .BLOCK_SIZE(BlockSize),
       .ADDR_SIZE (AddrSize),
       .DATA_SIZE (DataSize),
@@ -64,7 +68,8 @@ module cache #(
       .set_valid,
       .set_tag,
       .set_data,
-      .set_dirty
+      .set_dirty,
+      .random_gen_en
   );
 
   always_comb begin

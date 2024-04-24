@@ -28,7 +28,8 @@ module cache_control #(
     output logic set_valid,
     output logic set_tag,
     output logic set_data,
-    output logic set_dirty
+    output logic set_dirty,
+    output logic random_gen_en
     /* //// */
 
 );
@@ -51,6 +52,7 @@ module cache_control #(
     set_tag = 1'b0;
     set_data = 1'b0;
     set_dirty = 1'b0;
+    random_gen_en = 1'b0;
     next_state = Idle;
     unique case (current_state)
       CompareTag: begin
@@ -78,6 +80,7 @@ module cache_control #(
         next_state = mem_ack ? Allocate : WriteBack;
       end
       default: begin // Idle
+        random_gen_en = 1'b1;
         if(ctrl_rd_en || ctrl_wr_en) begin
           sample_ctrl_inputs = 1'b1;
           next_state = CompareTag;
