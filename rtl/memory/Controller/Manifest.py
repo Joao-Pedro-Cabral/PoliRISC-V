@@ -1,5 +1,5 @@
 files = [
-    "memory_controller.v"
+    "memory_controller.sv"
 ]
 
 modules = {

@@ -30,4 +30,8 @@ interface wishbone_if #(
     return cyc & stb & we;
   endfunction
 
+  function automatic logic op_en();
+    return cyc & stb;
+  endfunction
+
 endinterface : wishbone_if
