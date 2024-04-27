@@ -1,13 +1,10 @@
 files = [
-    "memory_controller_tb.v"
+    "memory_controller_tb.sv",
+    "memory_controller_pkg.sv"
 ]
 
 modules = {
-    "local" : [
-        "../../../rtl/memory/Cache",
-        "../../../rtl/memory/Controller",
-        "../../../rtl/memory/RAM",
-        "../../../rtl/memory/ROM",
-        "../../../rtl/peripheral/UART"
+    "local": [
+        "../../../rtl/memory/Controller"
     ]
 }
