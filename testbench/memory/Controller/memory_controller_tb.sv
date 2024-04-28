@@ -6,16 +6,16 @@ module memory_controller_tb;
 
   localparam integer ClockPeriod = 20;
   localparam integer BusyCycles = 10;
-  localparam integer NumberOfTests = 10;
+  localparam integer NumberOfTests = 100_000;
 
-  localparam reg [63:0] RomAddr = 64'h0;
-  localparam reg [63:0] RomAddrMask = 64'hFFFFFFFFFF000000;
-  localparam reg [63:0] RamAddr = 64'h0000000001000000;
-  localparam reg [63:0] RamAddrMask = 64'hFFFFFFFFFF000000;
-  localparam reg [63:0] UartAddr = 64'h0000000010013000;
-  localparam reg [63:0] UartAddrMask = 64'hFFFFFFFFFFFFF000;
-  localparam reg [63:0] CsrAddr = 64'hFFFFFFFFFFFFFFC0;
-  localparam reg [63:0] CsrAddrMask = 64'hFFFFFFFFFFFFFFC0;
+  localparam reg [63:0] RomAddr = 64'h0000000000000000;
+  localparam reg [63:0] RomAddrMask = 64'hFFFFFFFFC0000000;
+  localparam reg [63:0] RamAddr = 64'h0000000080000000;
+  localparam reg [63:0] RamAddrMask = 64'hFFFFFFFFC0000000;
+  localparam reg [63:0] UartAddr = 64'h00000000C0000000;
+  localparam reg [63:0] UartAddrMask = 64'hFFFFFFFFE0000000;
+  localparam reg [63:0] CsrAddr = 64'h00000000B0000000;
+  localparam reg [63:0] CsrAddrMask = 64'hFFFFFFFFE0000000;
 
   // Interface Inputs
   logic clock, reset;
@@ -102,31 +102,36 @@ module memory_controller_tb;
       .DATA_SIZE(ProcDataSize),
       .BYTE_SIZE(ByteSize),
       .ADDR_SIZE(ProcAddrSize)
-  ) proc0, proc1;
+  )
+      proc0, proc1;
 
   wishbone_primary_class #(
       .DATA_SIZE(CacheDataSize),
       .BYTE_SIZE(ByteSize),
       .ADDR_SIZE(ProcAddrSize)
-  ) cache_inst1, cache_data1;
+  )
+      cache_inst1, cache_data1;
 
   wishbone_secondary_class #(
       .DATA_SIZE(ProcDataSize),
       .BYTE_SIZE(ByteSize),
       .ADDR_SIZE(ProcAddrSize)
-  ) cache_inst0, cache_data0;
+  )
+      cache_inst0, cache_data0;
 
   wishbone_secondary_class #(
       .DATA_SIZE(CacheDataSize),
       .BYTE_SIZE(ByteSize),
       .ADDR_SIZE(ProcAddrSize)
-  ) rom, ram;
+  )
+      rom, ram;
 
   wishbone_secondary_class #(
       .DATA_SIZE(ProcDataSize),
       .BYTE_SIZE(ByteSize),
       .ADDR_SIZE(PeriphAddrSize)
-  ) uart, csr;
+  )
+      uart, csr;
 
   // Instanciação do DUT
   memory_controller #(
@@ -158,16 +163,16 @@ module memory_controller_tb;
     // Initializing
     clock       = 0;
     reset       = 0;
-    proc0       = new(wish_proc0);
-    proc1       = new(wish_proc1);
-    cache_inst1 = new(wish_cache_inst1);
-    cache_data1 = new(wish_cache_data1);
-    cache_inst0 = new(wish_cache_inst0);
-    cache_data0 = new(wish_cache_data0);
-    rom         = new(wish_rom);
-    ram         = new(wish_ram);
-    uart        = new(wish_uart);
-    csr         = new(wish_csr);
+    proc0       = new(wish_proc0, "Proc 0");
+    proc1       = new(wish_proc1, "Proc 1");
+    cache_inst1 = new(wish_cache_inst1, "Cache Instruction 1");
+    cache_data1 = new(wish_cache_data1, "Cache Data 1");
+    cache_inst0 = new(wish_cache_inst0, "Cache Instruction 0");
+    cache_data0 = new(wish_cache_data0, "Cache Data 0");
+    rom         = new(wish_rom, "Rom");
+    ram         = new(wish_ram, "Ram");
+    uart        = new(wish_uart, "Uart");
+    csr         = new(wish_csr, "CSR");
 
     @(negedge clock);
     reset = 1;
@@ -182,6 +187,8 @@ module memory_controller_tb;
       proc1.randomize_interface();
       cache_inst1.randomize_interface();
       cache_data1.randomize_interface();
+      cache_inst0.randomize_interface();
+      cache_data0.randomize_interface();
       rom.randomize_interface();
       ram.randomize_interface();
       uart.randomize_interface();
@@ -198,37 +205,39 @@ module memory_controller_tb;
       sel_csr = proc1.is_accessing(CsrAddr, CsrAddrMask);
 
       if (sel_rom) begin
-        cache_data1.check_mem(wish_rom);
-        rom.check_cache(wish_cache_data1);
+        cache_data1.check_mem(rom.get_interface(), rom.get_name());
+        rom.check_cache(cache_data1.get_interface(), cache_data1.get_name());
       end else begin
-        cache_inst1.check_mem(wish_rom);
-        rom.check_cache(wish_cache_inst1);
+        cache_inst1.check_mem(rom.get_interface(), rom.get_name());
+        rom.check_cache(cache_inst1.get_interface(), cache_inst1.get_name());
       end
 
       if (sel_ram) begin
-        cache_data1.check_mem(wish_ram);
-        ram.check_cache(wish_cache_data1);
+        cache_data1.check_mem(ram.get_interface(), ram.get_name());
+        ram.check_cache(cache_data1.get_interface(), cache_data1.get_name());
       end else ram.check_disabled();
 
       if (sel_cache_inst) begin
-        proc0.check_cache(wish_cache_inst0);
-        cache_inst0.check_proc(wish_proc0);
+        proc0.check_cache(cache_inst0.get_interface(), cache_inst0.get_name());
+        cache_inst0.check_proc(proc0.get_interface(), proc0.get_name());
       end else cache_inst0.check_disabled();
 
       if (sel_cache_data) begin
-        proc1.check_cache(wish_cache_data0);
-        cache_data0.check_proc(wish_proc1);
+        proc1.check_cache(cache_data0.get_interface(), cache_data0.get_name());
+        cache_data0.check_proc(proc1.get_interface(), proc1.get_name());
       end else cache_data0.check_disabled();
 
       if (sel_uart) begin
-        proc1.check_periph(wish_uart);
-        uart.check_proc(wish_proc1);
+        proc1.check_periph(uart.get_interface(), uart.get_name());
+        uart.check_proc(proc1.get_interface(), proc1.get_name());
       end else uart.check_disabled();
 
       if (sel_csr) begin
-        proc1.check_periph(wish_csr);
-        csr.check_proc(wish_proc1);
+        proc1.check_periph(csr.get_interface(), csr.get_name());
+        csr.check_proc(proc1.get_interface(), proc1.get_name());
       end else csr.check_disabled();
+
+      @(negedge clock);
 
     end
 
