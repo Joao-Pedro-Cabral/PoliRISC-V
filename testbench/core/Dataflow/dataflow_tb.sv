@@ -1,127 +1,205 @@
-//
-//! @file   Dataflow_tb.v
-//! @brief  Testbench do Dataflow
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-02-23
-//
 
-// Ideia do testbench: testar ciclo a ciclo o comportamento do Dataflow
-// de acordo com a instrução executada
-// Para isso considero as seguintes hipóteses:
-// RAM, ROM, Extensor de Imediato, Banco de Registradores, CSR e CSR_mem estão corretos.
-// Com isso, basta testar se o Dataflow consegue interligar os componentes
-// e se os componentes funcionam corretamente.
-// Para isso irei verificar as saídas do DF (principalmente pc e reg_data,
-// pois elas determinam o contexto)
+module dataflow_tb ();
 
-`include "macros.vh"
-`include "extensions.vh"
+  ///////////////////////////////////
+  ///////////// Imports /////////////
+  ///////////////////////////////////
+  import csr_pkg::*;
+  import dataflow_pkg::*;
+  import hazard_unit_pkg::*;
+  import instruction_pkg::*;
+  import branch_decoder_unit_pkg::*;
 
-`ifdef RV64I
-`define BYTE_NUM 8
-`define DATA_SIZE 64
-`else
-`define BYTE_NUM 4
-`define DATA_SIZE 32
-`endif
+  ///////////////////////////////////
+  //////////// Parameters ///////////
+  ///////////////////////////////////
+  // Wishbone
+  localparam integer CacheSize = 8192;
+  localparam integer SetSize = 1;
+  localparam integer HasRV64I = (DataSize == 64);
+  localparam integer InstDataSize = 32;
+  localparam integer DataSize = 32;
+  localparam integer CacheDataSize = 128;
+  localparam integer ProcAddrSize = 32;
+  localparam integer PeriphAddrSize = 3;
+  localparam integer ByteSize = 8;
+  localparam integer ByteNum = DataSize/ByteSize;
+  // Memory Address
+  localparam reg [63:0] RomAddr = 64'h0000000000000000;
+  localparam reg [63:0] RomAddrMask = 64'hFFFFFFFFFF000000;
+  localparam reg [63:0] RamAddr = 64'h0000000001000000;
+  localparam reg [63:0] RamAddrMask = 64'hFFFFFFFFFF000000;
+  localparam reg [63:0] UartAddr = 64'h0000000010013000;
+  localparam reg [63:0] UartAddrMask = 64'hFFFFFFFFFFFFF000;
+  localparam reg [63:0] CsrAddr = 64'hFFFFFFFFFFFFFFC0;
+  localparam reg [63:0] CsrAddrMask = 64'hFFFFFFFFFFFFFFC0;
 
-`define ASSERT(condition) if (!(condition)) $stop
-
-module Dataflow_tb ();
-  // Parâmetros determinados pelas extensões
-  `ifdef RV64I
-    localparam integer HasRV64I = 1;
-  `else
-    localparam integer HasRV64I = 0;
-  `endif
-  // Parâmetros do Sheets
-  localparam integer NLineI = 72;
-  localparam integer NColumnI = (HasRV64I == 1) ? 50 : 45;
-  // Parâmetros do df_src
-    // Bits do df_src que não dependem apenas do opcode
-  localparam integer DfSrcSize = NColumnI - 17;  // Coluna tirando opcode, funct3 e funct7
-  localparam integer NotOnlyOp = (HasRV64I == 1) ? 12: 8;
-  // sinais do DUT
+  ///////////////////////////////////
+  /////////// DUT Signals ///////////
+  ///////////////////////////////////
   // Common
-  reg clock;
-  reg reset;
-  // Bus
-  wire [`DATA_SIZE-1:0] rd_data;
-  wire [`DATA_SIZE-1:0] wr_data;
-  wire [`DATA_SIZE-1:0] mem_addr;
-  wire mem_ack;
-  wire mem_rd_en;
-  wire mem_wr_en;
-  wire [`BYTE_NUM-1:0] mem_byte_en;
-  // From Control Unit (LUT_uc)
-  wire alua_src;
-  wire alub_src;
-`ifdef RV64I
-  wire aluy_src;
-`endif
-  wire [3:0] alu_src;
-  wire sub;
-  wire arithmetic;
-  wire alupc_src;
-  wire pc_src;
-  wire pc_en;
-  wire [1:0] wr_reg_src;
-  wire wr_reg_en;
-  wire ir_en;
-  wire mem_addr_src;
-  wire ecall;
-  wire mret;
-  wire sret;
-  wire csr_imm;
-  wire [1:0] csr_op;
-  wire csr_wr_en;
-  wire illegal_instruction;
-  // To Control Unit
-  wire [6:0] opcode;
-  wire [2:0] funct3;
-  wire [6:0] funct7;
-  wire zero;
-  wire negative;
-  wire carry_out;
-  wire overflow;
-  wire [1:0] privilege_mode;
-  wire csr_addr_exception;
-  // Sinais do Barramento
+  logic clock;
+  logic reset;
   // Instruction Memory
-  wire [31:0] rom_DAT_I;
-  wire [`DATA_SIZE-1:0] rom_ADR_O;
-  wire rom_CYC_O;
-  wire rom_STB_O;
-  wire rom_ACK_I;
+  instruction_t inst;
+  logic [DataSize-1:0] inst_mem_addr;
   // Data Memory
-  wire [`DATA_SIZE-1:0] ram_ADR_O;
-  wire [`DATA_SIZE-1:0] ram_DAT_O;
-  wire [`DATA_SIZE-1:0] ram_DAT_I;
-  wire ram_CYC_O;
-  wire ram_STB_O;
-  wire ram_WE_O;
-  wire [`BYTE_NUM-1:0] ram_SEL_O;
-  wire ram_ACK_I;
-  // Registradores do CSR mapeados em memória
-  wire csr_mem_CYC_O;
-  wire csr_mem_STB_O;
-  wire csr_mem_WE_O;
-  wire csr_mem_ACK_I;
-  wire [2:0] csr_mem_ADR_O;
-  wire [`DATA_SIZE-1:0] csr_mem_DAT_O;
-  wire [`DATA_SIZE-1:0] csr_mem_DAT_I;
-  wire [`DATA_SIZE-1:0] msip;
-  wire [63:0] mtime;
-  wire [63:0] mtimecmp;
+  logic [DataSize-1:0] rd_data;
+  logic rd_en;
+  logic wr_en;
+  logic [DataSize-1:0] wr_data;
+  logic [DataSize-1:0] data_mem_addr;
+  // From Memory Unit
+  logic mem_busy;
+  // From Control Unit
+  logic alua_src;
+  logic alub_src;
+  logic aluy_src;
+  alu_op_t alu_op;
+  logic alupc_src;
+  logic [1:0] wr_reg_src;
+  logic wr_reg_en;
+  logic mem_rd_en;
+  logic mem_wr_en;
+  logic [ByteNum-1:0] mem_byte_en;
+  logic mem_signed;
+  forwarding_type_t forwarding_type;
+  branch_t branch_type;
+  cond_branch_t cond_branch_type;
+  // Interrupts/Exceptions from UC
+  logic ecall;
+  logic illegal_instruction;
+  // Trap Return
+  csr_op_t csr_op;
+  logic csr_imm;
+  // Interrupts from Memory
+  logic external_interrupt;
+  logic [DataSize-1:0] mem_msip;
+  logic [63:0] mem_mtime;
+  logic [63:0] mem_mtimecmp;
+  // To Control Unit
+  logic [6:0] opcode;
+  logic [2:0] funct3;
+  logic [6:0] funct7;
+  logic csr_addr_invalid;
+  privilege_mode_t privilege_mode;
+  // From Forwarding Unit
+  forwarding_t forward_rs1_id;
+  forwarding_t forward_rs2_id;
+  forwarding_t forward_rs1_ex;
+  forwarding_t forward_rs2_ex;
+  forwarding_t forward_rs2_mem;
+  // To Forwarding Unit
+  forwarding_type_t forwarding_type_id;
+  forwarding_type_t forwarding_type_ex;
+  forwarding_type_t forwarding_type_mem;
+  logic reg_we_mem;
+  logic reg_we_wb;
+  logic zicsr_ex;
+  logic [4:0] rd_ex;
+  logic [4:0] rd_mem;
+  logic [4:0] rd_wb;
+  logic [4:0] rs1_id;
+  logic [4:0] rs2_id;
+  logic [4:0] rs1_ex;
+  logic [4:0] rs2_ex;
+  logic [4:0] rs2_mem;
+  // From Hazard Unit
+  logic stall_if;
+  logic stall_id;
+  logic flush_id;
+  logic flush_ex;
+  // To Hazard Unit
+  logic reg_we_ex;
+  logic mem_rd_en_ex;
+  logic mem_rd_en_mem;
+  logic store_id;
+  // Others
+  hazard_t hazard_type;
+  rs_used_t rs_used;
+
+  ///////////////////////////////////
+  /////////// Interfaces ////////////
+  ///////////////////////////////////
+  wishbone_if #(
+      .DATA_SIZE(InstDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_proc0 (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_proc1 (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_cache_inst0 (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(CacheDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_cache_inst1 (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_cache_data0 (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(CacheDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_cache_data1 (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(CacheDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_rom (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(CacheDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_ram (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(PeriphAddrSize)
+  ) wish_uart (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(PeriphAddrSize)
+  ) wish_csr (
+      .*
+  );
+
   // Dispositivos
-  reg external_interrupt;
   // CSR
-  wire [`DATA_SIZE-1:0] mepc;
-  wire [`DATA_SIZE-1:0] sepc;
-  wire [`DATA_SIZE-1:0] csr_rd_data;
-  reg [`DATA_SIZE-1:0] csr_wr_data;
+  wire [DataSize-1:0] mepc;
+  wire [DataSize-1:0] sepc;
+  wire [DataSize-1:0] csr_rd_data;
+  reg [DataSize-1:0] csr_wr_data;
   wire csr_trap;
-  wire [`DATA_SIZE-1:0] trap_addr;
+  wire [DataSize-1:0] trap_addr;
   wire [1:0] csr_privilege_mode;
   wire csr_addr_exception_;
   // Sinais intermediários de teste
@@ -130,26 +208,26 @@ module Dataflow_tb ();
   reg [DfSrcSize-1:0] df_src;  // sinais da UC para o df -> sheets
   reg [DfSrcSize+1:0] db_df_src;  // sinais da UC para o df
   reg [31:0] instruction = 0;  // instrução a ser executada
-  wire [`DATA_SIZE-1:0] immediate;  // Saída do Extensor de Imediato do TB
-  wire [`DATA_SIZE-1:0] A_immediate;  // A + imediato
-  reg [`DATA_SIZE-1:0] reg_data;  // write data do banco de registradores
-  wire [`DATA_SIZE-1:0] A;  // read data 1 do banco de registradores
-  wire [`DATA_SIZE-1:0] B;  // read data 2 do banco de registradores
-  reg [`DATA_SIZE-1:0] aluA; // register operator A of ULA
-  reg [`DATA_SIZE-1:0] aluB; // register operator B of ULA
-  reg [`DATA_SIZE-1:0] pc = 0;  // pc -> Acessa memória de instrução
-  reg [`DATA_SIZE-1:0] next_pc = 0; // próximo valor do pc
-  reg [`DATA_SIZE-1:0] pc_imm;  // pc + (imediato << 1) OU {A + immediate[N-1:1], 0}
-  reg [`DATA_SIZE-1:0] pc_4;  // pc + 4
+  wire [DataSize-1:0] immediate;  // Saída do Extensor de Imediato do TB
+  wire [DataSize-1:0] A_immediate;  // A + imediato
+  reg [DataSize-1:0] reg_data;  // write data do banco de registradores
+  wire [DataSize-1:0] A;  // read data 1 do banco de registradores
+  wire [DataSize-1:0] B;  // read data 2 do banco de registradores
+  reg [DataSize-1:0] aluA; // register operator A of ULA
+  reg [DataSize-1:0] aluB; // register operator B of ULA
+  reg [DataSize-1:0] pc = 0;  // pc -> Acessa memória de instrução
+  reg [DataSize-1:0] next_pc = 0; // próximo valor do pc
+  reg [DataSize-1:0] pc_imm;  // pc + (imediato << 1) OU {A + immediate[N-1:1], 0}
+  reg [DataSize-1:0] pc_4;  // pc + 4
   reg _trap; // csr_trap antes da borda de subida do clock
-  reg [`DATA_SIZE-1:0] _trap_addr; // trap_addr antes da borda de subida do clock
+  reg [DataSize-1:0] _trap_addr; // trap_addr antes da borda de subida do clock
   // flags da ULA ->  geradas de forma simulada
   wire zero_;
   wire negative_;
   wire carry_out_;
   wire overflow_;
-  wire [`DATA_SIZE-1:0] xorB;
-  wire [`DATA_SIZE-1:0] add_sub;
+  wire [DataSize-1:0] xorB;
+  wire [DataSize-1:0] add_sub;
   // variáveis
   integer limit = 10000;  // número máximo de iterações a serem feitas(evitar loop infinito)
   localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5; // Estados
@@ -160,160 +238,197 @@ module Dataflow_tb ();
   localparam integer FinalAddress = 16781308; // Final execution address
   localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
 
-  // DUT
-  Dataflow DUT (
-      .clock(clock),
-      .reset(reset),
-      .rd_data(rd_data),
-      .wr_data(wr_data),
-      .mem_addr(mem_addr),
-      .alua_src(alua_src),
-      .alub_src(alub_src),
-    `ifdef RV64I
-      .aluy_src(aluy_src),
-    `endif
-      .alu_src(alu_src),
-      .sub(sub),
-      .arithmetic(arithmetic),
-      .alupc_src(alupc_src),
-      .pc_src(pc_src),
-      .pc_en(pc_en),
-      .wr_reg_src(wr_reg_src),
-      .wr_reg_en(wr_reg_en),
-      .ir_en(ir_en),
-      .mem_addr_src(mem_addr_src),
-      .ecall(ecall),
-    `ifdef TrapReturn
-      .mret(mret),
-      .sret(sret),
-    `endif
-    `ifdef ZICSR
-      .csr_imm(csr_imm),
-      .csr_op(csr_op),
-      .csr_wr_en(csr_wr_en),
-    `endif
-      .illegal_instruction(illegal_instruction),
-      .external_interrupt(external_interrupt),
-      .mem_msip(msip),
-      .mem_mtime(mtime),
-      .mem_mtimecmp(mtimecmp),
-      .opcode(opcode),
-      .funct3(funct3),
-      .funct7(funct7),
-      .zero(zero),
-      .negative(negative),
-      .carry_out(carry_out),
-      .overflow(overflow),
-      .csr_addr_exception(csr_addr_exception),
-      .privilege_mode(privilege_mode)
+  ///////////////////////////////////
+  //////////// DUT //////////////////
+  ///////////////////////////////////
+  dataflow (
+    .DATA_SIZE(DataSize)
+  ) DUT (
+    .clock,
+    .reset,
+    .inst,
+    .inst_mem_addr,
+    .rd_data,
+    .rd_en,
+    .wr_en,
+    .wr_data,
+    .data_mem_addr,
+    .mem_busy,
+    .alua_src,
+    .alub_src,
+    .aluy_src,
+    .alu_op,
+    .alupc_src,
+    .wr_reg_src,
+    .wr_reg_en,
+    .mem_rd_en,
+    .mem_wr_en,
+    .mem_byte_en,
+    .mem_addr_src,
+    .forwarding_type,
+    .branch_type,
+    .cond_branch_type,
+    .ecall,
+    .illegal_instruction,
+    .csr_op,
+    .csr_imm,
+    .external_interrupt,
+    .mem_msip,
+    .mem_mtime,
+    .mem_mtimecmp,
+    .opcode,
+    .funct3,
+    .funct7,
+    .csr_addr_invalid,
+    .privilege_mode,
+    .forward_rs1_id,
+    .forward_rs2_id,
+    .forward_rs1_ex,
+    .forward_rs2_ex,
+    .forward_rs2_mem,
+    .forwarding_type_id,
+    .forwarding_type_ex,
+    .forwarding_type_mem,
+    .reg_we_mem,
+    .reg_we_wb,
+    .zicsr_ex,
+    .rd_ex,
+    .rd_mem,
+    .rd_wb,
+    .rs1_id,
+    .rs2_id,
+    .rs1_ex,
+    .rs2_ex,
+    .rs2_mem,
+    .stall_if,
+    .stall_id,
+    .flush_id,
+    .flush_ex,
+    .reg_we_ex,
+    .mem_rd_en_ex,
+    .mem_rd_en_mem,
+    .store_id
+  );
+
+  ///////////////////////////////////
+  /////// Proc Components ///////////
+  ///////////////////////////////////
+  control_unit #(
+    .BYTE_NUM(ByteNum)
+  ) controlUnit (
+    .*
+  );
+
+  hazard_unit hazardUnit (
+    .*
+  );
+
+  forwarding_unit forwardingUnit (
+    .*
+  );
+
+  memory_unit #(
+    .Width(DataSize)
+  ) memoryUnit (
+    .clock,
+    .reset,
+    .rd_data_mem(wish_proc1.cyc | wish_proc1.stb),
+    .wr_data_mem((wish_proc1.cyc | wish_proc1.stb) & wish_proc1.we),
+    .inst_mem_ack(wish_proc0.ack),
+    .inst_mem_rd_dat(wish_proc0.dat_i_p),
+    .data_mem_ack(wish_proc1.ack),
+    .data_mem_rd_dat(wish_proc1.dat_i_p),,
+    .inst_mem_en(wish_proc0.cyc),
+    .inst_mem_dat(inst),
+    .data_mem_en(wish_proc1.cyc),
+    .data_mem_we(wish_proc1.we),
+    .data_mem_dat(rd_data),
+    .busy(mem_busy)
+  );
+
+  assign wish_proc0.stb = wish_proc0.cyc;
+  assign wish_proc1.stb = wish_proc1.cyc;
+
+  ///////////////////////////////////
+  //////// Mem Components ///////////
+  ///////////////////////////////////
+  // Instruction Cache
+  cache #(
+      .CACHE_SIZE(CacheSize),
+      .SET_SIZE(SetSize)
+  ) instruction_cache (
+    .wb_if_ctrl(wish_cache_inst0),
+    .wb_if_mem(wish_cache_inst1)
+  );
+
+  // Data Cache
+  cache #(
+      .CACHE_SIZE(CacheSize),
+      .SET_SIZE(SetSize)
+  ) data_cache (
+    .wb_if_ctrl(wish_cache_data0),
+    .wb_if_mem(wish_cache_inst1)
   );
 
   // Instruction Memory
-  ROM #(
+  rom #(
       .ROM_INIT_FILE("./ROM.mif"),
-      .WORD_SIZE(8),
-      .ADDR_SIZE(10),
-      .OFFSET(2),
-      .BUSY_CYCLES(2)
-  ) Instruction_Memory (
-      .CLK_I(clock),
-      .CYC_I(rom_CYC_O),
-      .STB_I(rom_STB_O),
-      .ADR_I(rom_ADR_O[9:0]),
-      .DAT_O(rom_DAT_I),
-      .ACK_O(rom_ACK_I)
+      .BUSY_CYCLES(4)
+  ) instruction_memory (
+      .wb_if_s(wish_rom)
   );
 
   // Data Memory
   single_port_ram #(
       .RAM_INIT_FILE("./RAM.mif"),
-      .ADDR_SIZE(12),
-      .BYTE_SIZE(8),
-      .DATA_SIZE(`DATA_SIZE),
-      .BUSY_CYCLES(2)
-  ) Data_Memory (
-      .CLK_I(clock),
-      .ADR_I(ram_ADR_O),
-      .DAT_I(ram_DAT_O),
-      .CYC_I(ram_CYC_O),
-      .STB_I(ram_STB_O),
-      .WE_I (ram_WE_O),
-      .SEL_I(ram_SEL_O),
-      .DAT_O(ram_DAT_I),
-      .ACK_O(ram_ACK_I)
+      .BUSY_CYCLES(4)
+  ) data_memory (
+      .wb_if_s(wish_ram)
   );
 
   // Registradores em memória do CSR
-  CSR_mem mem_csr (
-    .CLK_I(clock),
-    .RST_I(reset),
-    .ADR_I(csr_mem_ADR_O),
-    .DAT_I(csr_mem_DAT_O),
-    .CYC_I(csr_mem_CYC_O),
-    .STB_I(csr_mem_STB_O),
-    .WE_I(csr_mem_WE_O),
-    .DAT_O(csr_mem_DAT_I),
-    .ACK_O(csr_mem_ACK_I),
-    .msip(msip),
-    .mtime(mtime),
-    .mtimecmp(mtimecmp)
+  csr_mem mem_csr (
+      .wb_if_s(wish_csr),
+      .msip(msip),
+      .mtime(mtime),
+      .mtimecmp(mtimecmp)
   );
 
   // Instanciação do barramento
   memory_controller #(
-      .BYTE_AMNT(`BYTE_NUM),
-      .ROM_ADDR_INIT(0),
-      .ROM_ADDR_END(32'h00FFFFFF),
-      .RAM_ADDR_INIT(32'h01000000),
-      .RAM_ADDR_END(32'h04FFFFFF),
-      .MTIME_ADDR({32'b0, 262142*(2**12)}),    // lui 262142
-      .MTIMECMP_ADDR({32'b0, 262143*(2**12)}), // lui 262143
-      .MSIP_ADDR({32'b0, 262144*(2**12)})      // lui 262144
-  ) BUS (
-      .cpu_CYC_I(mem_rd_en | mem_wr_en),
-      .cpu_STB_I(mem_rd_en | mem_wr_en),
-      .cpu_WE_I(mem_wr_en),
-      .cpu_SEL_I(mem_byte_en),
-      .cpu_DAT_I(wr_data),
-      .cpu_ADR_I(mem_addr),
-      .cpu_DAT_O(rd_data),
-      .cpu_ACK_O(mem_ack),
-    `ifdef RV64I
-      .rom_DAT_I    ({32'b0, rom_DAT_I}),
-    `else
-      .rom_DAT_I    (rom_DAT_I),
-    `endif
-      .rom_ACK_I    (rom_ACK_I),
-      .rom_CYC_O    (rom_CYC_O),
-      .rom_STB_O    (rom_STB_O),
-      .rom_ADR_O    (rom_ADR_O),
-      .ram_DAT_I    (ram_DAT_I),
-      .ram_ACK_I    (ram_ACK_I),
-      .ram_ADR_O    (ram_ADR_O),
-      .ram_DAT_O    (ram_DAT_O),
-      .ram_CYC_O    (ram_CYC_O),
-      .ram_WE_O     (ram_WE_O),
-      .ram_STB_O    (ram_STB_O),
-      .ram_SEL_O    (ram_SEL_O),
-      .csr_mem_DAT_I(csr_mem_DAT_I),
-      .csr_mem_ACK_I(csr_mem_ACK_I),
-      .csr_mem_ADR_O(csr_mem_ADR_O),
-      .csr_mem_DAT_O(csr_mem_DAT_O),
-      .csr_mem_CYC_O(csr_mem_CYC_O),
-      .csr_mem_STB_O(csr_mem_STB_O),
-      .csr_mem_WE_O (csr_mem_WE_O)
+      .ROM_ADDR(RomAddr),
+      .RAM_ADDR(RamAddr),
+      .UART_ADDR(UartAddr),
+      .CSR_ADDR(CsrAddr),
+      .ROM_ADDR_MASK(RomAddrMask),
+      .RAM_ADDR_MASK(RamAddrMask),
+      .UART_ADDR_MASK(UartAddrMask),
+      .CSR_ADDR_MASK(CsrAddrMask)
+  ) controller (
+      .wish_s_proc0(wish_proc0),
+      .wish_s_proc1(wish_proc1),
+      .wish_s_cache_inst(wish_cache_inst1),
+      .wish_s_cache_data(wish_cache_data1),
+      .wish_p_rom(wish_rom),
+      .wish_p_ram(wish_ram),
+      .wish_p_cache_inst(wish_cache_inst0),
+      .wish_p_cache_data(wish_cache_data0),
+      .wish_p_uart(wish_uart),
+      .wish_p_csr(wish_csr)
   );
 
-  // Componentes auxiliares para a verificação
+  ///////////////////////////////////
+  /////// Checker Components ////////
+  ///////////////////////////////////
   immediate_extender #(
-      .N(`DATA_SIZE)
+      .N(DataSize)
   ) extensor_imediato (
       .immediate  (immediate),
       .instruction(instruction)
   );
 
   register_file #(
-      .size(`DATA_SIZE),
+      .size(DataSize),
       .N(5)
   ) banco_de_registradores (
       .clock(clock),
@@ -345,25 +460,13 @@ module Dataflow_tb ();
       .pc(pc),
       .instruction(instruction),
       // CSR RW interface
-    `ifdef ZICSR
       .wr_en(csr_wr_en & (~funct3[1] | (|instruction[19:15]))),
       .addr(instruction[31:20]),
       .wr_data(csr_wr_data),
       .rd_data(csr_rd_data),
-    `else
-      .wr_en(1'b0),
-      .addr(12'b0),
-      .wr_data(`DATA_SIZE'b0),
-      .rd_data(),
-    `endif
       // MRET & SRET
-    `ifdef TrapReturn
       .mret(mret),
       .sret(sret),
-    `else
-      .mret(1'b0),
-      .sret(1'b0),
-    `endif
       .mepc(mepc),
       .sepc(sepc)
   );
@@ -436,33 +539,33 @@ module Dataflow_tb ();
   endfunction
 
   // função que simula o comportamento da ULA
-  function automatic [`DATA_SIZE-1:0] ULA_function(
-    input reg [`DATA_SIZE-1:0] A, input reg [`DATA_SIZE-1:0] B, input reg [4:0] seletor);
-    reg [2*`DATA_SIZE-1:0] mulh, mulhsu, mulhu;
+  function automatic [DataSize-1:0] ULA_function(
+    input reg [DataSize-1:0] A, input reg [DataSize-1:0] B, input reg [4:0] seletor);
+    reg [2*DataSize-1:0] mulh, mulhsu, mulhu;
     begin
       case (seletor)
         5'b00000: ULA_function = $signed(A) + $signed(B);  // ADD
-        5'b00001: ULA_function = A << (B[$clog2(`DATA_SIZE)-1:0]);  // SLL
+        5'b00001: ULA_function = A << (B[$clog2(DataSize)-1:0]);  // SLL
         5'b00010: ULA_function = ($signed(A) < $signed(B));  // SLT
         5'b00011: ULA_function = (A < B);  // SLTU
         5'b00100: ULA_function = A ^ B;  // XOR
-        5'b00101: ULA_function = A >> (B[$clog2(`DATA_SIZE)-1:0]); // SRL
+        5'b00101: ULA_function = A >> (B[$clog2(DataSize)-1:0]); // SRL
         5'b00110: ULA_function = A | B;  // OR
         5'b00111: ULA_function = A & B;  // AND
         5'b01000: ULA_function = $signed(A) - $signed(B);  // SUB
-        5'b01101: ULA_function = $signed(A) >>> (B[$clog2(`DATA_SIZE)-1:0]);  // SRA
+        5'b01101: ULA_function = $signed(A) >>> (B[$clog2(DataSize)-1:0]);  // SRA
         5'b10000: ULA_function = A * B; // MUL
         5'b10001: begin  // MULH
           mulh = $signed(A) * $signed(B);
-          ULA_function = mulh[2*`DATA_SIZE-1:`DATA_SIZE];
+          ULA_function = mulh[2*DataSize-1:DataSize];
         end
         5'b10010: begin  // MULHSU
           mulhsu = $signed(A) * B;
-          ULA_function = mulhsu[2*`DATA_SIZE-1:`DATA_SIZE];
+          ULA_function = mulhsu[2*DataSize-1:DataSize];
         end
         5'b10011: begin  // MULHU
           mulhu = A * B;
-          ULA_function = mulhu[2*`DATA_SIZE-1:`DATA_SIZE];
+          ULA_function = mulhu[2*DataSize-1:DataSize];
         end
         5'b10100: ULA_function = $signed(A) / $signed(B); // DIV
         5'b10101: ULA_function = A / B; // DIVU
@@ -473,8 +576,8 @@ module Dataflow_tb ();
     end
   endfunction
 
-  function automatic [`DATA_SIZE-1:0] CSR_function(
-    input reg [`DATA_SIZE-1:0] rd_data, input reg [`DATA_SIZE-1:0] mask, input reg [1:0] op);
+  function automatic [DataSize-1:0] CSR_function(
+    input reg [DataSize-1:0] rd_data, input reg [DataSize-1:0] mask, input reg [1:0] op);
     begin
       case(op)
         2'b01: CSR_function = mask; // W
@@ -486,12 +589,12 @@ module Dataflow_tb ();
   endfunction
 
   // flags da ULA -> Apenas conferidas para B-type
-  assign xorB = B ^ {`DATA_SIZE{1'b1}};
+  assign xorB = B ^ {DataSize{1'b1}};
   assign {carry_out_, add_sub} = A + xorB + 1;
   assign zero_ = ~(|add_sub);
-  assign negative_ = add_sub[`DATA_SIZE-1];
-  assign overflow_ = (~(A[`DATA_SIZE-1] ^ B[`DATA_SIZE-1] ^ sub))
-                   & (A[`DATA_SIZE-1] ^ add_sub[`DATA_SIZE-1]);
+  assign negative_ = add_sub[DataSize-1];
+  assign overflow_ = (~(A[DataSize-1] ^ B[DataSize-1] ^ sub))
+                   & (A[DataSize-1] ^ add_sub[DataSize-1]);
 
   // geração do A_immediate
   assign A_immediate = A + immediate;
@@ -504,9 +607,7 @@ module Dataflow_tb ();
       illegal_instruction, // DfSrcSize - 1
       // Sinais determinados pelo opcode
       alua_src, alub_src,
-    `ifdef RV64I
       aluy_src,
-    `endif
       alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src, ecall, mret, sret, csr_imm,
       csr_op, csr_wr_en,
       // Sinais que não dependem apenas do opcode
@@ -552,7 +653,7 @@ module Dataflow_tb ();
       // Evitar bugs de sincronismos com a memória
       db_df_src = 0;
       @(negedge clock);
-      db_df_src = {1'b1, {`BYTE_NUM - 4{1'b0}}, 4'hF};
+      db_df_src = {1'b1, {ByteNum - 4{1'b0}}, 4'hF};
       // Testo o endereço de acesso a Memória de Instrução
       `ASSERT(pc === mem_addr);
       @(posedge mem_ack);
@@ -590,7 +691,7 @@ module Dataflow_tb ();
           // Caso seja store -> confiro a palavra a ser escrita
           if (opcode[5]) `ASSERT(wr_data === B);
           @(posedge mem_ack);
-          db_df_src[`BYTE_NUM+1:`BYTE_NUM] = 2'b00;
+          db_df_src[ByteNum+1:ByteNum] = 2'b00;
           // caso necessário escrevo no banco
           db_df_src[NotOnlyOp-2] = df_src[NotOnlyOp-2];
           db_df_src[DfSrcSize+1] = 1'b1; // Incremento PC
@@ -682,16 +783,13 @@ module Dataflow_tb ();
           @(negedge clock);
           if(funct3 === 3'b000) begin
             if(funct7 === 0) next_pc = trap_addr; // Ecall
-          `ifdef TrapReturn
             else if(funct7 === 7'b0011000 && privilege_mode === 2'b11) next_pc = mepc; // MRET
             else if(funct7 === 7'b0001000 && privilege_mode[0] === 1'b1) next_pc = sepc; // SRET
-          `endif
             else begin
               $display("Error SYSTEM: Invalid funct7! funct7 : %x", funct7);
               $stop;
             end
           end
-        `ifdef ZICSR // Apenas aqui há ifdef, pois nem sempre DUT.csr_wr_data existe
           else if(funct3 !== 3'b100) begin // CSRR*
             reg_data = csr_rd_data;
             if(instruction[31:20] == 12'h344 || instruction[31:20] == 12'h144)
@@ -708,7 +806,6 @@ module Dataflow_tb ();
             end
             next_pc = pc + 4;
           end
-        `endif
           else begin
               $display("Error SYSTEM: Invalid funct3! funct3 : %x", funct3);
               $stop;
@@ -726,11 +823,10 @@ module Dataflow_tb ();
 
   // testar o DUT
   initial begin
-  `ifdef RV64I
-    $readmemb("./MIFs/core/core/RV64I.mif", LUT_uc);
-  `else
-    $readmemb("./MIFs/core/core/RV32I.mif", LUT_uc);
-  `endif
+    if(HasRV64I)
+      $readmemb("./MIFs/core/core/RV64I.mif", LUT_uc);
+    else
+      $readmemb("./MIFs/core/core/RV32I.mif", LUT_uc);
     $display("SOT!");
     for (i = 0; i < limit; i = i + 1) begin
       $display("Test: %d", i);

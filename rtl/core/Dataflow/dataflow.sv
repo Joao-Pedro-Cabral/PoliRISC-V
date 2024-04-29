@@ -24,9 +24,7 @@ module dataflow #(
     // From Control Unit
     input wire alua_src,
     input wire alub_src,
-`ifdef RV64I
     input wire aluy_src,
-`endif
     input alu_op_t alu_op,
     input wire alupc_src,
     input wire [1:0] wr_reg_src,
@@ -34,7 +32,7 @@ module dataflow #(
     input logic mem_rd_en,
     input logic mem_wr_en,
     input logic [DATA_SIZE/8-1:0] mem_byte_en,
-    input wire mem_addr_src,
+    input logic mem_rd_signed,
     input forwarding_type_t forwarding_type,
     input branch_t branch_type,
     input cond_branch_t cond_branch_type,
@@ -43,14 +41,12 @@ module dataflow #(
     input wire illegal_instruction,
     // Trap Return
     input csr_op_t csr_op,
+    input wire csr_imm,
     // Interrupts from Memory
     input wire external_interrupt,
     input wire [DATA_SIZE-1:0] mem_msip,
     input wire [63:0] mem_mtime,
     input wire [63:0] mem_mtimecmp,
-    input wire csr_wr_en,
-    input wire [1:0] csr_op,
-    input wire csr_imm,
     // To Control Unit
     output wire [6:0] opcode,
     output wire [2:0] funct3,
@@ -89,7 +85,6 @@ module dataflow #(
     /* output logic [4:0] rd_ex, */
     /* output logic [4:0] rd_mem, */
     output logic reg_we_ex,
-    output logic reg_we_mem,
     output logic mem_rd_en_ex,
     output logic mem_rd_en_mem,
     /* output logic zicsr_ex, */
@@ -249,9 +244,7 @@ module dataflow #(
       id_ex_reg.mem_byte_en <= mem_byte_en;
       id_ex_reg.alua_src <= alua_src;
       id_ex_reg.alub_src <= alub_src;
-`ifdef RV64I
       id_ex_reg.aluy_src <= aluy_src;
-`endif
       id_ex_reg.alu_op <= alu_op;
       id_ex_reg.wr_reg_src <= wr_reg_src;
       id_ex_reg.wr_reg_en <= wr_reg_en;
@@ -399,20 +392,22 @@ module dataflow #(
   end
 
   // ULA
-`ifdef RV64I
-  assign aluA =
-    id_ex_reg.alua_src ?
-      id_ex_reg.pc : (id_ex_reg.aluy_src ?
-        {{32{forwarded_rs1_ex[31]}}, forwarded_rs1_ex[31:0]} : forwarded_rs1_ex);
-  assign aluB =
-    id_ex_reg.alub_src ?
-      id_ex_reg.imm : (id_ex_reg.aluy_src ?
-        {{32{forwarded_rs2_ex[31]}}, forwarded_rs2_ex[31:0]} : forwarded_rs2_ex);
-  assign muxaluY_out[DATA_SIZE-1:32] = id_ex_reg.aluy_src ? {32{aluY[31]}} : aluY[DATA_SIZE-1:32];
-`else
-  assign aluA = id_ex_reg.alua_src ? id_ex_reg.pc : forwarded_rs1_ex;
-  assign aluB = id_ex_reg.alub_src ? id_ex_reg.imm : forwarded_rs2_ex;
-`endif
+generate;
+  if(DATA_SIZE == 64) begin: gen_alu_in64
+    assign aluA =
+      id_ex_reg.alua_src ?
+        id_ex_reg.pc : (id_ex_reg.aluy_src ?
+          {{32{forwarded_rs1_ex[31]}}, forwarded_rs1_ex[31:0]} : forwarded_rs1_ex);
+    assign aluB =
+      id_ex_reg.alub_src ?
+        id_ex_reg.imm : (id_ex_reg.aluy_src ?
+          {{32{forwarded_rs2_ex[31]}}, forwarded_rs2_ex[31:0]} : forwarded_rs2_ex);
+    assign muxaluY_out[DATA_SIZE-1:32] = id_ex_reg.aluy_src ? {32{aluY[31]}} : aluY[DATA_SIZE-1:32];
+  end else begin: gen_alu_in32
+    assign aluA = id_ex_reg.alua_src ? id_ex_reg.pc : forwarded_rs1_ex;
+    assign aluB = id_ex_reg.alub_src ? id_ex_reg.imm : forwarded_rs2_ex;
+  end
+endgenerate
   // Mascarar LUI no Rs1
   assign muxaluY_out[31:0] = aluY[31:0];
 
