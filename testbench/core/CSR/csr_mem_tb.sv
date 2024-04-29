@@ -16,7 +16,7 @@ module csr_mem_tb ();
   logic clock, reset;
   logic [DataSize-1:0] wr_data;
   logic [2:0] addr;
-  wishbone_if #(.DATA_SIZE(DataSize), .ADDR_SIZE(3)) wb_if (.*);
+  wishbone_if #(.DATA_SIZE(DataSize), .ADDR_SIZE(7)) wb_if (.*);
 
   // Outputs
   logic ack;
@@ -42,15 +42,15 @@ module csr_mem_tb ();
   );
 
   // Wishbone
-  assign wb_if.primary.cyc = rd_en | wr_en;
-  assign wb_if.primary.stb = rd_en | wr_en;
-  assign wb_if.primary.we  = wr_en;
-  assign wb_if.primary.sel = 0;
-  assign wb_if.primary.tgd = 0;
-  assign wb_if.primary.addr = addr;
-  assign wb_if.primary.dat_o_p = wr_data;
-  assign ack = wb_if.primary.ack;
-  assign rd_data = wb_if.primary.dat_i_p;
+  assign wb_if.cyc = rd_en | wr_en;
+  assign wb_if.stb = rd_en | wr_en;
+  assign wb_if.we  = wr_en;
+  assign wb_if.sel = 0;
+  assign wb_if.tgd = 0;
+  assign wb_if.addr = {addr, 4'h0};
+  assign wb_if.dat_o_p = wr_data;
+  assign ack = wb_if.ack;
+  assign rd_data = wb_if.dat_i_p;
 
   // Components
   sync_parallel_counter #(

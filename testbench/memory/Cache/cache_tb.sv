@@ -81,15 +81,15 @@ module cache_tb ();
   always #(ClockPeriod / 2) clock = ~clock;
 
   // Wishbone
-  assign wb_if_ctrl.primary.cyc = rd_en | wr_en;
-  assign wb_if_ctrl.primary.stb = rd_en | wr_en;
-  assign wb_if_ctrl.primary.we = wr_en;
-  assign wb_if_ctrl.primary.sel = sel;
-  assign wb_if_ctrl.primary.tgd = rd_signed;
-  assign wb_if_ctrl.primary.addr = addr;
-  assign wb_if_ctrl.primary.dat_o_p = wr_data;
-  assign ack = wb_if_ctrl.primary.ack;
-  assign rd_data = wb_if_ctrl.primary.dat_i_p;
+  assign wb_if_ctrl.cyc = rd_en | wr_en;
+  assign wb_if_ctrl.stb = rd_en | wr_en;
+  assign wb_if_ctrl.we = wr_en;
+  assign wb_if_ctrl.sel = sel;
+  assign wb_if_ctrl.tgd = rd_signed;
+  assign wb_if_ctrl.addr = addr;
+  assign wb_if_ctrl.dat_o_p = wr_data;
+  assign ack = wb_if_ctrl.ack;
+  assign rd_data = wb_if_ctrl.dat_i_p;
 
   // Generate Expected Data
   always_comb begin

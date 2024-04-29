@@ -34,7 +34,7 @@ module csr_mem #(
   ) msip_reg (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .enable((wb_if_s.addr[1:0] == Msip) && wr_en),
+      .enable((wb_if_s.addr[5:4] == Msip) && wr_en),
       .D(wb_if_s.dat_i_s),
       .Q(msip_)
   );
@@ -45,14 +45,14 @@ module csr_mem #(
   ) mtime_counter (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .load((wb_if_s.addr[1:0] == Mtime) && wr_en),
+      .load((wb_if_s.addr[5:4] == Mtime) && wr_en),
       .load_value(mtime_load),
       .inc_enable(tick),
       .dec_enable(1'b0),
       .value(mtime_)
   );
   assign mtime_load = (DATA_SIZE == 64) ? wb_if_s.dat_i_s :
-                      (wb_if_s.addr[2] ? {wb_if_s.dat_i_s, mtime_[31:0]} :
+                      (wb_if_s.addr[6] ? {wb_if_s.dat_i_s, mtime_[31:0]} :
                       {mtime_[63:32], wb_if_s.dat_i_s});
   sync_parallel_counter #(
       .size($clog2(CLOCK_CYCLES)),
@@ -75,23 +75,23 @@ module csr_mem #(
   ) mtimecmp_reg (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .enable((wb_if_s.addr[1:0] == Mtimecmp) && wr_en),
+      .enable((wb_if_s.addr[5:4] == Mtimecmp) && wr_en),
       .D(mtimecmp_d),
       .Q(mtimecmp_)
   );
   assign mtimecmp_d = (DATA_SIZE == 64) ? wb_if_s.dat_i_s :
-                      (wb_if_s.addr[2] ? {wb_if_s.dat_i_s,  mtimecmp_[31:0]} :
+                      (wb_if_s.addr[6] ? {wb_if_s.dat_i_s,  mtimecmp_[31:0]} :
                       { mtimecmp_[63:32], wb_if_s.dat_i_s});
   // Lógica de leitura
   always_comb begin
-    case (wb_if_s.addr[1:0])
+    case (wb_if_s.addr[5:4])
       Msip: wb_if_s.dat_o_s = msip_;
       Mtime:
       wb_if_s.dat_o_s = (DATA_SIZE == 64) ? mtime_ :
-                       (wb_if_s.addr[2] ? mtime_[63:32] : mtime_[31:0]);
+                       (wb_if_s.addr[6] ? mtime_[63:32] : mtime_[31:0]);
       Mtimecmp:
       wb_if_s.dat_o_s = (DATA_SIZE == 64) ? mtimecmp_ :
-                       (wb_if_s.addr[2] ? mtimecmp_[63:32] : mtimecmp_[31:0]);
+                       (wb_if_s.addr[6] ? mtimecmp_[63:32] : mtimecmp_[31:0]);
       default: wb_if_s.dat_o_s = 0;
     endcase
   end

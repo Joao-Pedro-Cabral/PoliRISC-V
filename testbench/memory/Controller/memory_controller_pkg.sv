@@ -25,7 +25,7 @@ package memory_controller_pkg;
       .ADDR_SIZE(PeriphAddrSize)
   ) wish_periph;
 
-  class wishbone_class #(
+  virtual class wishbone_class #(
       parameter integer DATA_SIZE = 32,
       parameter integer BYTE_SIZE = 8,
       parameter integer ADDR_SIZE = 32
@@ -44,6 +44,8 @@ package memory_controller_pkg;
     protected function void error_message(string wish_name, string check);
       $error("Error while testing %s with %s in the assert: %s", this.name, wish_name, check);
     endfunction
+
+    pure virtual function void randomize_interface();
 
   endclass
 

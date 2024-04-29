@@ -19,18 +19,18 @@ module single_port_ram_tb;
   );
 
   always #10 clock = ~clock;
-  assign wb_if.primary.dat_o_p = tb_data;
+  assign wb_if.dat_o_p = tb_data;
 
   integer i;
   initial begin
     {clock, reset, tb_data} = 0;
     $display("SOT!");
-    wb_if.primary.cyc = 0;
-    wb_if.primary.stb = 0;
-    wb_if.primary.we = 0;
-    wb_if.primary.tgd = 0;
-    wb_if.primary.sel = 0;
-    wb_if.primary.addr = 0;
+    wb_if.cyc = 0;
+    wb_if.stb = 0;
+    wb_if.we = 0;
+    wb_if.tgd = 0;
+    wb_if.sel = 0;
+    wb_if.addr = 0;
 
     // gerando valores aleatórios
     for (i = 0; i < AmountOfTests; i = i + 1) begin
@@ -40,42 +40,42 @@ module single_port_ram_tb;
     // escreve e testa leitura
     for (i = 0; i < AmountOfTests - 1; i = i + 1) begin
       @(negedge clock);
-      wb_if.primary.addr = 4 * i;
+      wb_if.addr = 4 * i;
       tb_data = tb_mem[i];
-      wb_if.primary.stb = 1'b1;
-      wb_if.primary.cyc = 1'b1;
-      wb_if.primary.we  = 1'b1;
-      wb_if.primary.sel = 4'hF;
+      wb_if.stb = 1'b1;
+      wb_if.cyc = 1'b1;
+      wb_if.we  = 1'b1;
+      wb_if.sel = 4'hF;
       @(posedge clock);
-      wb_if.primary.we = 1'b0;
-      @(posedge wb_if.primary.ack);
+      wb_if.we = 1'b0;
+      @(posedge wb_if.ack);
       @(negedge clock);
-      CHK_DAT_ALIGNED: assert(wb_if.primary.dat_i_p === tb_data);
-      @(negedge wb_if.primary.ack);
-      wb_if.primary.stb = 1'b0;
-      wb_if.primary.cyc = 1'b0;
-      wb_if.primary.sel = 4'h0;
+      CHK_DAT_ALIGNED: assert(wb_if.dat_i_p === tb_data);
+      @(negedge wb_if.ack);
+      wb_if.stb = 1'b0;
+      wb_if.cyc = 1'b0;
+      wb_if.sel = 4'h0;
     end
 
     // testa leitura e escrita desalinhada
     tb_data = 0;
-    wb_if.primary.addr = 4 * 3 + 2;
-    wb_if.primary.stb  = 1'b1;
-    wb_if.primary.cyc  = 1'b1;
-    wb_if.primary.we   = 1'b1;
-    wb_if.primary.sel  = 4'hF;
+    wb_if.addr = 4 * 3 + 2;
+    wb_if.stb  = 1'b1;
+    wb_if.cyc  = 1'b1;
+    wb_if.we   = 1'b1;
+    wb_if.sel  = 4'hF;
     @(posedge clock);
-    wb_if.primary.we  = 1'b0;
-    wb_if.primary.cyc = 1'b1;
-    @(posedge wb_if.primary.ack);
+    wb_if.we  = 1'b0;
+    wb_if.cyc = 1'b1;
+    @(posedge wb_if.ack);
     @(negedge clock);
-    CHK_DAT_DISALIGNED: assert(wb_if.primary.dat_i_p === tb_data);
-    @(negedge wb_if.primary.ack);
+    CHK_DAT_DISALIGNED: assert(wb_if.dat_i_p === tb_data);
+    @(negedge wb_if.ack);
 
     // desativa memória
-    wb_if.primary.stb = 1'b0;
-    wb_if.primary.cyc = 1'b0;
-    wb_if.primary.sel = 4'h0;
+    wb_if.stb = 1'b0;
+    wb_if.cyc = 1'b0;
+    wb_if.sel = 4'h0;
     $display("EOT!");
     $stop;
   end
