@@ -9,6 +9,7 @@ module dataflow_tb ();
   import hazard_unit_pkg::*;
   import instruction_pkg::*;
   import branch_decoder_unit_pkg::*;
+  import dataflow_tb_pkg::*;
 
   ///////////////////////////////////
   //////////// Parameters ///////////
@@ -202,36 +203,21 @@ module dataflow_tb ();
   wire [DataSize-1:0] trap_addr;
   wire [1:0] csr_privilege_mode;
   wire csr_addr_exception_;
-  // Sinais intermediários de teste
-  reg [NColumnI-1:0] LUT_uc[NLineI-1:0];  // UC simulada com tabela(google sheets)
-  wire [NColumnI*NLineI-1:0] LUT_linear;  // Tabela acima linearizada
-  reg [DfSrcSize-1:0] df_src;  // sinais da UC para o df -> sheets
-  reg [DfSrcSize+1:0] db_df_src;  // sinais da UC para o df
-  reg [31:0] instruction = 0;  // instrução a ser executada
-  wire [DataSize-1:0] immediate;  // Saída do Extensor de Imediato do TB
-  wire [DataSize-1:0] A_immediate;  // A + imediato
-  reg [DataSize-1:0] reg_data;  // write data do banco de registradores
-  wire [DataSize-1:0] A;  // read data 1 do banco de registradores
-  wire [DataSize-1:0] B;  // read data 2 do banco de registradores
-  reg [DataSize-1:0] aluA; // register operator A of ULA
-  reg [DataSize-1:0] aluB; // register operator B of ULA
-  reg [DataSize-1:0] pc = 0;  // pc -> Acessa memória de instrução
-  reg [DataSize-1:0] next_pc = 0; // próximo valor do pc
-  reg [DataSize-1:0] pc_imm;  // pc + (imediato << 1) OU {A + immediate[N-1:1], 0}
-  reg [DataSize-1:0] pc_4;  // pc + 4
-  reg _trap; // csr_trap antes da borda de subida do clock
-  reg [DataSize-1:0] _trap_addr; // trap_addr antes da borda de subida do clock
-  // flags da ULA ->  geradas de forma simulada
-  wire zero_;
-  wire negative_;
-  wire carry_out_;
-  wire overflow_;
-  wire [DataSize-1:0] xorB;
-  wire [DataSize-1:0] add_sub;
+  ///////////////////////////////////
+  //////// Simulator Signals ////////
+  ///////////////////////////////////
+  // Fetch
+  if_id_tb_t if_id_tb;
+  logic [DataSize-1:0] new_pc = 0;
+  // Decode
+  id_ex_tb_t id_ex_tb;
+  logic [DataSize-1:0] immediate = 0;
+  // Execute
+  // Memory
+  // Write Back
+
   // variáveis
   integer limit = 10000;  // número máximo de iterações a serem feitas(evitar loop infinito)
-  localparam integer Fetch = 0, Decode = 1, Execute = 2, Reset = 5; // Estados
-  integer estado = Reset;
   integer i;
   genvar j;
   // Address
@@ -347,7 +333,15 @@ module dataflow_tb ();
   );
 
   assign wish_proc0.stb = wish_proc0.cyc;
+  assign wish_proc0.tgd = 1'b0;
+  assign wish_proc0.addr = inst_mem_addr;
+  assign wish_proc0.sel = 4'hF;
+  assign wish_proc0.dat_o_p = '0;
   assign wish_proc1.stb = wish_proc1.cyc;
+  assign wish_proc1.tgd = mem_signed;
+  assign wish_proc1.addr = data_mem_addr;
+  assign wish_proc1.sel = mem_byte_en;
+  assign wish_proc1.dat_o_p = wr_data;
 
   ///////////////////////////////////
   //////// Mem Components ///////////
@@ -424,7 +418,7 @@ module dataflow_tb ();
       .N(DataSize)
   ) extensor_imediato (
       .immediate  (immediate),
-      .instruction(instruction)
+      .instruction(if_id_tb.instruction)
   );
 
   register_file #(
@@ -630,6 +624,9 @@ module dataflow_tb ();
     else if(mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
   end
 
+  ///////////////////////////////////
+  /////// Dataflow Simulator ////////
+  ///////////////////////////////////
   task automatic DoReset();
     begin
       db_df_src = 0;
@@ -648,20 +645,37 @@ module dataflow_tb ();
     end
   endtask
 
-  task automatic DoFetch();
-    begin
-      // Evitar bugs de sincronismos com a memória
-      db_df_src = 0;
-      @(negedge clock);
-      db_df_src = {1'b1, {ByteNum - 4{1'b0}}, 4'hF};
-      // Testo o endereço de acesso a Memória de Instrução
-      `ASSERT(pc === mem_addr);
-      @(posedge mem_ack);
-      @(negedge clock);
-      db_df_src   = {2'b01, {DfSrcSize - 4{1'b0}}, 4'hF};
-      instruction = rd_data;
+  always @(posedge clock iff (not mem_busy), posedge reset) begin: fetch_gen_always
+    if(reset) begin
+      if_id_tb <= '0;
+    end else if(!stall_if) begin
+      if_id_tb.instruction <= inst;
+      if_id_tb.pc <= new_pc;
     end
-  endtask
+  end
+
+  always @(posedge clock) begin: fetch_check_always
+    CHK_PC: assert(inst_mem_addr === new_pc);
+  end
+
+  // TODO: Finish this always
+  always @(posedge clock iff (not mem_busy), posedge reset) begin: decode_gen_always
+    if(reset || flush_id) begin
+      id_ex_tb_t <= '0;
+    end else if(!stall_id) begin
+      id_ex_tb.pc <= if_id_tb.pc;
+      id_ex_tb.rs1 <= if_id_tb.instruction === Lui ? 5'h0 : if_id_tb.instruction[19:15];
+      id_ex_tb.rs2 <= if_id_tb.instruction[24:20];
+      id_ex_tb.rd <= if_id_tb.instruction[11:7];
+      id_ex_tb.imm <= immediate;
+    end
+  end
+
+  always @(posedge clock) begin: decode_check_always
+    CHK_OPCODE: assert(opcode === if_id_tb.instruction[6:0]);
+    CHK_FUNCT3: assert(funct3 === if_id_tb.instruction[14:12]);
+    CHK_FUNCT7: assert(funct7 === if_id_tb.instruction[31:25]);
+  end
 
   task automatic DoDecode();
     begin
