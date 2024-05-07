@@ -212,6 +212,8 @@ module dataflow_tb ();
   privilege_mode_t privilege_mode_tb = Machine;
   logic branch_taken;
   // Execute
+  ex_mem_t ex_mem_tb;
+  logic [DataSize-1:0] alu_y;
   // Memory
   // Write Back
 
@@ -534,44 +536,6 @@ module dataflow_tb ();
     end
   endfunction
 
-  // função que simula o comportamento da ULA
-  function automatic [DataSize-1:0] ULA_function(
-    input reg [DataSize-1:0] A, input reg [DataSize-1:0] B, input reg [4:0] seletor);
-    reg [2*DataSize-1:0] mulh, mulhsu, mulhu;
-    begin
-      case (seletor)
-        5'b00000: ULA_function = $signed(A) + $signed(B);  // ADD
-        5'b00001: ULA_function = A << (B[$clog2(DataSize)-1:0]);  // SLL
-        5'b00010: ULA_function = ($signed(A) < $signed(B));  // SLT
-        5'b00011: ULA_function = (A < B);  // SLTU
-        5'b00100: ULA_function = A ^ B;  // XOR
-        5'b00101: ULA_function = A >> (B[$clog2(DataSize)-1:0]); // SRL
-        5'b00110: ULA_function = A | B;  // OR
-        5'b00111: ULA_function = A & B;  // AND
-        5'b01000: ULA_function = $signed(A) - $signed(B);  // SUB
-        5'b01101: ULA_function = $signed(A) >>> (B[$clog2(DataSize)-1:0]);  // SRA
-        5'b10000: ULA_function = A * B; // MUL
-        5'b10001: begin  // MULH
-          mulh = $signed(A) * $signed(B);
-          ULA_function = mulh[2*DataSize-1:DataSize];
-        end
-        5'b10010: begin  // MULHSU
-          mulhsu = $signed(A) * B;
-          ULA_function = mulhsu[2*DataSize-1:DataSize];
-        end
-        5'b10011: begin  // MULHU
-          mulhu = A * B;
-          ULA_function = mulhu[2*DataSize-1:DataSize];
-        end
-        5'b10100: ULA_function = $signed(A) / $signed(B); // DIV
-        5'b10101: ULA_function = A / B; // DIVU
-        5'b10110: ULA_function = $signed(A) % $signed(B); // REM
-        5'b10111: ULA_function = A % B; // REMU
-        default: ULA_function = 0;
-      endcase
-    end
-  endfunction
-
   function automatic [DataSize-1:0] CSR_function(
     input reg [DataSize-1:0] rd_data, input reg [DataSize-1:0] mask, input reg [1:0] op);
     begin
@@ -587,7 +551,6 @@ module dataflow_tb ();
   ///////////////////////////////////
   //////// Checker Functions ////////
   ///////////////////////////////////
-
   function automatic [DataSize-1:0] gen_new_pc(input instruction_t instruction,
                 input logic [DataSize-1:0] pc, input logic [DataSize-1:0] imm,
                 input logic [DataSize-1:0] A, input logic [DataSize-1:0] B,
@@ -598,12 +561,12 @@ module dataflow_tb ();
       Jal, Jalr: return pc + imm;
       BType: begin
         unique case (instruction.b_type.funct3)
-          Beq:  return (read_data1 === read_data2) ? pc + imm : pc + 4;
-          Bne:  return (read_data1 !== read_data2) ? pc + imm : pc + 4;
-          Blt:  return ($signed(read_data1)   <  $signed(read_data2))   ? pc + imm : pc + 4;
-          Bge:  return ($signed(read_data1)   >= $signed(read_data2))   ? pc + imm : pc + 4;
-          Bltu: return ($unsigned(read_data1) <  $unsigned(read_data2)) ? pc + imm : pc + 4;
-          Bgeu: return ($unsigned(read_data1) >= $unsigned(read_data2)) ? pc + imm : pc + 4;
+          Beq:  return (A === B) ? pc + imm : pc + 4;
+          Bne:  return (A !== B) ? pc + imm : pc + 4;
+          Blt:  return ($signed(A)   <  $signed(B))   ? pc + imm : pc + 4;
+          Bge:  return ($signed(A)   >= $signed(B))   ? pc + imm : pc + 4;
+          Bltu: return ($unsigned(A) <  $unsigned(B)) ? pc + imm : pc + 4;
+          Bgeu: return ($unsigned(A) >= $unsigned(B)) ? pc + imm : pc + 4;
           default: return pc + 4;
         endcase
       end
@@ -614,6 +577,43 @@ module dataflow_tb ();
       end
       default: return pc + 4;
     endcase
+  endfunction
+
+  function automatic [DataSize-1:0] gen_alu_y(input logic [DataSize-1:0] A,
+    input logic [DataSize-1:0] B, input alu_op_t seletor);
+    reg [2*DataSize-1:0] mulh, mulhsu, mulhu;
+    begin
+      case (seletor)
+        Add: return $signed(A) + $signed(B);
+        ShiftLeftLogic: return A << (B[$clog2(DataSize)-1:0]);
+        SetLessThan: return ($signed(A) < $signed(B));
+        SetLessThanUnsigned: return (A < B);
+        Xor: return A ^ B;
+        ShiftRightLogic: return A >> (B[$clog2(DataSize)-1:0]);
+        Or: return A | B;
+        And: return A & B;
+        Sub: return $signed(A) - $signed(B);
+        ShiftRightArithmetic: return $signed(A) >>> (B[$clog2(DataSize)-1:0]);
+        Mul: return A * B;
+        MulHigh: begin
+          mulh = $signed(A) * $signed(B);
+          return mulh[2*DataSize-1:DataSize];
+        end
+        MulHighSignedUnsigned: begin
+          mulhsu = $signed(A) * B;
+          return mulhsu[2*DataSize-1:DataSize];
+        end
+        MulHighUnsigned: begin
+          mulhu = A * B;
+          return mulhu[2*DataSize-1:DataSize];
+        end
+        Div: return $signed(A) / $signed(B);
+        DivUnsigned: return A / B;
+        Rem: return $signed(A) % $signed(B);
+        RemUnsigned: return A % B;
+        default: return 0;
+      endcase
+    end
   endfunction
 
   // flags da ULA -> Apenas conferidas para B-type
@@ -696,13 +696,13 @@ module dataflow_tb ();
   // Decode
   always @(posedge clock iff (not mem_busy), posedge reset) begin: decode_gen_always
     if(reset || flush_id) begin
-      id_ex_tb_t <= '0;
+      id_ex_tb <= '0;
     end else if(!stall_id) begin
       id_ex_tb.pc <= if_id_tb.pc;
       id_ex_tb.rs1 <= if_id_tb.instruction === Lui ? 5'h0 : if_id_tb.instruction[19:15];
-      id_ex_tb.read_data1 <= rd_data1;
+      id_ex_tb.read_data_1 <= rd_data1;
       id_ex_tb.rs2 <= if_id_tb.instruction[24:20];
-      id_ex_tb.read_data1 <= rd_data2;
+      id_ex_tb.read_data_1 <= rd_data2;
       id_ex_tb.rd <= if_id_tb.instruction[11:7];
       id_ex_tb.imm <= immediate;
       id_ex_tb.csr_read_data <= {csr_rd_data[DATA_SIZE-1:10],
@@ -712,9 +712,8 @@ module dataflow_tb ();
     end
   end
 
-  assign csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1;
-
-  always_comb begin
+  always_comb begin: decode_gen_aux
+    csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1;
     new_pc = gen_new_pc(if_id_tb.inst, if_id_tb.pc, immediate, rd_data1, rd_data2, mepc, sepc,
                         trap, trap_addr);
   end
@@ -725,6 +724,38 @@ module dataflow_tb ();
     CHK_FUNCT7: assert(funct7 === id_ex_tb.instruction[31:25]);
     CHK_PRIVILEGE_MODE: assert(privilege_mode === privilege_mode_tb);
     CHK_ADDR_INVALID: assert(csr_addr_invalid === csr_addr_invalid_tb);
+    CHK_CSR_WR_DATA: assert(csr_wr_data === DUT.csr_aux_wr);
+  end
+
+  // Execute
+  always @(posedge clock iff (not mem_busy), posedge reset) begin: execute_gen_always
+    if(reset || flush_ex) begin
+      ex_mem_tb <= '0;
+    end else begin
+      ex_mem_tb.pc <= pc;
+      ex_mem_tb.rs2 <= id_ex_tb.rs2;
+      ex_mem_tb.rd <= id_ex_tb.rd;
+      ex_mem_tb.csr_read_data <= id_ex_tb.csr_read_data;
+      ex_mem_tb.alu_y <= alu_y;
+      ex_mem_tb.write_data <= id_ex_tb.read_data_2;
+      ex_mem_tb.inst <= id_ex_tb.inst;
+    end
+  end
+
+  always_comb begin: execute_gen_aux
+    alu_y = 'x;
+    unique case(id_ex_tb.inst.opcode)
+      LoadType, Stype: alu_y = id_ex_tb.read_data_1 + id_ex_tb.imm;
+      Lui: alu_y = id_ex_tb.imm;
+      Auipc: alu_y = id_ex_tb.pc + id_ex_tb.imm;
+      AluRType, AluRWType: alu_y = gen_alu_y(id_ex_tb.read_data_1, id_ex_tb.read_data_2,
+                  alu_op_t'({id_ex_tb.inst[30], id_ex_tb.inst[25], id_ex_tb.inst[14:12]}));
+      AluIType, AluIWType: alu_y = gen_alu_y(id_ex_tb.read_data_1, id_ex_tb.imm,
+                  alu_op_t'({id_ex_tb.inst[30] & (id_ex_tb.inst[14:12] == 3'b101), 1'b0,
+                            id_ex_tb.inst[14:12]}));
+      default: begin
+      end
+    endcase
   end
 
   task automatic DoDecode();
