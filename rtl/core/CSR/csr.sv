@@ -11,6 +11,7 @@ module csr #(
     input logic reset,
     input logic trap_en,
     input csr_op_t csr_op,
+    input logic wr_en,
     input logic [11:0] addr,
     input logic [DATA_SIZE-1:0] wr_data,
     input logic external_interrupt,
@@ -96,7 +97,7 @@ module csr #(
   // Control Logic (Mask Inputs)
   assign mret_  = (csr_op == CsrMret) & !_trap;
   assign sret_  = (csr_op == CsrSret) & !_trap;
-  assign wr_en_ = (csr_op inside {CsrRW, CsrRS, CsrRC}) & !_trap;
+  assign wr_en_ = ((csr_op == CsrRW) || ((csr_op inside {CsrRS, CsrRC}) && !wr_en)) & !_trap;
 
   // Input data
   always_comb begin

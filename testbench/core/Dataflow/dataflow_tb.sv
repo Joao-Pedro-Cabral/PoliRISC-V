@@ -1,4 +1,5 @@
 
+// TODO: Trocar immediate assertion por Concurrent Assertion
 module dataflow_tb ();
 
   ///////////////////////////////////
@@ -193,16 +194,6 @@ module dataflow_tb ();
       .*
   );
 
-  // Dispositivos
-  // CSR
-  wire [DataSize-1:0] mepc;
-  wire [DataSize-1:0] sepc;
-  wire [DataSize-1:0] csr_rd_data;
-  reg [DataSize-1:0] csr_wr_data;
-  wire csr_trap;
-  wire [DataSize-1:0] trap_addr;
-  wire [1:0] csr_privilege_mode;
-  wire csr_addr_exception_;
   ///////////////////////////////////
   //////// Simulator Signals ////////
   ///////////////////////////////////
@@ -212,6 +203,14 @@ module dataflow_tb ();
   // Decode
   id_ex_tb_t id_ex_tb;
   logic [DataSize-1:0] immediate = 0;
+  logic [DataSize-1:0] rd_data1, rd_data2;
+  logic [DataSize-1:0] csr_rd_data, csr_wr_data;
+  logic trap;
+  logic [DataSize-1:0] trap_addr;
+  logic csr_addr_invalid_tb = 0;
+  logic [DataSize-1:0] mepc, sepc;
+  privilege_mode_t privilege_mode_tb = Machine;
+  logic branch_taken;
   // Execute
   // Memory
   // Write Back
@@ -428,39 +427,42 @@ module dataflow_tb ();
       .clock(clock),
       .reset(reset),
       .write_enable(wr_reg_en && !(wr_reg_src == 2'b01 && csr_addr_exception_)),
-      .read_address1(instruction[19:15]),
-      .read_address2(instruction[24:20]),
+      .read_address1(id_ex_tb.rs1),
+      .read_address2(id_ex_tb.rs2),
       .write_address(instruction[11:7]),
       .write_data(reg_data),
-      .read_data1(A),
-      .read_data2(B)
+      .read_data1(rd_data1),
+      .read_data2(rd_data2)
   );
 
-  CSR registradores_de_controle (
+  CSR control_status_register (
+      // General
       .clock(clock),
       .reset(reset),
-      .trap_en(pc_en),
-      // Interrupt/Exception Signals
-      .ecall(ecall),
-      .illegal_instruction(illegal_instruction),
-      .external_interrupt(external_interrupt),
+      .privilege_mode(privilege_mode_tb),
+      // CSR RW interface
+      .csr_op(csr_op),
+      .wr_en(|if_id_tb.inst[19:15])
+      .addr(id_ex_tb.inst[31:20]),
+      .wr_data(csr_wr_data),
+      .rd_data(csr_rd_data),
+      // Memory Interrupt
       .mem_msip(|msip),
       .mem_mtime(mtime),
       .mem_mtimecmp(mtimecmp),
+      // External Interrupt
+      .external_interrupt(external_interrupt),
+      // Control Unit Exception
+      .ecall(ecall),
+      .illegal_instruction(illegal_instruction),
+      .addr_exception(csr_addr_invalid_tb),
+      // Trap Handler
+      .trap_en(!stall_id && !mem_busy),
+      .trap(trap),
       .trap_addr(trap_addr),
-      .trap(csr_trap),
-      .privilege_mode(csr_privilege_mode),
-      .addr_exception(csr_addr_exception_),
-      .pc(pc),
-      .instruction(instruction),
-      // CSR RW interface
-      .wr_en(csr_wr_en & (~funct3[1] | (|instruction[19:15]))),
-      .addr(instruction[31:20]),
-      .wr_data(csr_wr_data),
-      .rd_data(csr_rd_data),
+      .pc(id_ex_tb.pc),
+      .instruction(id_ex_tb.inst),
       // MRET & SRET
-      .mret(mret),
-      .sret(sret),
       .mepc(mepc),
       .sepc(sepc)
   );
@@ -582,6 +584,38 @@ module dataflow_tb ();
     end
   endfunction
 
+  ///////////////////////////////////
+  //////// Checker Functions ////////
+  ///////////////////////////////////
+
+  function automatic [DataSize-1:0] gen_new_pc(input instruction_t instruction,
+                input logic [DataSize-1:0] pc, input logic [DataSize-1:0] imm,
+                input logic [DataSize-1:0] A, input logic [DataSize-1:0] B,
+                input logic [DataSize-1:0] mepc, input logic [DataSize-1:0] sepc,
+                input logic trap, input logic [DataSize-1:0] trap_addr);
+    if(trap) return trap_addr;
+    unique case(instruction.opcode)
+      Jal, Jalr: return pc + imm;
+      BType: begin
+        unique case (instruction.b_type.funct3)
+          Beq:  return (read_data1 === read_data2) ? pc + imm : pc + 4;
+          Bne:  return (read_data1 !== read_data2) ? pc + imm : pc + 4;
+          Blt:  return ($signed(read_data1)   <  $signed(read_data2))   ? pc + imm : pc + 4;
+          Bge:  return ($signed(read_data1)   >= $signed(read_data2))   ? pc + imm : pc + 4;
+          Bltu: return ($unsigned(read_data1) <  $unsigned(read_data2)) ? pc + imm : pc + 4;
+          Bgeu: return ($unsigned(read_data1) >= $unsigned(read_data2)) ? pc + imm : pc + 4;
+          default: return pc + 4;
+        endcase
+      end
+      SystemType: begin
+        if(instruction.r_type.funct7 == 7'h18) return mepc;
+        else if(instruction.r_type.funct7 == 7'h08) return sepc;
+        return pc + 4;
+      end
+      default: return pc + 4;
+    endcase
+  endfunction
+
   // flags da ULA -> Apenas conferidas para B-type
   assign xorB = B ^ {DataSize{1'b1}};
   assign {carry_out_, add_sub} = A + xorB + 1;
@@ -645,6 +679,7 @@ module dataflow_tb ();
     end
   endtask
 
+  // Fetch
   always @(posedge clock iff (not mem_busy), posedge reset) begin: fetch_gen_always
     if(reset) begin
       if_id_tb <= '0;
@@ -655,26 +690,41 @@ module dataflow_tb ();
   end
 
   always @(posedge clock) begin: fetch_check_always
-    CHK_PC: assert(inst_mem_addr === new_pc);
+    CHK_PC: assert(inst_mem_addr === if_id_tb.pc);
   end
 
-  // TODO: Finish this always
+  // Decode
   always @(posedge clock iff (not mem_busy), posedge reset) begin: decode_gen_always
     if(reset || flush_id) begin
       id_ex_tb_t <= '0;
     end else if(!stall_id) begin
       id_ex_tb.pc <= if_id_tb.pc;
       id_ex_tb.rs1 <= if_id_tb.instruction === Lui ? 5'h0 : if_id_tb.instruction[19:15];
+      id_ex_tb.read_data1 <= rd_data1;
       id_ex_tb.rs2 <= if_id_tb.instruction[24:20];
+      id_ex_tb.read_data1 <= rd_data2;
       id_ex_tb.rd <= if_id_tb.instruction[11:7];
       id_ex_tb.imm <= immediate;
+      id_ex_tb.csr_read_data <= {csr_rd_data[DATA_SIZE-1:10],
+            (csr_rd_data[9] | (external_interrupt & (if_id_reg.inst[31:20] inside {Mip, Sip}))),
+                                 csr_rd_data[8:0]};
+      id_ex_tb.inst <= if_id_tb.inst;
     end
   end
 
+  assign csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1;
+
+  always_comb begin
+    new_pc = gen_new_pc(if_id_tb.inst, if_id_tb.pc, immediate, rd_data1, rd_data2, mepc, sepc,
+                        trap, trap_addr);
+  end
+
   always @(posedge clock) begin: decode_check_always
-    CHK_OPCODE: assert(opcode === if_id_tb.instruction[6:0]);
-    CHK_FUNCT3: assert(funct3 === if_id_tb.instruction[14:12]);
-    CHK_FUNCT7: assert(funct7 === if_id_tb.instruction[31:25]);
+    CHK_OPCODE: assert(opcode === id_ex_tb.instruction[6:0]);
+    CHK_FUNCT3: assert(funct3 === id_ex_tb.instruction[14:12]);
+    CHK_FUNCT7: assert(funct7 === id_ex_tb.instruction[31:25]);
+    CHK_PRIVILEGE_MODE: assert(privilege_mode === privilege_mode_tb);
+    CHK_ADDR_INVALID: assert(csr_addr_invalid === csr_addr_invalid_tb);
   end
 
   task automatic DoDecode();

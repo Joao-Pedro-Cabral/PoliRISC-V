@@ -16,7 +16,6 @@ package dataflow_tb_pkg;
     logic [DataSize-1:0] imm;
     logic [DataSize-1:0] csr_read_data;
     instruction_t inst;
-    forwarding_type_t forwarding_type;
   } id_ex_tb_t;
 
   typedef struct packed {
