@@ -29,13 +29,12 @@ package dataflow_tb_pkg;
   } ex_mem_t;
 
   typedef struct packed {
-    logic [DataSize-1:0] pc_plus_4;
+    logic [DataSize-1:0] pc;
     logic [4:0] rd;
     logic [DataSize-1:0] csr_read_data;
     logic [DataSize-1:0] alu_y;
     logic [DataSize-1:0] read_data;
-    logic [1:0] wr_reg_src;
-    logic wr_reg_en;
+    instruction_t inst;
   } mem_wb_t;
 
 endpackage

@@ -259,7 +259,7 @@ module dataflow #(
   register_file #(
       .size(DATA_SIZE),
       .N(5)
-  ) int_reg_state (
+  ) bank (
       .clock(clock),
       .reset(reset),
       // You can't write an illegal value coming from CSR

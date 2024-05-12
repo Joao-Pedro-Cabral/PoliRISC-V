@@ -212,10 +212,13 @@ module dataflow_tb ();
   privilege_mode_t privilege_mode_tb = Machine;
   logic branch_taken;
   // Execute
-  ex_mem_t ex_mem_tb;
+  ex_mem_tb_t ex_mem_tb;
   logic [DataSize-1:0] alu_y;
   // Memory
+  mem_wb_tb_t mem_wb_tb;
   // Write Back
+  logic we_reg_file;
+  logic [DataSize-1:0] reg_data;
 
   // variáveis
   integer limit = 10000;  // número máximo de iterações a serem feitas(evitar loop infinito)
@@ -319,8 +322,8 @@ module dataflow_tb ();
   ) memoryUnit (
     .clock,
     .reset,
-    .rd_data_mem(wish_proc1.cyc | wish_proc1.stb),
-    .wr_data_mem((wish_proc1.cyc | wish_proc1.stb) & wish_proc1.we),
+    .rd_data_mem(rd_en),
+    .wr_data_mem(wr_en),
     .inst_mem_ack(wish_proc0.ack),
     .inst_mem_rd_dat(wish_proc0.dat_i_p),
     .data_mem_ack(wish_proc1.ack),
@@ -428,10 +431,10 @@ module dataflow_tb ();
   ) banco_de_registradores (
       .clock(clock),
       .reset(reset),
-      .write_enable(wr_reg_en && !(wr_reg_src == 2'b01 && csr_addr_exception_)),
+      .write_enable(we_reg_file),
       .read_address1(id_ex_tb.rs1),
       .read_address2(id_ex_tb.rs2),
-      .write_address(instruction[11:7]),
+      .write_address(mem_wb_tb.rd),
       .write_data(reg_data),
       .read_data1(rd_data1),
       .read_data2(rd_data2)
@@ -680,7 +683,7 @@ module dataflow_tb ();
   endtask
 
   // Fetch
-  always @(posedge clock iff (not mem_busy), posedge reset) begin: fetch_gen_always
+  always @(posedge clock iff (not mem_busy), posedge reset) begin: fetch_gen
     if(reset) begin
       if_id_tb <= '0;
     end else if(!stall_if) begin
@@ -689,12 +692,12 @@ module dataflow_tb ();
     end
   end
 
-  always @(posedge clock) begin: fetch_check_always
+  always @(posedge clock) begin: fetch_check
     CHK_PC: assert(inst_mem_addr === if_id_tb.pc);
   end
 
   // Decode
-  always @(posedge clock iff (not mem_busy), posedge reset) begin: decode_gen_always
+  always @(posedge clock iff (not mem_busy), posedge reset) begin: decode_gen
     if(reset || flush_id) begin
       id_ex_tb <= '0;
     end else if(!stall_id) begin
@@ -718,21 +721,21 @@ module dataflow_tb ();
                         trap, trap_addr);
   end
 
-  always @(posedge clock) begin: decode_check_always
+  always @(posedge clock) begin: decode_check
     CHK_OPCODE: assert(opcode === id_ex_tb.instruction[6:0]);
     CHK_FUNCT3: assert(funct3 === id_ex_tb.instruction[14:12]);
     CHK_FUNCT7: assert(funct7 === id_ex_tb.instruction[31:25]);
     CHK_PRIVILEGE_MODE: assert(privilege_mode === privilege_mode_tb);
     CHK_ADDR_INVALID: assert(csr_addr_invalid === csr_addr_invalid_tb);
-    CHK_CSR_WR_DATA: assert(csr_wr_data === DUT.csr_aux_wr);
+    CHK_CSR_WR_DATA: assert(csr_wr_data === DUT.csr_bank.wr_data);
   end
 
   // Execute
-  always @(posedge clock iff (not mem_busy), posedge reset) begin: execute_gen_always
+  always @(posedge clock iff (not mem_busy), posedge reset) begin: execute_gen
     if(reset || flush_ex) begin
       ex_mem_tb <= '0;
     end else begin
-      ex_mem_tb.pc <= pc;
+      ex_mem_tb.pc <= id_ex_tb.pc;
       ex_mem_tb.rs2 <= id_ex_tb.rs2;
       ex_mem_tb.rd <= id_ex_tb.rd;
       ex_mem_tb.csr_read_data <= id_ex_tb.csr_read_data;
@@ -745,7 +748,7 @@ module dataflow_tb ();
   always_comb begin: execute_gen_aux
     alu_y = 'x;
     unique case(id_ex_tb.inst.opcode)
-      LoadType, Stype: alu_y = id_ex_tb.read_data_1 + id_ex_tb.imm;
+      LoadType, SType: alu_y = id_ex_tb.read_data_1 + id_ex_tb.imm;
       Lui: alu_y = id_ex_tb.imm;
       Auipc: alu_y = id_ex_tb.pc + id_ex_tb.imm;
       AluRType, AluRWType: alu_y = gen_alu_y(id_ex_tb.read_data_1, id_ex_tb.read_data_2,
@@ -756,6 +759,57 @@ module dataflow_tb ();
       default: begin
       end
     endcase
+  end
+
+  // Memory
+  always @(posedge clock iff (not mem_busy), posedge reset) begin: memory_gen
+    if(reset) begin
+      mem_wb_tb <= '0;
+    end else begin
+      mem_wb_tb.pc <= ex_mem_tb.pc;
+      mem_wb_tb.rd <= ex_mem_tb.rd;
+      mem_wb_tb.csr_rd_data <= ex_mem_tb.csr_rd_data;
+      mem_wb_tb.alu_y <= ex_mem_tb.alu_y;
+      mem_wb_tb.read_data <= rd_data;
+      mem_wb_tb.inst <= ex_mem_tb.inst;
+    end
+  end
+
+  always @(posedge clock) begin: memory_check
+    CHK_RD_EN: assert(rd_en === (mem_wb_tb.inst === LoadType));
+    CHK_WR_EN: assert(wr_en === (mem_wb_tb.inst === SType));
+    CHK_WR_DATA: assert(wr_data === mem_wb_tb.write_data);
+    CHK_DATA_MEM_ADDR: assert(data_mem_addr === mem_wb_tb.alu_y);
+  end
+
+  // Write Back
+  always_comb begin: write_back_gen_aux
+    we_reg_file = 1'b0;
+    reg_data = mem_wb_tb.alu_y;
+    unique case(mem_wb_tb.inst.opcode)
+      Jal, Jalr: begin
+        we_reg_file = 1'b1;
+        reg_data = mem_wb_tb.pc + 4;
+      end
+      LoadType: begin
+        we_reg_file = 1'b1;
+        reg_data = mem_wb_tb.read_data;
+      end
+      SystemType: begin
+        if(mem_wb_tb.funct3 !== 3'b100 && mem_wb_tb.privilege_mode >= funct7[6:5]) begin
+          we_reg_file = 1'b1;
+          reg_data = mem_wb_tb.read_data;
+        end
+      end
+      AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc: we_reg_file = 1'b1;
+      default: begin // SType
+      end
+    endcase
+  end
+
+  always @(posedge clock) begin: write_back_check
+    CHK_REG_DATA: assert(reg_data === DUT.bank.write_data);
+    CHK_WR_REG_EN: assert(wr_en === DUT.bank.write_enable);
   end
 
   task automatic DoDecode();
