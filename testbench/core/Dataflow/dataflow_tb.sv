@@ -203,7 +203,7 @@ module dataflow_tb ();
   // Decode
   id_ex_tb_t id_ex_tb;
   logic [DataSize-1:0] immediate = 0;
-  logic [DataSize-1:0] rd_data1, rd_data2;
+  logic [DataSize-1:0] rd_data1, rd_data1_f, rd_data2, rd_data2_f;
   logic [DataSize-1:0] csr_rd_data, csr_wr_data;
   logic trap;
   logic [DataSize-1:0] trap_addr;
@@ -213,9 +213,10 @@ module dataflow_tb ();
   logic branch_taken;
   // Execute
   ex_mem_tb_t ex_mem_tb;
-  logic [DataSize-1:0] alu_y;
+  logic [DataSize-1:0] alu_y, alu_a_f, alu_b_f;
   // Memory
   mem_wb_tb_t mem_wb_tb;
+  logic [DataSize-1:0] wr_data_f;
   // Write Back
   logic we_reg_file;
   logic [DataSize-1:0] reg_data;
@@ -422,7 +423,7 @@ module dataflow_tb ();
       .N(DataSize)
   ) extensor_imediato (
       .immediate  (immediate),
-      .instruction(if_id_tb.instruction)
+      .instruction(if_id_tb.inst)
   );
 
   register_file #(
@@ -447,7 +448,7 @@ module dataflow_tb ();
       .privilege_mode(privilege_mode_tb),
       // CSR RW interface
       .csr_op(csr_op),
-      .wr_en(|if_id_tb.inst[19:15])
+      .wr_en(|if_id_tb.inst[19:15]),
       .addr(id_ex_tb.inst[31:20]),
       .wr_data(csr_wr_data),
       .rd_data(csr_rd_data),
@@ -480,77 +481,6 @@ module dataflow_tb ();
     #3;
   end
 
-  // geração do LUT linear -> função não suporta array
-  generate
-    for (j = 0; j < NLineI; j = j + 1) assign LUT_linear[NColumnI*(j+1)-1:NColumnI*j] = LUT_uc[j];
-  endgenerate
-
-  // função para determinar os seletores(sinais provenientes da UC) a partir do opcode, funct3 e funct7
-  function automatic [DfSrcSize-1:0] find_instruction(
-      input reg [6:0] opcode, input reg [2:0] funct3, input reg [6:0] funct7,
-      input reg [NColumnI*NLineI-1:0] LUT_linear);
-    integer i;
-    reg [DfSrcSize-1:0] temp;
-    begin
-      temp = 0;
-      // os valores de i nos for estão ligados a como o mif foi montado com base no sheets
-      // U,J : apenas opcode
-      if (opcode === 7'b0110111 || opcode === 7'b0010111 || opcode === 7'b1101111) begin
-        for (i = 0; i < 3; i = i + 1)
-        if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7])
-          temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-      end  // I, S, B: opcode e funct3
-      else if(opcode === 7'b1100011 || opcode === 7'b0000011 || opcode === 7'b0100011 ||
-              opcode === 7'b0010011 || opcode === 7'b0011011 || opcode === 7'b1100111 ||
-              opcode === 7'b1110011) begin
-        for (i = 3; i < 44; i = i + 1) begin
-          if (opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
-              funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3]) begin
-            // SRLI e SRAI: funct7
-            if (opcode == 7'b0010011 && funct3 === 3'b101) begin
-              if (funct7[6:1] == LUT_linear[(NColumnI*(i+1)-16)+:6])
-                temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-            end // ECALL + Privilegied
-            else if(opcode === 7'b1110011) begin
-              // ECALL, MRET, SRET
-              if(funct3 === 3'b000 && funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7]) begin
-                if(funct7 === 7'b0) temp = LUT_linear[NColumnI*i+:(NColumnI-17)]; // ECALL
-                // MRET, SRET
-                else if({funct7[6:5], funct7[3:0]} === 6'b001000 &&
-                (privilege_mode[0] && (privilege_mode[1] | !funct7[4])))
-                  temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-              end
-              // Zicsr
-              else if(funct3 !== 3'b000 && privilege_mode >= funct7[4:3])
-                temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-            end else temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-          end
-        end
-      end  // R: opcode, funct3 e funct7
-      else if (opcode === 7'b0111011 || opcode === 7'b0110011) begin
-        for (i = 44; i < 72; i = i + 1)
-        if(opcode === LUT_linear[(NColumnI*(i+1)-7)+:7] &&
-             funct3 === LUT_linear[(NColumnI*(i+1)-10)+:3] &&
-             funct7 === LUT_linear[(NColumnI*(i+1)-17)+:7])
-          temp = LUT_linear[NColumnI*i+:(NColumnI-17)];
-      end
-      if(temp == 0 && opcode !== 7'b0001111) temp[DfSrcSize-1] = 1'b1; // Não achou a instrução
-      find_instruction = temp;
-    end
-  endfunction
-
-  function automatic [DataSize-1:0] CSR_function(
-    input reg [DataSize-1:0] rd_data, input reg [DataSize-1:0] mask, input reg [1:0] op);
-    begin
-      case(op)
-        2'b01: CSR_function = mask; // W
-        2'b10: CSR_function = rd_data | mask; // S
-        2'b11: CSR_function = rd_data & (~mask); // C
-        default: CSR_function = 0;
-      endcase
-    end
-  endfunction
-
   ///////////////////////////////////
   //////// Checker Functions ////////
   ///////////////////////////////////
@@ -582,12 +512,53 @@ module dataflow_tb ();
     endcase
   endfunction
 
+  function automatic forwarding_type_t gen_forwarding_type(input logic [6:0] opcode,
+                                                           input logic [2:0] funct3);
+    unique case (opcode)
+      SType: return Type1_3;
+      Jalr, BType: return Type2;
+      SystemType: begin
+        if(!(mem_wb_tb.funct3 inside {3'h0, 3'h4}) && mem_wb_tb.privilege_mode >= funct7[6:5])
+          return funct3[2] ? NoType : Type2;
+        else return NoType;
+      end
+      AluRType, AluRWType, AluIType, AluIWType, LoadType: return Type1;
+      default: return NoType; // Lui, Auipc, Jal, Fence
+    endcase
+  endfunction
+
+  function automatic logic gen_zicsr(input logic [6:0] opcode,
+                                     input logic [2:0] funct3);
+    return (opcode === SystemType) && !(funct3 inside {3'h0, 3'h4});
+  endfunction
+
+  function automatic logic gen_we_reg_file(input logic [6:0] opcode,
+                                           input logic [2:0] funct3);
+    unique case(opcode)
+      Jal, Jalr, AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc: return 1'b1;
+      SystemType: begin
+        return !(funct3 inside {3'h0, 3'h4}) && (mem_wb_tb.privilege_mode >= funct7[6:5]);
+      end
+      default: return 1'b0; // SType, BType, Fence
+    endcase
+  endfunction
+
+  function automatic [DataSize-1:0] forward_data(input [DataSize-1:0] A, input [DataSize-1:0] B,
+                                                 input [DataSize-1:0] C, input [DataSize-1:0] D,
+                                                 input forwarding_type_t forwarding_type);
+    unique case (forwarding_type)
+      ForwardFromEx:  return B;
+      ForwardFromMem: return C;
+      ForwardFromWb: return D;
+      default: return A; // NoForwarding
+    endcase
+  endfunction
+
   function automatic [DataSize-1:0] gen_alu_y(input logic [DataSize-1:0] A,
     input logic [DataSize-1:0] B, input alu_op_t seletor);
     reg [2*DataSize-1:0] mulh, mulhsu, mulhu;
     begin
-      case (seletor)
-        Add: return $signed(A) + $signed(B);
+      unique case (seletor)
         ShiftLeftLogic: return A << (B[$clog2(DataSize)-1:0]);
         SetLessThan: return ($signed(A) < $signed(B));
         SetLessThanUnsigned: return (A < B);
@@ -614,38 +585,22 @@ module dataflow_tb ();
         DivUnsigned: return A / B;
         Rem: return $signed(A) % $signed(B);
         RemUnsigned: return A % B;
-        default: return 0;
+        default: return return $signed(A) + $signed(B); // Add
       endcase
     end
   endfunction
 
-  // flags da ULA -> Apenas conferidas para B-type
-  assign xorB = B ^ {DataSize{1'b1}};
-  assign {carry_out_, add_sub} = A + xorB + 1;
-  assign zero_ = ~(|add_sub);
-  assign negative_ = add_sub[DataSize-1];
-  assign overflow_ = (~(A[DataSize-1] ^ B[DataSize-1] ^ sub))
-                   & (A[DataSize-1] ^ add_sub[DataSize-1]);
+  function automatic logic gen_rd_en(input logic [6:0] opcode);
+    return (opcode === LoadType);
+  endfunction
 
-  // geração do A_immediate
-  assign A_immediate = A + immediate;
+  function automatic logic gen_wr_en(input logic [6:0] opcode);
+    return (opcode === SType);
+  endfunction
 
-  // sinais do DF vindos da UC
-  assign {
-      // Sinais determinados pelo estado
-      pc_en, // DfSrcSize + 1
-      ir_en, // DfSrcSize
-      illegal_instruction, // DfSrcSize - 1
-      // Sinais determinados pelo opcode
-      alua_src, alub_src,
-      aluy_src,
-      alu_src, sub, arithmetic, alupc_src, wr_reg_src, mem_addr_src, ecall, mret, sret, csr_imm,
-      csr_op, csr_wr_en,
-      // Sinais que não dependem apenas do opcode
-      pc_src,  // NotOnlyOp -1
-      wr_reg_en,  // NotOnlyOp -2
-      mem_wr_en, mem_rd_en, mem_byte_en} = db_df_src;
-
+  ///////////////////////////////////
+  //////// Especial Address /////////
+  ///////////////////////////////////
   // Always to finish the simulation
   always @(posedge mem_wr_en) begin
     if(mem_addr == 16781308) begin // Final write addr
@@ -687,7 +642,7 @@ module dataflow_tb ();
     if(reset) begin
       if_id_tb <= '0;
     end else if(!stall_if) begin
-      if_id_tb.instruction <= inst;
+      if_id_tb.inst <= inst;
       if_id_tb.pc <= new_pc;
     end
   end
@@ -702,11 +657,11 @@ module dataflow_tb ();
       id_ex_tb <= '0;
     end else if(!stall_id) begin
       id_ex_tb.pc <= if_id_tb.pc;
-      id_ex_tb.rs1 <= if_id_tb.instruction === Lui ? 5'h0 : if_id_tb.instruction[19:15];
-      id_ex_tb.read_data_1 <= rd_data1;
-      id_ex_tb.rs2 <= if_id_tb.instruction[24:20];
-      id_ex_tb.read_data_1 <= rd_data2;
-      id_ex_tb.rd <= if_id_tb.instruction[11:7];
+      id_ex_tb.rs1 <= if_id_tb.inst === Lui ? 5'h0 : if_id_tb.inst[19:15];
+      id_ex_tb.read_data_1 <= rd_data1_f;
+      id_ex_tb.rs2 <= if_id_tb.inst[24:20];
+      id_ex_tb.read_data_2 <= rd_data2_f;
+      id_ex_tb.rd <= if_id_tb.inst[11:7];
       id_ex_tb.imm <= immediate;
       id_ex_tb.csr_read_data <= {csr_rd_data[DATA_SIZE-1:10],
             (csr_rd_data[9] | (external_interrupt & (if_id_reg.inst[31:20] inside {Mip, Sip}))),
@@ -716,18 +671,29 @@ module dataflow_tb ();
   end
 
   always_comb begin: decode_gen_aux
-    csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1;
-    new_pc = gen_new_pc(if_id_tb.inst, if_id_tb.pc, immediate, rd_data1, rd_data2, mepc, sepc,
+    rd_data1_f = forward_data(rd_data1, csr_rd_data, gen_zicsr(ex_mem_tb.inst[6:0],
+                ex_mem_tb.inst[14:12]) ? ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
+                reg_data, forward_rs1_id);
+    rd_data2_f = forward_data(rd_data2, csr_rd_data, gen_zicsr(ex_mem_tb.inst[6:0],
+                ex_mem_tb.inst[14:12]) ? ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
+                reg_data, forward_rs2_id);
+    csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1_f;
+    new_pc = gen_new_pc(if_id_tb.inst, if_id_tb.pc, immediate, rd_data1_f, rd_data2_f, mepc, sepc,
                         trap, trap_addr);
   end
 
   always @(posedge clock) begin: decode_check
-    CHK_OPCODE: assert(opcode === id_ex_tb.instruction[6:0]);
-    CHK_FUNCT3: assert(funct3 === id_ex_tb.instruction[14:12]);
-    CHK_FUNCT7: assert(funct7 === id_ex_tb.instruction[31:25]);
+    CHK_OPCODE: assert(opcode === id_ex_tb.inst[6:0]);
+    CHK_FUNCT3: assert(funct3 === id_ex_tb.inst[14:12]);
+    CHK_FUNCT7: assert(funct7 === id_ex_tb.inst[31:25]);
     CHK_PRIVILEGE_MODE: assert(privilege_mode === privilege_mode_tb);
     CHK_ADDR_INVALID: assert(csr_addr_invalid === csr_addr_invalid_tb);
     CHK_CSR_WR_DATA: assert(csr_wr_data === DUT.csr_bank.wr_data);
+    CHK_FORWARDING_TYPE_ID: assert(forwarding_type_id === gen_forwarding_type(
+                                        id_ex_tb.inst[6:0], id_ex_tb.inst[14:12]));
+    CHK_STORE_ID: assert(store_id === gen_wr_en(id_ex_tb.inst.opcode));
+    CHK_RS1_ID: assert(rs1_id === id_ex_tb.rs1);
+    CHK_RS2_ID: assert(rs2_id === id_ex_tb.rs2);
   end
 
   // Execute
@@ -740,25 +706,46 @@ module dataflow_tb ();
       ex_mem_tb.rd <= id_ex_tb.rd;
       ex_mem_tb.csr_read_data <= id_ex_tb.csr_read_data;
       ex_mem_tb.alu_y <= alu_y;
-      ex_mem_tb.write_data <= id_ex_tb.read_data_2;
+      ex_mem_tb.write_data <= alu_b_f;
       ex_mem_tb.inst <= id_ex_tb.inst;
     end
   end
 
   always_comb begin: execute_gen_aux
     alu_y = 'x;
+    alu_a_f = forward_data(id_ex_tb.read_data_1, id_ex_tb.read_data_1,
+                           gen_zicsr(ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12]) ?
+                           ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
+                           reg_data, forward_rs1_ex);
+    alu_b_f = forward_data(id_ex_tb.read_data_2, id_ex_tb.read_data_2,
+                           gen_zicsr(ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12]) ?
+                           ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
+                           reg_data, forward_rs2_ex);
     unique case(id_ex_tb.inst.opcode)
-      LoadType, SType: alu_y = id_ex_tb.read_data_1 + id_ex_tb.imm;
+      LoadType, SType: alu_y = alu_a_f + id_ex_tb.imm;
       Lui: alu_y = id_ex_tb.imm;
       Auipc: alu_y = id_ex_tb.pc + id_ex_tb.imm;
-      AluRType, AluRWType: alu_y = gen_alu_y(id_ex_tb.read_data_1, id_ex_tb.read_data_2,
+      AluRType, AluRWType: alu_y = gen_alu_y(alu_a_f, alu_b_f,
                   alu_op_t'({id_ex_tb.inst[30], id_ex_tb.inst[25], id_ex_tb.inst[14:12]}));
-      AluIType, AluIWType: alu_y = gen_alu_y(id_ex_tb.read_data_1, id_ex_tb.imm,
+      AluIType, AluIWType: alu_y = gen_alu_y(alu_a_f, id_ex_tb.imm,
                   alu_op_t'({id_ex_tb.inst[30] & (id_ex_tb.inst[14:12] == 3'b101), 1'b0,
                             id_ex_tb.inst[14:12]}));
-      default: begin
+      default: begin // BType, Jal, Jalr, Fence, SystemType
       end
     endcase
+  end
+
+  always @(posedge clock) begin: execute_check
+    CHK_FORWARDING_TYPE_EX: assert(forwarding_type_ex === gen_forwarding_type(
+                                        ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12]));
+    CHK_ZICSR_EX: assert(zicsr_ex === gen_zicsr(ex_mem_tb.inst[6:0],
+                                                ex_mem_tb.inst[14:12]));
+    CHK_REG_WE_EX: assert(reg_we_ex === gen_we_reg_file(ex_mem_tb.inst[6:0],
+                                                        ex_mem_tb.inst[14:12]));
+    CHK_MEM_RD_EN_EX: assert(mem_rd_en_ex === gen_rd_en(ex_mem_tb.inst.opcode));
+    CHK_RS1_EX: assert(rs1_ex === ex_mem_tb.inst[19:15]);
+    CHK_RS2_EX: assert(rs2_ex === ex_mem_tb.rs2);
+    CHK_RD_EX: assert(rd_ex === ex_mem_tb.rd);
   end
 
   // Memory
@@ -775,226 +762,51 @@ module dataflow_tb ();
     end
   end
 
+  always_ff @(posedge clock iff (not mem_busy), posedge reset) begin: memory_gen_aux
+    wr_data_f <= forward_data(ex_mem_tb.wr_data, ex_mem_tb.wr_data, ex_mem_tb.wr_data,
+                              reg_data, forward_rs2_mem);
+  end
+
   always @(posedge clock) begin: memory_check
-    CHK_RD_EN: assert(rd_en === (mem_wb_tb.inst === LoadType));
-    CHK_WR_EN: assert(wr_en === (mem_wb_tb.inst === SType));
-    CHK_WR_DATA: assert(wr_data === mem_wb_tb.write_data);
+    CHK_RD_EN: assert(rd_en === gen_rd_en(mem_wb_tb.inst.opcode));
+    CHK_WR_EN: assert(wr_en === gen_wr_en(mem_wb_tb.inst.opcode));
+    CHK_WR_DATA: assert(wr_data === wr_data_f);
     CHK_DATA_MEM_ADDR: assert(data_mem_addr === mem_wb_tb.alu_y);
+    CHK_FORWARDING_TYPE_MEM: assert(forwarding_type_mem === gen_forwarding_type(
+                                        mem_wb_tb.inst[6:0], mem_wb_tb.inst[14:12]));
+    CHK_REG_WE_MEM: assert(reg_we_mem === gen_we_reg_file(mem_wb_tb.inst[6:0],
+                                                        mem_wb_tb.inst[14:12]));
+    CHK_MEM_RD_EN_EX: assert(mem_rd_en_mem === gen_rd_en(mem_wb_tb.inst.opcode));
+    CHK_RS2_MEM: assert(rs2_mem === mem_wb_tb.inst[24:20]);
+    CHK_RD_MEM: assert(rd_mem === mem_wb_tb.rd);
   end
 
   // Write Back
   always_comb begin: write_back_gen_aux
-    we_reg_file = 1'b0;
+    we_reg_file = gen_we_reg_file(mem_wb_tb.inst[6:0], mem_wb_tb.inst[14:12]);
     reg_data = mem_wb_tb.alu_y;
     unique case(mem_wb_tb.inst.opcode)
-      Jal, Jalr: begin
-        we_reg_file = 1'b1;
-        reg_data = mem_wb_tb.pc + 4;
-      end
-      LoadType: begin
-        we_reg_file = 1'b1;
-        reg_data = mem_wb_tb.read_data;
-      end
+      Jal, Jalr: reg_data = mem_wb_tb.pc + 4;
+      LoadType: reg_data = mem_wb_tb.read_data;
       SystemType: begin
-        if(mem_wb_tb.funct3 !== 3'b100 && mem_wb_tb.privilege_mode >= funct7[6:5]) begin
-          we_reg_file = 1'b1;
+        if(!(mem_wb_tb.funct3 inside {3'h0, 3'h4}) && (mem_wb_tb.privilege_mode >= funct7[6:5]))
           reg_data = mem_wb_tb.read_data;
-        end
       end
-      AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc: we_reg_file = 1'b1;
-      default: begin // SType
+      default: begin // AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc, SType, BType, Fence
       end
     endcase
   end
 
   always @(posedge clock) begin: write_back_check
     CHK_REG_DATA: assert(reg_data === DUT.bank.write_data);
-    CHK_WR_REG_EN: assert(wr_en === DUT.bank.write_enable);
+    CHK_REG_WE_WB: assert(we_reg_file === DUT.bank.write_enable);
   end
-
-  task automatic DoDecode();
-    begin
-      @(negedge clock);
-      // Checo opcode, funct3 e funct7
-      `ASSERT(opcode === instruction[6:0]);
-      `ASSERT(funct3 === instruction[14:12]);
-      `ASSERT(funct7 === instruction[31:25]);
-      // Obtenho os sinais da UC -> Sheets
-      df_src = find_instruction(opcode, funct3, funct7, LUT_linear);
-      db_df_src = 0;
-    end
-  endtask
-
-  task automatic DoExecute();
-    begin
-      // Atribuo ao tb os valores do sheets
-      db_df_src[DfSrcSize:NotOnlyOp] = {1'b0, df_src[DfSrcSize-1:NotOnlyOp]};
-      db_df_src[NotOnlyOp-3:0] = df_src[NotOnlyOp-3:0];
-      case (opcode)
-        // Store(S*) e Load(L*)
-        7'b0100011, 7'b0000011: begin
-          db_df_src[NotOnlyOp-1] = df_src[NotOnlyOp-1];
-          @(negedge clock);
-          // Confiro o endereço de acesso
-          `ASSERT(mem_addr === A + immediate);
-          // Caso seja store -> confiro a palavra a ser escrita
-          if (opcode[5]) `ASSERT(wr_data === B);
-          @(posedge mem_ack);
-          db_df_src[ByteNum+1:ByteNum] = 2'b00;
-          // caso necessário escrevo no banco
-          db_df_src[NotOnlyOp-2] = df_src[NotOnlyOp-2];
-          db_df_src[DfSrcSize+1] = 1'b1; // Incremento PC
-          if (!opcode[5]) reg_data = rd_data;
-          @(negedge clock);
-          // Caso load -> confiro a leitura
-          if (!opcode[5]) `ASSERT(DUT.rd === reg_data);
-          next_pc = pc + 4;
-        end
-        // Branch(B*)
-        7'b1100011: begin
-          @(negedge clock);
-          // Decido o valor de pc_src com base em funct3 e no valor das flags simuladas
-          if (funct3[2:1] === 2'b00) db_df_src[NotOnlyOp-1] = zero_ ^ funct3[0];
-          else if (funct3[2:1] === 2'b10) db_df_src[NotOnlyOp-1] = negative_ ^ overflow ^ funct3[0];
-          else if (funct3[2:1] === 2'b11) db_df_src[NotOnlyOp-1] = carry_out_ ~^ funct3[0];
-          else begin
-            $display("Error B-type: Invalid funct3! funct3 : %x", funct3);
-            $stop;
-          end
-          pc_4                   = pc + 4;
-          pc_imm                 = pc + immediate;
-          db_df_src[DfSrcSize+1] = 1'b1;
-          db_df_src[NotOnlyOp-2] = 1'b0;
-          // Decido o próximo valor de pc
-          if (db_df_src[NotOnlyOp-1]) next_pc = pc_imm;
-          else next_pc = pc_4;
-          // Confiro as flags da ULA
-          `ASSERT(overflow === overflow_);
-          `ASSERT(carry_out === carry_out_);
-          `ASSERT(negative === negative_);
-          `ASSERT(zero === zero_);
-        end
-        // LUI e AUIPC
-        7'b0110111, 7'b0010111: begin
-          // Habilito o pc e o banco
-          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
-          db_df_src[DfSrcSize+1] = 1'b1;
-          if (opcode[5]) reg_data = immediate;  // LUI
-          else reg_data = pc + immediate;  // AUIPC
-          next_pc = pc + 4;
-          @(negedge clock);
-          // Confiro se reg_data está correto
-          `ASSERT(reg_data === DUT.rd);
-        end
-        // JAL e JALR
-        7'b1101111, 7'b1100111: begin
-          // Habilito pc e o banco
-          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
-          db_df_src[DfSrcSize+1] = 1'b1;
-          reg_data = pc + 4;  // escrever pc + 4 no banco -> Link
-          @(negedge clock);
-          if (opcode[3]) pc_imm = pc + immediate;  // JAL
-          else pc_imm = {A_immediate[31:1], 1'b0};  // JALR
-          next_pc = pc_imm;
-          // Confiro a escrita no banco
-          `ASSERT(DUT.rd === reg_data);
-        end
-        // ULA R/I-type
-        7'b0010011, 7'b0110011, 7'b0011011, 7'b0111011: begin
-          // Habilito pc e o banco
-          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = {df_src[NotOnlyOp-1], 1'b1};
-          db_df_src[DfSrcSize+1] = 1'b1;
-          @(negedge clock);
-          // Uso ULA_function para calcular o reg_data
-          aluA = opcode[3] ? {{32{A[31]}}, A[31:0]} : A;
-          aluB = opcode[3] ? {{32{B[31]}}, B[31:0]} : B;
-          if (opcode[5]) reg_data = ULA_function(aluA, aluB, {funct7[0], funct7[5], funct3});
-          else if (funct3 === 3'b101) reg_data = ULA_function(aluA, immediate, {funct7[0] &
-                                                (opcode != 7'b0010011), funct7[5], funct3});
-          else reg_data = ULA_function(aluA, immediate, {2'b00, funct3});
-          // opcode[3] = 1'b1 -> RV64I
-          if (opcode[3]) reg_data = {{32{reg_data[31]}}, reg_data[31:0]};
-          next_pc = pc + 4;
-          // Verifico reg_data
-          `ASSERT(reg_data === DUT.rd);
-        end
-        // FENCE
-        7'b0001111: begin
-          // Conservativo: NOP
-          db_df_src[DfSrcSize+1] = 1'b1;
-          next_pc = pc + 4;
-          @(negedge clock);
-        end
-        // ECALL, MRET, SRET, CSRR* (SYSTEM)
-        7'b1110011: begin
-          db_df_src[NotOnlyOp-1:NotOnlyOp-2] = df_src[NotOnlyOp-1:NotOnlyOp-2];
-          db_df_src[DfSrcSize+1] = 1'b1;
-          @(negedge clock);
-          if(funct3 === 3'b000) begin
-            if(funct7 === 0) next_pc = trap_addr; // Ecall
-            else if(funct7 === 7'b0011000 && privilege_mode === 2'b11) next_pc = mepc; // MRET
-            else if(funct7 === 7'b0001000 && privilege_mode[0] === 1'b1) next_pc = sepc; // SRET
-            else begin
-              $display("Error SYSTEM: Invalid funct7! funct7 : %x", funct7);
-              $stop;
-            end
-          end
-          else if(funct3 !== 3'b100) begin // CSRR*
-            reg_data = csr_rd_data;
-            if(instruction[31:20] == 12'h344 || instruction[31:20] == 12'h144)
-              reg_data[registradores_de_controle.SEIP] =
-                csr_rd_data[registradores_de_controle.SEIP] | external_interrupt;
-            if(funct3[2]) csr_wr_data = CSR_function(csr_rd_data, instruction[19:15], funct3[1:0]);
-            else csr_wr_data = CSR_function(csr_rd_data, A, funct3[1:0]);
-            // Sempre checo a leitura/escrita até se ela não acontecer
-            if(csr_addr_exception_) db_df_src[DfSrcSize-1] = 1'b1;
-            `ASSERT(csr_addr_exception === csr_addr_exception_);
-            if(privilege_mode >= funct7[4:3]) begin
-              `ASSERT(csr_wr_data === DUT.csr_wr_data);
-              `ASSERT(reg_data === DUT.rd);
-            end
-            next_pc = pc + 4;
-          end
-          else begin
-              $display("Error SYSTEM: Invalid funct3! funct3 : %x", funct3);
-              $stop;
-          end
-        end
-        default: begin
-          // Habilito pc e illegal_instruction
-          db_df_src[DfSrcSize-1] = 1'b1;
-          db_df_src[DfSrcSize+1] = 1'b1;
-          @(negedge clock);
-        end
-      endcase
-    end
-  endtask
 
   // testar o DUT
   initial begin
-    if(HasRV64I)
-      $readmemb("./MIFs/core/core/RV64I.mif", LUT_uc);
-    else
-      $readmemb("./MIFs/core/core/RV32I.mif", LUT_uc);
     $display("SOT!");
-    for (i = 0; i < limit; i = i + 1) begin
-      $display("Test: %d", i);
-      case(estado)
-        Fetch: DoFetch;
-        Decode: DoDecode;
-        Execute: DoExecute;
-        default: DoReset;
-      endcase
-      #1;
-      `ASSERT(DUT._trap === csr_trap);
-      `ASSERT(privilege_mode === csr_privilege_mode);
-      _trap = csr_trap;
-      _trap_addr = trap_addr;
+    repeat(limit) begin
       @(posedge clock);
-      // Atualizando estado  e pc
-      estado = (estado + 1)%3;
-      pc = _trap ? _trap_addr : next_pc;
-      next_pc = pc;
     end
     $stop;
   end

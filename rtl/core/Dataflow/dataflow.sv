@@ -237,8 +237,7 @@ module dataflow #(
       id_ex_reg.rd <= if_id_reg.inst[11:7];
       id_ex_reg.imm <= immediate;
       id_ex_reg.csr_read_data <= csr_mask_rd_data;
-      id_ex_reg.zicsr <=
-        if_id_reg.inst.opcode == SystemType && ~if_id_reg.inst.fields.i_type.funct3;
+      id_ex_reg.zicsr <= (if_id_reg.wr_reg_src === 2'b01);
       id_ex_reg.mem_read_enable <= mem_rd_en;
       id_ex_reg.mem_wr_en <= mem_wr_en;
       id_ex_reg.mem_byte_en <= mem_byte_en;
