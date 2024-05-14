@@ -8,7 +8,7 @@ module forwarding_unit_tb ();
 
   // DUT Signals
   forwarding_type_t forwarding_type_id, forwarding_type_ex, forwarding_type_mem;
-  logic reg_we_mem, reg_we_wb, zicsr_ex;
+  logic reg_we_ex, reg_we_mem, reg_we_wb, zicsr_ex;
   logic [4:0] rd_ex, rd_mem, rd_wb, rs1_id, rs2_id, rs1_ex, rs2_ex, rs2_mem;
   forwarding_t forward_rs1_id, forward_rs2_id, forward_rs1_ex, forward_rs2_ex, forward_rs2_mem;
 
@@ -38,9 +38,10 @@ module forwarding_unit_tb ();
   function automatic forwarding_t get_forward_t(
       input logic [4:0] rs, input logic rs_num, input logic [4:0] rd_ex, input logic [4:0] rd_mem,
       input logic [4:0] rd_wb, input forwarding_type_t forward_type, input stages_t stage,
-      input logic reg_we_mem, input logic reg_we_wb, input logic zicsr_ex = 1'b0);
+      input logic reg_we_ex, input logic reg_we_mem, input logic reg_we_wb,
+      input logic zicsr_ex = 1'b0);
     if (match_registers(
-            rs, rd_ex, zicsr_ex
+            rs, rd_ex, reg_we_ex
         ) && check_type(
             forward_type, stage, Execute, rs_num, zicsr_ex
         ))
@@ -63,7 +64,7 @@ module forwarding_unit_tb ();
   forwarding_unit DUT (.*);
 
   initial begin : verify_dut
-    logic forwarding_temp_ex, forwarding_temp_mem;
+    $display("SOT!");
     repeat (number_of_tests) begin
       forwarding_type_id = forwarding_type_t'($urandom() % forwarding_type_id.num());
       {forwarding_type_ex, forwarding_type_mem} = $urandom();
@@ -79,6 +80,7 @@ module forwarding_unit_tb ();
           rd_wb,
           forwarding_type_id,
           Decode,
+          reg_we_ex,
           reg_we_mem,
           reg_we_wb,
           zicsr_ex
@@ -92,24 +94,26 @@ module forwarding_unit_tb ();
           rd_wb,
           forwarding_type_id,
           Decode,
+          reg_we_ex,
           reg_we_mem,
           reg_we_wb,
           zicsr_ex
       ));
       CHECK_RS1_EX :
       assert (forward_rs1_ex === get_forward_t(
-          rs1_ex, 1'b0, rd_ex, rd_mem, rd_wb, forwarding_type_ex, Execute, reg_we_mem, reg_we_wb
-      ));
+          rs1_ex, 1'b0, rd_ex, rd_mem, rd_wb, forwarding_type_ex, Execute, 1'b0, reg_we_mem,
+          reg_we_wb));
       CHECK_RS2_EX :
       assert (forward_rs2_ex === get_forward_t(
-          rs2_ex, 1'b1, rd_ex, rd_mem, rd_wb, forwarding_type_ex, Execute, reg_we_mem, reg_we_wb
-      ));
+          rs2_ex, 1'b1, rd_ex, rd_mem, rd_wb, forwarding_type_ex, Execute, 1'b0, reg_we_mem,
+          reg_we_wb));
       CHECK_RS2_MEM :
       assert (forward_rs2_mem === get_forward_t(
-          rs2_mem, 1'b1, rd_ex, rd_mem, rd_wb, forwarding_type_mem, Memory, 1'b0, reg_we_wb
+          rs2_mem, 1'b1, rd_ex, rd_mem, rd_wb, forwarding_type_mem, Memory, 1'b0, 1'b0, reg_we_wb
       ));
       #5;
     end
+    $display("EOT!");
     $stop();
   end : verify_dut
 
