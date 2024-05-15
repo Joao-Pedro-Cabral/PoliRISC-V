@@ -3,6 +3,8 @@ import dataflow_pkg::*;
 import hazard_unit_pkg::*;
 import instruction_pkg::*;
 import branch_decoder_unit_pkg::*;
+import alu_pkg::*;
+import forwarding_unit_pkg::*;
 
 module dataflow #(
     parameter integer DATA_SIZE = 32
@@ -157,10 +159,10 @@ module dataflow #(
       PcPlus4: begin
         new_pc = trap_addr;
       end
-      Sepc: begin
+      SupervisorExceptionPC: begin
         new_pc = sepc;
       end
-      Mepc: begin
+      MachineExceptionPC: begin
         new_pc = mepc;
       end
       PcOrReadDataPlusImm: begin

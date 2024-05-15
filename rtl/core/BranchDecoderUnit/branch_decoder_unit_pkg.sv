@@ -20,8 +20,8 @@ package branch_decoder_unit_pkg;
 
   typedef enum logic [1:0] {
     PcPlus4,
-    Sepc,
-    Mepc,
+    SupervisorExceptionPC,
+    MachineExceptionPC,
     PcOrReadDataPlusImm
   } pc_src_t;
 

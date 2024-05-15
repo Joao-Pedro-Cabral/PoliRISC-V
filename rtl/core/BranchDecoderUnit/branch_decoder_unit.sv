@@ -18,8 +18,8 @@ module branch_decoder_unit #(
   always_comb begin : pc_src_proc
     unique case (branch_type)
       NoBranch: pc_src = PcPlus4;
-      Sret: pc_src = Sepc;
-      Mret: pc_src = Mepc;
+      Sret: pc_src = SupervisorExceptionPC;
+      Mret: pc_src = MachineExceptionPC;
       Jump: pc_src = PcOrReadDataPlusImm;
       default: pc_src = cond_branch_taken ? PcOrReadDataPlusImm : PcPlus4;  // CondBranch
     endcase

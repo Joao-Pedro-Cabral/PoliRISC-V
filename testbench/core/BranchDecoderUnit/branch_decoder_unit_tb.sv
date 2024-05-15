@@ -35,13 +35,13 @@ module branch_decoder_unit_tb;
         Mret: begin
           #Interval;
           MRET :
-          assert (pc_src == Mepc) $display("Case %s: OK", branch_type_vec[i].name());
+          assert (pc_src == MachineExceptionPC) $display("Case %s: OK", branch_type_vec[i].name());
           else $stop;
         end
         Sret: begin
           #Interval;
           SRET :
-          assert (pc_src == Sepc) $display("Case %s: OK", branch_type_vec[i].name());
+          assert (pc_src == SupervisorExceptionPC) $display("Case %s: OK", branch_type_vec[i].name());
           else $stop;
         end
         Jump: begin
