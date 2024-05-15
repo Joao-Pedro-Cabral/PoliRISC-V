@@ -11,6 +11,8 @@ module dataflow_tb ();
   import instruction_pkg::*;
   import branch_decoder_unit_pkg::*;
   import dataflow_tb_pkg::*;
+  import forwarding_unit_pkg::*;
+  import alu_pkg::*;
 
   ///////////////////////////////////
   //////////// Parameters ///////////
@@ -18,9 +20,8 @@ module dataflow_tb ();
   // Wishbone
   localparam integer CacheSize = 8192;
   localparam integer SetSize = 1;
-  localparam integer HasRV64I = (DataSize == 64);
   localparam integer InstDataSize = 32;
-  localparam integer DataSize = 32;
+  localparam integer HasRV64I = (DataSize == 64);
   localparam integer CacheDataSize = 128;
   localparam integer ProcAddrSize = 32;
   localparam integer PeriphAddrSize = 3;
@@ -35,6 +36,8 @@ module dataflow_tb ();
   localparam reg [63:0] UartAddrMask = 64'hFFFFFFFFFFFFF000;
   localparam reg [63:0] CsrAddr = 64'hFFFFFFFFFFFFFFC0;
   localparam reg [63:0] CsrAddrMask = 64'hFFFFFFFFFFFFFFC0;
+  // MTIME
+  localparam integer ClockCycles = 100;
 
   ///////////////////////////////////
   /////////// DUT Signals ///////////
@@ -76,11 +79,11 @@ module dataflow_tb ();
   logic csr_imm;
   // Interrupts from Memory
   logic external_interrupt;
-  logic [DataSize-1:0] mem_msip;
-  logic [63:0] mem_mtime;
-  logic [63:0] mem_mtimecmp;
+  logic [DataSize-1:0] msip;
+  logic [63:0] mtime;
+  logic [63:0] mtimecmp;
   // To Control Unit
-  logic [6:0] opcode;
+  opcode_t opcode;
   logic [2:0] funct3;
   logic [6:0] funct7;
   logic csr_addr_invalid;
@@ -202,14 +205,14 @@ module dataflow_tb ();
   logic [DataSize-1:0] new_pc = 0;
   // Decode
   id_ex_tb_t id_ex_tb;
-  logic [DataSize-1:0] immediate = 0;
+  logic [DataSize-1:0] immediate;
   logic [DataSize-1:0] rd_data1, rd_data1_f, rd_data2, rd_data2_f;
   logic [DataSize-1:0] csr_rd_data, csr_wr_data;
   logic trap;
   logic [DataSize-1:0] trap_addr;
-  logic csr_addr_invalid_tb = 0;
+  logic csr_addr_invalid_tb;
   logic [DataSize-1:0] mepc, sepc;
-  privilege_mode_t privilege_mode_tb = Machine;
+  privilege_mode_t privilege_mode_tb;
   logic branch_taken;
   // Execute
   ex_mem_tb_t ex_mem_tb;
@@ -232,7 +235,7 @@ module dataflow_tb ();
   ///////////////////////////////////
   //////////// DUT //////////////////
   ///////////////////////////////////
-  dataflow (
+  dataflow #(
     .DATA_SIZE(DataSize)
   ) DUT (
     .clock,
@@ -255,7 +258,6 @@ module dataflow_tb ();
     .mem_rd_en,
     .mem_wr_en,
     .mem_byte_en,
-    .mem_addr_src,
     .forwarding_type,
     .branch_type,
     .cond_branch_type,
@@ -264,9 +266,9 @@ module dataflow_tb ();
     .csr_op,
     .csr_imm,
     .external_interrupt,
-    .mem_msip,
-    .mem_mtime,
-    .mem_mtimecmp,
+    .msip,
+    .mtime,
+    .mtimecmp,
     .opcode,
     .funct3,
     .funct7,
@@ -328,7 +330,7 @@ module dataflow_tb ();
     .inst_mem_ack(wish_proc0.ack),
     .inst_mem_rd_dat(wish_proc0.dat_i_p),
     .data_mem_ack(wish_proc1.ack),
-    .data_mem_rd_dat(wish_proc1.dat_i_p),,
+    .data_mem_rd_dat(wish_proc1.dat_i_p),
     .inst_mem_en(wish_proc0.cyc),
     .inst_mem_dat(inst),
     .data_mem_en(wish_proc1.cyc),
@@ -366,7 +368,7 @@ module dataflow_tb ();
       .SET_SIZE(SetSize)
   ) data_cache (
     .wb_if_ctrl(wish_cache_data0),
-    .wb_if_mem(wish_cache_inst1)
+    .wb_if_mem(wish_cache_data1)
   );
 
   // Instruction Memory
@@ -386,7 +388,10 @@ module dataflow_tb ();
   );
 
   // Registradores em memória do CSR
-  csr_mem mem_csr (
+  csr_mem #(
+    .DATA_SIZE(DataSize),
+    .CLOCK_CYCLES(ClockCycles)
+  ) mem_csr (
       .wb_if_s(wish_csr),
       .msip(msip),
       .mtime(mtime),
@@ -441,7 +446,9 @@ module dataflow_tb ();
       .read_data2(rd_data2)
   );
 
-  CSR control_status_register (
+  csr #(
+    .DATA_SIZE(DataSize)
+  ) control_status_register (
       // General
       .clock(clock),
       .reset(reset),
@@ -453,9 +460,9 @@ module dataflow_tb ();
       .wr_data(csr_wr_data),
       .rd_data(csr_rd_data),
       // Memory Interrupt
-      .mem_msip(|msip),
-      .mem_mtime(mtime),
-      .mem_mtimecmp(mtimecmp),
+      .msip(|msip),
+      .mtime(mtime),
+      .mtimecmp(mtimecmp),
       // External Interrupt
       .external_interrupt(external_interrupt),
       // Control Unit Exception
@@ -493,7 +500,7 @@ module dataflow_tb ();
     unique case(instruction.opcode)
       Jal, Jalr: return pc + imm;
       BType: begin
-        unique case (instruction.b_type.funct3)
+        unique case (instruction.fields.b_type.funct3)
           Beq:  return (A === B) ? pc + imm : pc + 4;
           Bne:  return (A !== B) ? pc + imm : pc + 4;
           Blt:  return ($signed(A)   <  $signed(B))   ? pc + imm : pc + 4;
@@ -504,8 +511,8 @@ module dataflow_tb ();
         endcase
       end
       SystemType: begin
-        if(instruction.r_type.funct7 == 7'h18) return mepc;
-        else if(instruction.r_type.funct7 == 7'h08) return sepc;
+        if(instruction.fields.r_type.funct7 == 7'h18) return mepc;
+        else if(instruction.fields.r_type.funct7 == 7'h08) return sepc;
         return pc + 4;
       end
       default: return pc + 4;
@@ -513,12 +520,14 @@ module dataflow_tb ();
   endfunction
 
   function automatic forwarding_type_t gen_forwarding_type(input logic [6:0] opcode,
-                                                           input logic [2:0] funct3);
+                                                           input logic [2:0] funct3,
+                                                           input logic [6:0] funct7 = 7'h0,
+                                                           input logic [1:0] privilege_mode = 2'h3);
     unique case (opcode)
       SType: return Type1_3;
       Jalr, BType: return Type2;
       SystemType: begin
-        if(!(mem_wb_tb.funct3 inside {3'h0, 3'h4}) && mem_wb_tb.privilege_mode >= funct7[6:5])
+        if(!(funct3 inside {3'h0, 3'h4}) && privilege_mode >= funct7[6:5])
           return funct3[2] ? NoType : Type2;
         else return NoType;
       end
@@ -537,15 +546,15 @@ module dataflow_tb ();
     unique case(opcode)
       Jal, Jalr, AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc: return 1'b1;
       SystemType: begin
-        return !(funct3 inside {3'h0, 3'h4}) && (mem_wb_tb.privilege_mode >= funct7[6:5]);
+        return !(funct3 inside {3'h0, 3'h4}); // This function only executes after Decode
       end
       default: return 1'b0; // SType, BType, Fence
     endcase
   endfunction
 
-  function automatic [DataSize-1:0] forward_data(input [DataSize-1:0] A, input [DataSize-1:0] B,
-                                                 input [DataSize-1:0] C, input [DataSize-1:0] D,
-                                                 input forwarding_type_t forwarding_type);
+  function automatic [DataSize-1:0] forward_data(input logic [DataSize-1:0] A,
+                   input logic [DataSize-1:0] B, input logic [DataSize-1:0] C,
+                   input logic [DataSize-1:0] D, input forwarding_t forwarding_type);
     unique case (forwarding_type)
       ForwardFromEx:  return B;
       ForwardFromMem: return C;
@@ -585,7 +594,7 @@ module dataflow_tb ();
         DivUnsigned: return A / B;
         Rem: return $signed(A) % $signed(B);
         RemUnsigned: return A % B;
-        default: return return $signed(A) + $signed(B); // Add
+        default: return $signed(A) + $signed(B); // Add
       endcase
     end
   endfunction
@@ -603,7 +612,7 @@ module dataflow_tb ();
   ///////////////////////////////////
   // Always to finish the simulation
   always @(posedge mem_wr_en) begin
-    if(mem_addr == 16781308) begin // Final write addr
+    if(data_mem_addr == 16781308) begin // Final write addr
       $display("End of program!");
       $display("Write data: 0x%x", wr_data);
       $stop;
@@ -613,32 +622,14 @@ module dataflow_tb ();
   // Always to set/reset external_interrupt
   always @(posedge clock, posedge reset) begin
     if(reset) external_interrupt = 1'b0;
-    else if(mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
+    else if(data_mem_addr == ExternalInterruptAddress && mem_wr_en) external_interrupt = |wr_data;
   end
 
   ///////////////////////////////////
   /////// Dataflow Simulator ////////
   ///////////////////////////////////
-  task automatic DoReset();
-    begin
-      db_df_src = 0;
-      reg_data = 0;
-      aluA = 0;
-      aluB = 0;
-      csr_wr_data = 0;
-      pc_4 = 0;
-      pc_imm = 0;
-      @(negedge clock);
-      reset = 1'b1;
-      @(posedge clock);
-      @(negedge clock);
-      reset = 1'b0;
-      next_pc = pc;
-    end
-  endtask
-
   // Fetch
-  always @(posedge clock iff (not mem_busy), posedge reset) begin: fetch_gen
+  always @(posedge clock iff (!mem_busy), posedge reset) begin: fetch_gen
     if(reset) begin
       if_id_tb <= '0;
     end else if(!stall_if) begin
@@ -652,7 +643,7 @@ module dataflow_tb ();
   end
 
   // Decode
-  always @(posedge clock iff (not mem_busy), posedge reset) begin: decode_gen
+  always @(posedge clock iff (!mem_busy), posedge reset) begin: decode_gen
     if(reset || flush_id) begin
       id_ex_tb <= '0;
     end else if(!stall_id) begin
@@ -663,8 +654,8 @@ module dataflow_tb ();
       id_ex_tb.read_data_2 <= rd_data2_f;
       id_ex_tb.rd <= if_id_tb.inst[11:7];
       id_ex_tb.imm <= immediate;
-      id_ex_tb.csr_read_data <= {csr_rd_data[DATA_SIZE-1:10],
-            (csr_rd_data[9] | (external_interrupt & (if_id_reg.inst[31:20] inside {Mip, Sip}))),
+      id_ex_tb.csr_read_data <= {csr_rd_data[DataSize-1:10],
+            (csr_rd_data[9] | (external_interrupt & (if_id_tb.inst[31:20] inside {Mip, Sip}))),
                                  csr_rd_data[8:0]};
       id_ex_tb.inst <= if_id_tb.inst;
     end
@@ -689,15 +680,16 @@ module dataflow_tb ();
     CHK_PRIVILEGE_MODE: assert(privilege_mode === privilege_mode_tb);
     CHK_ADDR_INVALID: assert(csr_addr_invalid === csr_addr_invalid_tb);
     CHK_CSR_WR_DATA: assert(csr_wr_data === DUT.csr_bank.wr_data);
+    // Check Privilege only in decode
     CHK_FORWARDING_TYPE_ID: assert(forwarding_type_id === gen_forwarding_type(
-                                        id_ex_tb.inst[6:0], id_ex_tb.inst[14:12]));
+        id_ex_tb.inst[6:0], id_ex_tb.inst[14:12], id_ex_tb.inst[31:25], privilege_mode_tb));
     CHK_STORE_ID: assert(store_id === gen_wr_en(id_ex_tb.inst.opcode));
     CHK_RS1_ID: assert(rs1_id === id_ex_tb.rs1);
     CHK_RS2_ID: assert(rs2_id === id_ex_tb.rs2);
   end
 
   // Execute
-  always @(posedge clock iff (not mem_busy), posedge reset) begin: execute_gen
+  always @(posedge clock iff (!mem_busy), posedge reset) begin: execute_gen
     if(reset || flush_ex) begin
       ex_mem_tb <= '0;
     end else begin
@@ -749,21 +741,21 @@ module dataflow_tb ();
   end
 
   // Memory
-  always @(posedge clock iff (not mem_busy), posedge reset) begin: memory_gen
+  always @(posedge clock iff (!mem_busy), posedge reset) begin: memory_gen
     if(reset) begin
       mem_wb_tb <= '0;
     end else begin
       mem_wb_tb.pc <= ex_mem_tb.pc;
       mem_wb_tb.rd <= ex_mem_tb.rd;
-      mem_wb_tb.csr_rd_data <= ex_mem_tb.csr_rd_data;
+      mem_wb_tb.csr_read_data <= ex_mem_tb.csr_read_data;
       mem_wb_tb.alu_y <= ex_mem_tb.alu_y;
       mem_wb_tb.read_data <= rd_data;
       mem_wb_tb.inst <= ex_mem_tb.inst;
     end
   end
 
-  always_ff @(posedge clock iff (not mem_busy), posedge reset) begin: memory_gen_aux
-    wr_data_f <= forward_data(ex_mem_tb.wr_data, ex_mem_tb.wr_data, ex_mem_tb.wr_data,
+  always_ff @(posedge clock iff (!mem_busy), posedge reset) begin: memory_gen_aux
+    wr_data_f <= forward_data(ex_mem_tb.write_data, ex_mem_tb.write_data, ex_mem_tb.write_data,
                               reg_data, forward_rs2_mem);
   end
 
@@ -789,7 +781,7 @@ module dataflow_tb ();
       Jal, Jalr: reg_data = mem_wb_tb.pc + 4;
       LoadType: reg_data = mem_wb_tb.read_data;
       SystemType: begin
-        if(!(mem_wb_tb.funct3 inside {3'h0, 3'h4}) && (mem_wb_tb.privilege_mode >= funct7[6:5]))
+        if(!(mem_wb_tb.inst[14:12] inside {3'h0, 3'h4})) // Instruction in WB can't be illegal
           reg_data = mem_wb_tb.read_data;
       end
       default: begin // AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc, SType, BType, Fence

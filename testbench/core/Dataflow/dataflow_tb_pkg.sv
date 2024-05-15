@@ -1,6 +1,10 @@
 
 package dataflow_tb_pkg;
 
+  import instruction_pkg::*;
+
+  localparam int DataSize = 32;
+
   typedef struct packed {
     logic [DataSize-1:0] pc;
     instruction_t inst;
@@ -26,7 +30,7 @@ package dataflow_tb_pkg;
     logic [DataSize-1:0] alu_y;
     logic [DataSize-1:0] write_data;
     instruction_t inst;
-  } ex_mem_t;
+  } ex_mem_tb_t;
 
   typedef struct packed {
     logic [DataSize-1:0] pc;
@@ -35,6 +39,6 @@ package dataflow_tb_pkg;
     logic [DataSize-1:0] alu_y;
     logic [DataSize-1:0] read_data;
     instruction_t inst;
-  } mem_wb_t;
+  } mem_wb_tb_t;
 
 endpackage

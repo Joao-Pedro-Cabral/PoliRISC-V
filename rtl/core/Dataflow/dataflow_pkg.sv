@@ -2,6 +2,7 @@ package dataflow_pkg;
   import extensions_pkg::*;
   import forwarding_unit_pkg::*;
   import instruction_pkg::*;
+  import alu_pkg::*;
 
   typedef enum logic [2:0] {
     Fetch,

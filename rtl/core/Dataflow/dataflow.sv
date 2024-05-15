@@ -46,11 +46,11 @@ module dataflow #(
     input wire csr_imm,
     // Interrupts from Memory
     input wire external_interrupt,
-    input wire [DATA_SIZE-1:0] mem_msip,
-    input wire [63:0] mem_mtime,
-    input wire [63:0] mem_mtimecmp,
+    input wire [DATA_SIZE-1:0] msip,
+    input wire [63:0] mtime,
+    input wire [63:0] mtimecmp,
     // To Control Unit
-    output wire [6:0] opcode,
+    output opcode_t opcode,
     output wire [2:0] funct3,
     output wire [6:0] funct7,
     output wire csr_addr_invalid,
@@ -107,7 +107,7 @@ module dataflow #(
   wire             [DATA_SIZE-1:0] rd;
   // Extensor de Imediato
   wire             [DATA_SIZE-1:0] immediate;
-  // ULA
+  // ALU
   wire             [DATA_SIZE-1:0] aluA;
   wire             [DATA_SIZE-1:0] aluB;
   wire             [DATA_SIZE-1:0] aluY;
@@ -239,9 +239,9 @@ module dataflow #(
       id_ex_reg.rd <= if_id_reg.inst[11:7];
       id_ex_reg.imm <= immediate;
       id_ex_reg.csr_read_data <= csr_mask_rd_data;
-      id_ex_reg.zicsr <= (if_id_reg.wr_reg_src === 2'b01);
+      id_ex_reg.zicsr <= (wr_reg_src === 2'b01);
       id_ex_reg.mem_read_enable <= mem_rd_en;
-      id_ex_reg.mem_wr_en <= mem_wr_en;
+      id_ex_reg.mem_write_enable <= mem_wr_en;
       id_ex_reg.mem_byte_en <= mem_byte_en;
       id_ex_reg.alua_src <= alua_src;
       id_ex_reg.alub_src <= alub_src;
@@ -298,7 +298,9 @@ module dataflow #(
                                             : csr_rd_data[9];
   assign csr_mask_rd_data[DATA_SIZE-1:10] = csr_rd_data[DATA_SIZE-1:10];
   assign csr_aux_wr = csr_imm ? $unsigned(if_id_reg.inst[19:15]) : forwarded_rs1_id;
-  CSR csr_bank (
+  csr #(
+    .DATA_SIZE(DATA_SIZE)
+  ) csr_bank (
       .clock(clock),
       .reset(reset),
       .trap_en(~stall_id && ~mem_busy),
@@ -307,9 +309,9 @@ module dataflow #(
       .ecall(ecall),
       .illegal_instruction(illegal_instruction),
       .external_interrupt(external_interrupt),
-      .msip(|mem_msip),
-      .mtime(mem_mtime),
-      .mtimecmp(mem_mtimecmp),
+      .msip(|msip),
+      .mtime(mtime),
+      .mtimecmp(mtimecmp),
       .trap_addr(trap_addr),
       .trap(_trap),
       .privilege_mode(_privilege_mode),
@@ -385,14 +387,14 @@ module dataflow #(
       ex_mem_reg.write_data <= id_ex_reg.read_data_2;
       ex_mem_reg.mem_read_enable <= id_ex_reg.mem_read_enable;
       ex_mem_reg.mem_write_enable <= id_ex_reg.mem_write_enable;
-      ex_mem_reg.mem_byte_en <= id_ex_reg.mem_byte_enable;
+      ex_mem_reg.mem_byte_en <= id_ex_reg.mem_byte_en;
       ex_mem_reg.wr_reg_src <= id_ex_reg.wr_reg_src;
       ex_mem_reg.wr_reg_en <= id_ex_reg.wr_reg_en;
       ex_mem_reg.forwarding_type <= id_ex_reg.forwarding_type;
     end
   end
 
-  // ULA
+  // ALU
 generate;
   if(DATA_SIZE == 64) begin: gen_alu_in64
     assign aluA =
@@ -412,7 +414,7 @@ endgenerate
   // Mascarar LUI no Rs1
   assign muxaluY_out[31:0] = aluY[31:0];
 
-  ULA #(
+  alu #(
       .N(DATA_SIZE)
   ) alu (
       .A(aluA),
@@ -429,7 +431,7 @@ endgenerate
 
   // MEM stage
   logic [DATA_SIZE-1:0] forwarded_rs1_mem, forwarded_rs2_mem;
-  always_comb begin : ex_forwarding_logic
+  always_comb begin : mem_forwarding_logic
     unique case (forward_rs2_mem)
       NoForwarding, ForwardFromEx, ForwardFromMem: begin
         forwarded_rs2_mem = ex_mem_reg.write_data;
@@ -441,7 +443,7 @@ endgenerate
         forwarded_rs2_mem = ex_mem_reg.write_data;
       end
     endcase
-  end : ex_forwarding_logic
+  end : mem_forwarding_logic
 
   always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
     if (reset) mem_wb_reg <= '0;
@@ -473,7 +475,7 @@ endgenerate
   assign wr_en = ex_mem_reg.mem_write_enable;
   assign wr_data = forwarded_rs2_mem;
   // Control Unit
-  assign opcode = if_id_reg.inst[6:0];
+  assign opcode = opcode_t'(if_id_reg.inst[6:0]);
   assign funct3 = if_id_reg.inst[14:12];
   assign funct7 = if_id_reg.inst[31:25];
   assign privilege_mode = _privilege_mode;
@@ -496,7 +498,6 @@ endgenerate
 
   // Hazard Unit
   assign reg_we_ex = id_ex_reg.wr_reg_en;
-  assign reg_we_mem = ex_mem_reg.wr_reg_en;
   assign mem_rd_en_ex = id_ex_reg.mem_read_enable;
   assign mem_rd_en_mem = ex_mem_reg.mem_read_enable;
   assign store_id = id_ex_reg.mem_write_enable;

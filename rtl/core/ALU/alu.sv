@@ -52,7 +52,8 @@ module alu #(
       .S(add_sub)
   );
   left_barrel_shifter #(
-      .XLEN(N)
+      .XLEN(N),
+      .YLEN(1)
   ) shifter_left (
       .in_data(A),
       .shamt(B[$clog2(N)-1:0]),
@@ -61,7 +62,8 @@ module alu #(
   assign slt  = {{63{1'b0}}, negative_ ^ overflow_};
   assign sltu = {{63{1'b0}}, ~carry_out_};
   barrel_shifter_r #(
-      .N($clog2(N))
+      .N($clog2(N)),
+      .M(1)
   ) shifter_right (
       .A(A),
       .shamt(B[$clog2(N)-1:0]),
