@@ -34,7 +34,7 @@ module dataflow #(
     input logic mem_rd_en,
     input logic mem_wr_en,
     input logic [DATA_SIZE/8-1:0] mem_byte_en,
-    input logic mem_rd_signed,
+    input logic mem_signed,
     input forwarding_type_t forwarding_type,
     input branch_t branch_type,
     input cond_branch_t cond_branch_type,
@@ -243,6 +243,7 @@ module dataflow #(
       id_ex_reg.mem_read_enable <= mem_rd_en;
       id_ex_reg.mem_write_enable <= mem_wr_en;
       id_ex_reg.mem_byte_en <= mem_byte_en;
+      id_ex_reg.mem_signed <= mem_signed;
       id_ex_reg.alua_src <= alua_src;
       id_ex_reg.alub_src <= alub_src;
       id_ex_reg.aluy_src <= aluy_src;
@@ -263,8 +264,6 @@ module dataflow #(
   ) bank (
       .clock(clock),
       .reset(reset),
-      // You can't write an illegal value coming from CSR
-      // FIXME: what to do w/ csr_addr_invalid
       .write_enable(mem_wb_reg.wr_reg_en),
       .read_address1(rs1_addr),
       .read_address2(if_id_reg.inst[24:20]),
@@ -305,6 +304,7 @@ module dataflow #(
       .reset(reset),
       .trap_en(~stall_id && ~mem_busy),
       .csr_op(csr_op),
+      .wr_en(|if_id_reg.inst[19:15]),
       // Interrupt/Exception Signals
       .ecall(ecall),
       .illegal_instruction(illegal_instruction),
@@ -388,6 +388,7 @@ module dataflow #(
       ex_mem_reg.mem_read_enable <= id_ex_reg.mem_read_enable;
       ex_mem_reg.mem_write_enable <= id_ex_reg.mem_write_enable;
       ex_mem_reg.mem_byte_en <= id_ex_reg.mem_byte_en;
+      ex_mem_reg.mem_signed <= id_ex_reg.mem_signed;
       ex_mem_reg.wr_reg_src <= id_ex_reg.wr_reg_src;
       ex_mem_reg.wr_reg_en <= id_ex_reg.wr_reg_en;
       ex_mem_reg.forwarding_type <= id_ex_reg.forwarding_type;

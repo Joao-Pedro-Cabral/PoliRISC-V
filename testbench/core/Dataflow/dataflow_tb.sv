@@ -24,6 +24,7 @@ module dataflow_tb ();
   localparam integer HasRV64I = (DataSize == 64);
   localparam integer CacheDataSize = 128;
   localparam integer ProcAddrSize = 32;
+  localparam integer MemoryAddrSize = 16;
   localparam integer PeriphAddrSize = 3;
   localparam integer ByteSize = 8;
   localparam integer ByteNum = DataSize/ByteSize;
@@ -171,14 +172,14 @@ module dataflow_tb ();
   wishbone_if #(
       .DATA_SIZE(CacheDataSize),
       .BYTE_SIZE(ByteSize),
-      .ADDR_SIZE(ProcAddrSize)
+      .ADDR_SIZE(MemoryAddrSize)
   ) wish_rom (
       .*
   );
   wishbone_if #(
       .DATA_SIZE(CacheDataSize),
       .BYTE_SIZE(ByteSize),
-      .ADDR_SIZE(ProcAddrSize)
+      .ADDR_SIZE(MemoryAddrSize)
   ) wish_ram (
       .*
   );
@@ -225,7 +226,7 @@ module dataflow_tb ();
   logic [DataSize-1:0] reg_data;
 
   // variáveis
-  integer limit = 10000;  // número máximo de iterações a serem feitas(evitar loop infinito)
+  integer limit = 10;  // número máximo de iterações a serem feitas(evitar loop infinito)
   integer i;
   genvar j;
   // Address
@@ -258,6 +259,7 @@ module dataflow_tb ();
     .mem_rd_en,
     .mem_wr_en,
     .mem_byte_en,
+    .mem_signed,
     .forwarding_type,
     .branch_type,
     .cond_branch_type,
@@ -725,6 +727,7 @@ module dataflow_tb ();
       default: begin // BType, Jal, Jalr, Fence, SystemType
       end
     endcase
+    if(id_ex_tb.inst.opcode inside {AluRWType, AluIWType}) alu_y = {{32{alu_y[31]}}, alu_y[31:0]};
   end
 
   always @(posedge clock) begin: execute_check
