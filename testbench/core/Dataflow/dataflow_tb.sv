@@ -1,5 +1,4 @@
 
-// TODO: Trocar immediate assertion por Concurrent Assertion
 module dataflow_tb ();
 
   ///////////////////////////////////
@@ -203,7 +202,7 @@ module dataflow_tb ();
   ///////////////////////////////////
   // Fetch
   if_id_tb_t if_id_tb;
-  logic [DataSize-1:0] new_pc = 0;
+  logic [DataSize-1:0] new_pc = 0, pc = 0;
   // Decode
   id_ex_tb_t id_ex_tb;
   logic [DataSize-1:0] immediate;
@@ -214,21 +213,18 @@ module dataflow_tb ();
   logic csr_addr_invalid_tb;
   logic [DataSize-1:0] mepc, sepc;
   privilege_mode_t privilege_mode_tb;
-  logic branch_taken;
   // Execute
   ex_mem_tb_t ex_mem_tb;
   logic [DataSize-1:0] alu_y, alu_a_f, alu_b_f;
   // Memory
   mem_wb_tb_t mem_wb_tb;
-  logic [DataSize-1:0] wr_data_f;
+  logic [DataSize-1:0] wr_data_f = 0;
   // Write Back
   logic we_reg_file;
   logic [DataSize-1:0] reg_data;
 
   // variáveis
-  integer limit = 10;  // número máximo de iterações a serem feitas(evitar loop infinito)
-  integer i;
-  genvar j;
+  integer limit = 100;  // número máximo de iterações a serem feitas(evitar loop infinito)
   // Address
   localparam integer FinalAddress = 16781308; // Final execution address
   localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
@@ -342,6 +338,7 @@ module dataflow_tb ();
   );
 
   assign wish_proc0.stb = wish_proc0.cyc;
+  assign wish_proc0.we = 1'b0;
   assign wish_proc0.tgd = 1'b0;
   assign wish_proc0.addr = inst_mem_addr;
   assign wish_proc0.sel = 4'hF;
@@ -440,8 +437,8 @@ module dataflow_tb ();
       .clock(clock),
       .reset(reset),
       .write_enable(we_reg_file),
-      .read_address1(id_ex_tb.rs1),
-      .read_address2(id_ex_tb.rs2),
+      .read_address1(if_id_tb.inst.fields.r_type.rs1),
+      .read_address2(if_id_tb.inst.fields.r_type.rs2),
       .write_address(mem_wb_tb.rd),
       .write_data(reg_data),
       .read_data1(rd_data1),
@@ -500,15 +497,16 @@ module dataflow_tb ();
                 input logic trap, input logic [DataSize-1:0] trap_addr);
     if(trap) return trap_addr;
     unique case(instruction.opcode)
-      Jal, Jalr: return pc + imm;
+      Jal: return pc + (imm - 4);
+      Jalr: return {A[DataSize-1:1], 1'b0} + imm;
       BType: begin
         unique case (instruction.fields.b_type.funct3)
-          Beq:  return (A === B) ? pc + imm : pc + 4;
-          Bne:  return (A !== B) ? pc + imm : pc + 4;
-          Blt:  return ($signed(A)   <  $signed(B))   ? pc + imm : pc + 4;
-          Bge:  return ($signed(A)   >= $signed(B))   ? pc + imm : pc + 4;
-          Bltu: return ($unsigned(A) <  $unsigned(B)) ? pc + imm : pc + 4;
-          Bgeu: return ($unsigned(A) >= $unsigned(B)) ? pc + imm : pc + 4;
+          Beq:  return (A === B) ? pc + (imm - 4) : pc + 4;
+          Bne:  return (A !== B) ? pc + (imm - 4) : pc + 4;
+          Blt:  return ($signed(A)   <  $signed(B))   ? pc + (imm - 4) : pc + 4;
+          Bge:  return ($signed(A)   >= $signed(B))   ? pc + (imm - 4) : pc + 4;
+          Bltu: return ($unsigned(A) <  $unsigned(B)) ? pc + (imm - 4) : pc + 4;
+          Bgeu: return ($unsigned(A) >= $unsigned(B)) ? pc + (imm - 4) : pc + 4;
           default: return pc + 4;
         endcase
       end
@@ -631,22 +629,26 @@ module dataflow_tb ();
   /////// Dataflow Simulator ////////
   ///////////////////////////////////
   // Fetch
+  always @(posedge clock iff (!mem_busy), posedge reset) begin: pc_reg
+    if(reset) pc <= '0;
+    else if(!stall_if) pc <= new_pc;
+  end
+
   always @(posedge clock iff (!mem_busy), posedge reset) begin: fetch_gen
-    if(reset) begin
+    if(reset || flush_id) begin
       if_id_tb <= '0;
-    end else if(!stall_if) begin
+      if_id_tb.inst <= Fence;
+    end else if(!stall_id) begin
       if_id_tb.inst <= inst;
-      if_id_tb.pc <= new_pc;
+      if_id_tb.pc <= pc;
     end
   end
 
-  always @(posedge clock) begin: fetch_check
-    CHK_PC: assert(inst_mem_addr === if_id_tb.pc);
-  end
+  CHK_PC: assert property (@(posedge clock) (inst_mem_addr === pc));
 
   // Decode
   always @(posedge clock iff (!mem_busy), posedge reset) begin: decode_gen
-    if(reset || flush_id) begin
+    if(reset || flush_ex) begin
       id_ex_tb <= '0;
     end else if(!stall_id) begin
       id_ex_tb.pc <= if_id_tb.pc;
@@ -664,35 +666,35 @@ module dataflow_tb ();
   end
 
   always_comb begin: decode_gen_aux
-    rd_data1_f = forward_data(rd_data1, csr_rd_data, gen_zicsr(ex_mem_tb.inst[6:0],
+    rd_data1_f = forward_data(rd_data1, id_ex_tb.csr_read_data, gen_zicsr(ex_mem_tb.inst[6:0],
                 ex_mem_tb.inst[14:12]) ? ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
                 reg_data, forward_rs1_id);
-    rd_data2_f = forward_data(rd_data2, csr_rd_data, gen_zicsr(ex_mem_tb.inst[6:0],
+    rd_data2_f = forward_data(rd_data2, id_ex_tb.csr_read_data, gen_zicsr(ex_mem_tb.inst[6:0],
                 ex_mem_tb.inst[14:12]) ? ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
                 reg_data, forward_rs2_id);
     csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1_f;
-    new_pc = gen_new_pc(if_id_tb.inst, if_id_tb.pc, immediate, rd_data1_f, rd_data2_f, mepc, sepc,
+    new_pc = gen_new_pc(if_id_tb.inst, pc, immediate, rd_data1_f, rd_data2_f, mepc, sepc,
                         trap, trap_addr);
   end
 
-  always @(posedge clock) begin: decode_check
-    CHK_OPCODE: assert(opcode === id_ex_tb.inst[6:0]);
-    CHK_FUNCT3: assert(funct3 === id_ex_tb.inst[14:12]);
-    CHK_FUNCT7: assert(funct7 === id_ex_tb.inst[31:25]);
-    CHK_PRIVILEGE_MODE: assert(privilege_mode === privilege_mode_tb);
-    CHK_ADDR_INVALID: assert(csr_addr_invalid === csr_addr_invalid_tb);
-    CHK_CSR_WR_DATA: assert(csr_wr_data === DUT.csr_bank.wr_data);
-    // Check Privilege only in decode
-    CHK_FORWARDING_TYPE_ID: assert(forwarding_type_id === gen_forwarding_type(
-        id_ex_tb.inst[6:0], id_ex_tb.inst[14:12], id_ex_tb.inst[31:25], privilege_mode_tb));
-    CHK_STORE_ID: assert(store_id === gen_wr_en(id_ex_tb.inst.opcode));
-    CHK_RS1_ID: assert(rs1_id === id_ex_tb.rs1);
-    CHK_RS2_ID: assert(rs2_id === id_ex_tb.rs2);
-  end
+  CHK_OPCODE: assert property (@(posedge clock) (opcode === if_id_tb.inst[6:0]));
+  CHK_FUNCT3: assert property (@(posedge clock) (funct3 === if_id_tb.inst[14:12]));
+  CHK_FUNCT7: assert property (@(posedge clock) (funct7 === if_id_tb.inst[31:25]));
+  CHK_PRIVILEGE_MODE: assert property (@(posedge clock) (privilege_mode === privilege_mode_tb));
+  CHK_ADDR_INVALID: assert property (@(posedge clock) (csr_addr_invalid === csr_addr_invalid_tb));
+  CHK_CSR_WR_DATA: assert property (@(posedge clock) (csr_wr_data === DUT.csr_bank.wr_data));
+  // Check Privilege only in decode
+  CHK_FORWARDING_TYPE_ID: assert property (@(posedge clock) (forwarding_type_id ===
+                                    gen_forwarding_type(if_id_tb.inst[6:0], if_id_tb.inst[14:12],
+                                    if_id_tb.inst[31:25], privilege_mode_tb)));
+  CHK_STORE_ID: assert property (@(posedge clock) (store_id === gen_wr_en(if_id_tb.inst.opcode)));
+  CHK_RS1_ID: assert property (@(posedge clock) (rs1_id === (if_id_tb.inst === Lui ? 5'h0 :
+                                                                          if_id_tb.inst[19:15])));
+  CHK_RS2_ID: assert property (@(posedge clock) (rs2_id === if_id_tb.inst[24:20]));
 
   // Execute
   always @(posedge clock iff (!mem_busy), posedge reset) begin: execute_gen
-    if(reset || flush_ex) begin
+    if(reset) begin
       ex_mem_tb <= '0;
     end else begin
       ex_mem_tb.pc <= id_ex_tb.pc;
@@ -706,7 +708,7 @@ module dataflow_tb ();
   end
 
   always_comb begin: execute_gen_aux
-    alu_y = 'x;
+    alu_y = 0;
     alu_a_f = forward_data(id_ex_tb.read_data_1, id_ex_tb.read_data_1,
                            gen_zicsr(ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12]) ?
                            ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
@@ -724,24 +726,22 @@ module dataflow_tb ();
       AluIType, AluIWType: alu_y = gen_alu_y(alu_a_f, id_ex_tb.imm,
                   alu_op_t'({id_ex_tb.inst[30] & (id_ex_tb.inst[14:12] == 3'b101), 1'b0,
                             id_ex_tb.inst[14:12]}));
-      default: begin // BType, Jal, Jalr, Fence, SystemType
-      end
+      default: alu_y = alu_a_f + alu_b_f; // BType, Jal, Jalr, Fence, SystemType
     endcase
     if(id_ex_tb.inst.opcode inside {AluRWType, AluIWType}) alu_y = {{32{alu_y[31]}}, alu_y[31:0]};
   end
 
-  always @(posedge clock) begin: execute_check
-    CHK_FORWARDING_TYPE_EX: assert(forwarding_type_ex === gen_forwarding_type(
-                                        ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12]));
-    CHK_ZICSR_EX: assert(zicsr_ex === gen_zicsr(ex_mem_tb.inst[6:0],
-                                                ex_mem_tb.inst[14:12]));
-    CHK_REG_WE_EX: assert(reg_we_ex === gen_we_reg_file(ex_mem_tb.inst[6:0],
-                                                        ex_mem_tb.inst[14:12]));
-    CHK_MEM_RD_EN_EX: assert(mem_rd_en_ex === gen_rd_en(ex_mem_tb.inst.opcode));
-    CHK_RS1_EX: assert(rs1_ex === ex_mem_tb.inst[19:15]);
-    CHK_RS2_EX: assert(rs2_ex === ex_mem_tb.rs2);
-    CHK_RD_EX: assert(rd_ex === ex_mem_tb.rd);
-  end
+  CHK_FORWARDING_TYPE_EX: assert property (@(posedge clock) (forwarding_type_ex ===
+                                  gen_forwarding_type(id_ex_tb.inst[6:0], id_ex_tb.inst[14:12])));
+  CHK_ZICSR_EX: assert property (@(posedge clock) (zicsr_ex === gen_zicsr(id_ex_tb.inst[6:0],
+                                                                          id_ex_tb.inst[14:12])));
+  CHK_REG_WE_EX: assert property (@(posedge clock) (reg_we_ex ===
+                                    gen_we_reg_file(id_ex_tb.inst[6:0], id_ex_tb.inst[14:12])));
+  CHK_MEM_RD_EN_EX: assert property (@(posedge clock) (mem_rd_en_ex ===
+                                                        gen_rd_en(id_ex_tb.inst.opcode)));
+  CHK_RS1_EX: assert property (@(posedge clock) (rs1_ex === id_ex_tb.rs1));
+  CHK_RS2_EX: assert property (@(posedge clock) (rs2_ex === id_ex_tb.rs2));
+  CHK_RD_EX: assert property (@(posedge clock) (rd_ex === id_ex_tb.rd));
 
   // Memory
   always @(posedge clock iff (!mem_busy), posedge reset) begin: memory_gen
@@ -757,24 +757,23 @@ module dataflow_tb ();
     end
   end
 
-  always_ff @(posedge clock iff (!mem_busy), posedge reset) begin: memory_gen_aux
-    wr_data_f <= forward_data(ex_mem_tb.write_data, ex_mem_tb.write_data, ex_mem_tb.write_data,
-                              reg_data, forward_rs2_mem);
+  always_comb begin: memory_gen_aux
+    wr_data_f = forward_data(ex_mem_tb.write_data, ex_mem_tb.write_data,
+                             ex_mem_tb.write_data, reg_data, forward_rs2_mem);
   end
 
-  always @(posedge clock) begin: memory_check
-    CHK_RD_EN: assert(rd_en === gen_rd_en(mem_wb_tb.inst.opcode));
-    CHK_WR_EN: assert(wr_en === gen_wr_en(mem_wb_tb.inst.opcode));
-    CHK_WR_DATA: assert(wr_data === wr_data_f);
-    CHK_DATA_MEM_ADDR: assert(data_mem_addr === mem_wb_tb.alu_y);
-    CHK_FORWARDING_TYPE_MEM: assert(forwarding_type_mem === gen_forwarding_type(
-                                        mem_wb_tb.inst[6:0], mem_wb_tb.inst[14:12]));
-    CHK_REG_WE_MEM: assert(reg_we_mem === gen_we_reg_file(mem_wb_tb.inst[6:0],
-                                                        mem_wb_tb.inst[14:12]));
-    CHK_MEM_RD_EN_EX: assert(mem_rd_en_mem === gen_rd_en(mem_wb_tb.inst.opcode));
-    CHK_RS2_MEM: assert(rs2_mem === mem_wb_tb.inst[24:20]);
-    CHK_RD_MEM: assert(rd_mem === mem_wb_tb.rd);
-  end
+  CHK_RD_EN: assert property (@(posedge clock) (rd_en === gen_rd_en(ex_mem_tb.inst.opcode)));
+  CHK_WR_EN: assert property (@(posedge clock) (wr_en === gen_wr_en(ex_mem_tb.inst.opcode)));
+  CHK_WR_DATA: assert property (@(posedge clock) (wr_data === wr_data_f));
+  CHK_DATA_MEM_ADDR: assert property (@(posedge clock) (data_mem_addr === ex_mem_tb.alu_y));
+  CHK_FORWARDING_TYPE_MEM: assert property (@(posedge clock) (forwarding_type_mem ===
+                    gen_forwarding_type(ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12])));
+  CHK_REG_WE_MEM: assert property (@(posedge clock) (reg_we_mem ===
+                                gen_we_reg_file(ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12])));
+  CHK_MEM_RD_EN_MEM: assert property (@(posedge clock) (mem_rd_en_mem ===
+                                                       gen_rd_en(ex_mem_tb.inst.opcode)));
+  CHK_RS2_MEM: assert property (@(posedge clock) (rs2_mem === ex_mem_tb.rs2));
+  CHK_RD_MEM: assert property (@(posedge clock) (rd_mem === ex_mem_tb.rd));
 
   // Write Back
   always_comb begin: write_back_gen_aux
@@ -792,14 +791,15 @@ module dataflow_tb ();
     endcase
   end
 
-  always @(posedge clock) begin: write_back_check
-    CHK_REG_DATA: assert(reg_data === DUT.bank.write_data);
-    CHK_REG_WE_WB: assert(we_reg_file === DUT.bank.write_enable);
-  end
+  CHK_REG_DATA: assert property (@(posedge clock) (reg_data === DUT.bank.write_data));
+  CHK_REG_WE_WB: assert property (@(posedge clock) (we_reg_file === DUT.bank.write_enable));
 
   // testar o DUT
   initial begin
     $display("SOT!");
+    reset = 1'b1;
+    @(posedge clock);
+    reset = 1'b0;
     repeat(limit) begin
       @(posedge clock);
     end

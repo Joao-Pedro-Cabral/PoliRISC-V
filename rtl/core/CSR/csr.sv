@@ -36,8 +36,8 @@ module csr #(
   // Control Logic
   logic wr_en_, mret_, sret_;
 
-  // Input Data
-  logic [DATA_SIZE-1:0] wr_data_, rd_data_;
+  // Data
+  logic [DATA_SIZE-1:0] wr_data_, rd_data_, mask_rd_data;
 
   // CSR
   logic [DATA_SIZE-1:0]
@@ -53,7 +53,6 @@ module csr #(
       mideleg,
       medeleg,
       mip,
-      mip_,
       sip,
       mie_,
       sie_,
@@ -245,9 +244,6 @@ module csr #(
       ssip <= wr_data_[SSI];
     end
   end
-  assign mip_[DATA_SIZE-1:SEI+1] = mip[DATA_SIZE-1:SEI+1];
-  assign mip_[SEI] = mip[SEI] | external_interrupt;
-  assign mip_[SEI-1:0] = mip[SEI-1:0];
 
   // XIE
   logic ssie, msie, stie, mtie, seie, meie;
@@ -393,7 +389,8 @@ module csr #(
     endcase
   end
 
-  assign rd_data = rd_data_;
+  assign mask_rd_data = '{SEI: (external_interrupt & addr == Mip), default: 1'b0};
+  assign rd_data = rd_data_ | mask_rd_data;
 
   // Trap
   logic [5:0] interrupt_vector;  // If bit i is high, so interrupt 2*i + 1 happened
@@ -405,11 +402,11 @@ module csr #(
     // Maps interrupt code 2*i + 1 to interrupt vector bit i
     for (i = 0; i < 6; i = i + 1) begin : gen_interrupt_vector
       if (i % 2 == 1)  // MEI, MTI, MSI: U, S -> Always Enabled, M -> MIE
-        assign interrupt_vector[i] =  mip_[2*i+1]  &
-            (!(priv inside {User, Supervisor}) | ((priv == Machine) & mie_[2*i+1] & mstatus[MIE]));
+        assign interrupt_vector[i] =  mip[2*i+1]  &
+            ((priv inside {User, Supervisor}) | ((priv == Machine) & mie_[2*i+1] & mstatus[MIE]));
       // SEI, STI, SSI: U -> Always Enabled, S -> SIE or !mideleg, M -> mideleg
       else
-        assign interrupt_vector[i] =  mip_[2*i+1] & ((priv == User) |
+        assign interrupt_vector[i] =  mip[2*i+1] & ((priv == User) |
             (!priv[1] & mstatus[SIE] & mie_[2*i+1]));
     end
   endgenerate

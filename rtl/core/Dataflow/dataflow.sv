@@ -135,10 +135,11 @@ module dataflow #(
   pc_src_t                         pc_src;
 
   // IF stage
-  always_ff @(posedge clock iff (~stall_if && ~mem_busy) or posedge reset) begin
-    if (reset) if_id_reg <= '0;
-    else if (flush_id) if_id_reg <= '0;
-    else begin
+  always_ff @(posedge clock iff (~stall_id && ~mem_busy) or posedge reset) begin
+    if (reset || flush_id) begin
+       if_id_reg <= '0;
+       if_id_reg.inst <= Fence;
+    end else begin
       if_id_reg.pc <= pc;
       if_id_reg.pc_plus_4 <= pc_plus_4;
       if_id_reg.inst <= inst;
@@ -156,9 +157,6 @@ module dataflow #(
   );
   always_comb begin
     unique case (pc_src)
-      PcPlus4: begin
-        new_pc = trap_addr;
-      end
       SupervisorExceptionPC: begin
         new_pc = sepc;
       end
@@ -168,10 +166,11 @@ module dataflow #(
       PcOrReadDataPlusImm: begin
         new_pc = pc_plus_immediate;
       end
-      default: begin
+      default: begin // PcPlus4
         new_pc = pc_plus_4;
       end
     endcase
+    if(_trap) new_pc = trap_addr;
   end
   register_d #(
       .N(DATA_SIZE),
@@ -226,7 +225,7 @@ module dataflow #(
     endcase
   end : id_forwarding_logic
 
-  always_ff @(posedge clock iff (~stall_id && ~mem_busy) or posedge reset) begin
+  always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
     if (reset) id_ex_reg <= '0;
     else if (flush_ex) id_ex_reg <= '0;
     else begin
@@ -384,7 +383,7 @@ module dataflow #(
       ex_mem_reg.csr_read_data <= id_ex_reg.csr_read_data;
       ex_mem_reg.zicsr <= id_ex_reg.zicsr;
       ex_mem_reg.alu_y <= muxaluY_out;
-      ex_mem_reg.write_data <= id_ex_reg.read_data_2;
+      ex_mem_reg.write_data <= forwarded_rs2_ex;
       ex_mem_reg.mem_read_enable <= id_ex_reg.mem_read_enable;
       ex_mem_reg.mem_write_enable <= id_ex_reg.mem_write_enable;
       ex_mem_reg.mem_byte_en <= id_ex_reg.mem_byte_en;
@@ -501,6 +500,6 @@ endgenerate
   assign reg_we_ex = id_ex_reg.wr_reg_en;
   assign mem_rd_en_ex = id_ex_reg.mem_read_enable;
   assign mem_rd_en_mem = ex_mem_reg.mem_read_enable;
-  assign store_id = id_ex_reg.mem_write_enable;
+  assign store_id = mem_wr_en;
 
 endmodule
