@@ -4,7 +4,7 @@ package memory_controller_pkg;
   localparam integer ProcDataSize = 32;
   localparam integer CacheDataSize = 128;
   localparam integer ProcAddrSize = 32;
-  localparam integer PeriphAddrSize = 3;
+  localparam integer PeriphAddrSize = 6;
   localparam integer ByteSize = 8;
 
   typedef virtual interface wishbone_if #(

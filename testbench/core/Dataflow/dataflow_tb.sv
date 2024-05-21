@@ -12,6 +12,7 @@ module dataflow_tb ();
   import dataflow_tb_pkg::*;
   import forwarding_unit_pkg::*;
   import alu_pkg::*;
+  import extensions_pkg::*;
 
   ///////////////////////////////////
   //////////// Parameters ///////////
@@ -24,7 +25,7 @@ module dataflow_tb ();
   localparam integer CacheDataSize = 128;
   localparam integer ProcAddrSize = 32;
   localparam integer MemoryAddrSize = 16;
-  localparam integer PeriphAddrSize = 3;
+  localparam integer PeriphAddrSize = 6;
   localparam integer ByteSize = 8;
   localparam integer ByteNum = DataSize/ByteSize;
   // Memory Address
@@ -224,7 +225,7 @@ module dataflow_tb ();
   logic [DataSize-1:0] reg_data;
 
   // variáveis
-  integer limit = 100;  // número máximo de iterações a serem feitas(evitar loop infinito)
+  integer limit = 5000;  // número máximo de iterações a serem feitas (evitar loop infinito)
   // Address
   localparam integer FinalAddress = 16781308; // Final execution address
   localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
@@ -319,7 +320,8 @@ module dataflow_tb ();
   );
 
   memory_unit #(
-    .Width(DataSize)
+    .InstSize(InstDataSize),
+    .DataSize(DataSize)
   ) memoryUnit (
     .clock,
     .reset,
@@ -455,7 +457,7 @@ module dataflow_tb ();
       // CSR RW interface
       .csr_op(csr_op),
       .wr_en(|if_id_tb.inst[19:15]),
-      .addr(id_ex_tb.inst[31:20]),
+      .addr(if_id_tb.inst[31:20]),
       .wr_data(csr_wr_data),
       .rd_data(csr_rd_data),
       // Memory Interrupt
@@ -472,8 +474,8 @@ module dataflow_tb ();
       .trap_en(!stall_id && !mem_busy),
       .trap(trap),
       .trap_addr(trap_addr),
-      .pc(id_ex_tb.pc),
-      .instruction(id_ex_tb.inst),
+      .pc(if_id_tb.pc),
+      .instruction(if_id_tb.inst),
       // MRET & SRET
       .mepc(mepc),
       .sepc(sepc)
@@ -511,8 +513,10 @@ module dataflow_tb ();
         endcase
       end
       SystemType: begin
-        if(instruction.fields.r_type.funct7 == 7'h18) return mepc;
-        else if(instruction.fields.r_type.funct7 == 7'h08) return sepc;
+        if(funct3 === 3'b000) begin
+          if(instruction.fields.r_type.funct7 == 7'h18) return mepc;
+          else if(instruction.fields.r_type.funct7 == 7'h08) return sepc;
+        end
         return pc + 4;
       end
       default: return pc + 4;
@@ -544,7 +548,7 @@ module dataflow_tb ();
   function automatic logic gen_we_reg_file(input logic [6:0] opcode,
                                            input logic [2:0] funct3);
     unique case(opcode)
-      Jal, Jalr, AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc: return 1'b1;
+      Jal, Jalr, AluRType, AluRWType, AluIType, AluIWType, LoadType, Lui, Auipc: return 1'b1;
       SystemType: begin
         return !(funct3 inside {3'h0, 3'h4}); // This function only executes after Decode
       end
@@ -612,10 +616,10 @@ module dataflow_tb ();
   ///////////////////////////////////
   // Always to finish the simulation
   always @(posedge mem_wr_en) begin
-    if(data_mem_addr == 16781308) begin // Final write addr
+    if(data_mem_addr == FinalAddress) begin // Final write addr
       $display("End of program!");
       $display("Write data: 0x%x", wr_data);
-      $stop;
+      // $stop;
     end
   end
 
@@ -652,7 +656,7 @@ module dataflow_tb ();
       id_ex_tb <= '0;
     end else if(!stall_id) begin
       id_ex_tb.pc <= if_id_tb.pc;
-      id_ex_tb.rs1 <= if_id_tb.inst === Lui ? 5'h0 : if_id_tb.inst[19:15];
+      id_ex_tb.rs1 <= (if_id_tb.inst.opcode === Lui) ? 5'h0 : if_id_tb.inst[19:15];
       id_ex_tb.read_data_1 <= rd_data1_f;
       id_ex_tb.rs2 <= if_id_tb.inst[24:20];
       id_ex_tb.read_data_2 <= rd_data2_f;
@@ -688,7 +692,7 @@ module dataflow_tb ();
                                     gen_forwarding_type(if_id_tb.inst[6:0], if_id_tb.inst[14:12],
                                     if_id_tb.inst[31:25], privilege_mode_tb)));
   CHK_STORE_ID: assert property (@(posedge clock) (store_id === gen_wr_en(if_id_tb.inst.opcode)));
-  CHK_RS1_ID: assert property (@(posedge clock) (rs1_id === (if_id_tb.inst === Lui ? 5'h0 :
+  CHK_RS1_ID: assert property (@(posedge clock) (rs1_id === ((if_id_tb.inst.opcode === Lui) ? 5'h0 :
                                                                           if_id_tb.inst[19:15])));
   CHK_RS2_ID: assert property (@(posedge clock) (rs2_id === if_id_tb.inst[24:20]));
 
@@ -784,7 +788,7 @@ module dataflow_tb ();
       LoadType: reg_data = mem_wb_tb.read_data;
       SystemType: begin
         if(!(mem_wb_tb.inst[14:12] inside {3'h0, 3'h4})) // Instruction in WB can't be illegal
-          reg_data = mem_wb_tb.read_data;
+          reg_data = mem_wb_tb.csr_read_data;
       end
       default: begin // AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc, SType, BType, Fence
       end
@@ -792,6 +796,7 @@ module dataflow_tb ();
   end
 
   CHK_REG_DATA: assert property (@(posedge clock) (reg_data === DUT.bank.write_data));
+  CHK_RD_WB: assert property (@(posedge clock) (mem_wb_tb.rd === DUT.bank.write_address));
   CHK_REG_WE_WB: assert property (@(posedge clock) (we_reg_file === DUT.bank.write_enable));
 
   // testar o DUT

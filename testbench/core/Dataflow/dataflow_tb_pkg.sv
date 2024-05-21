@@ -2,8 +2,7 @@
 package dataflow_tb_pkg;
 
   import instruction_pkg::*;
-
-  localparam int DataSize = 32;
+  import extensions_pkg::*;
 
   typedef struct packed {
     logic [DataSize-1:0] pc;

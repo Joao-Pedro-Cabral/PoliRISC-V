@@ -1,24 +1,26 @@
 module memory_unit #(
-    parameter integer Width = 32
+    parameter integer InstSize = 32,
+    parameter integer DataSize = 64
 ) (
     input logic clock,
     input logic reset,
     input logic rd_data_mem,
     input logic wr_data_mem,
     input logic inst_mem_ack,
-    input logic [Width-1:0] inst_mem_rd_dat,
+    input logic [InstSize-1:0] inst_mem_rd_dat,
     input logic data_mem_ack,
-    input logic [Width-1:0] data_mem_rd_dat,
+    input logic [DataSize-1:0] data_mem_rd_dat,
     output logic inst_mem_en,
-    output logic [Width-1:0] inst_mem_dat,
+    output logic [InstSize-1:0] inst_mem_dat,
     output logic data_mem_en,
     output logic data_mem_we,
-    output logic [Width-1:0] data_mem_dat,
+    output logic [DataSize-1:0] data_mem_dat,
     output logic busy
 );
   import memory_unit_pkg::*;
 
-  logic [Width-1:0] inst_mem_buf, data_mem_buf;
+  logic [InstSize-1:0] inst_mem_buf;
+  logic [DataSize-1:0] data_mem_buf;
   logic inst_mem_bypass, data_mem_bypass;
 
   // Buffers

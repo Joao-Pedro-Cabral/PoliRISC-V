@@ -255,7 +255,6 @@ module dataflow #(
 
   // Register File
   // Instanciação de Componentes
-  // caso seja realizada uma leitura do SEIP(9) é preciso realizar o OR com o external_interrupt
   assign rs1_addr = if_id_reg.inst[19:15] & {5{(~(if_id_reg.inst[4] & if_id_reg.inst[2]))}};
   register_file #(
       .size(DATA_SIZE),
@@ -266,7 +265,7 @@ module dataflow #(
       .write_enable(mem_wb_reg.wr_reg_en),
       .read_address1(rs1_addr),
       .read_address2(if_id_reg.inst[24:20]),
-      .write_address(if_id_reg.inst[11:7]),
+      .write_address(mem_wb_reg.rd),
       .write_data(rd),
       .read_data1(rs1),
       .read_data2(rs2)
@@ -430,7 +429,7 @@ endgenerate
 
 
   // MEM stage
-  logic [DATA_SIZE-1:0] forwarded_rs1_mem, forwarded_rs2_mem;
+  logic [DATA_SIZE-1:0] forwarded_rs2_mem;
   always_comb begin : mem_forwarding_logic
     unique case (forward_rs2_mem)
       NoForwarding, ForwardFromEx, ForwardFromMem: begin

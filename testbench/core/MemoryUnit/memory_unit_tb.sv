@@ -23,7 +23,7 @@ module memory_unit_tb;
   // internal signals
   logic [2:0] wait_time;
 
-  memory_unit #(.Width(Width)) DUT (.*);
+  memory_unit #(.InstSize(Width), .DataSize(Width)) DUT (.*);
 
   initial begin
     $display("SOT!");
@@ -52,7 +52,7 @@ module memory_unit_tb;
 
     //internal signals
     wait_time = '0;
-    $urandom(Seed);
+    void'($urandom(Seed));
   endtask
 
   task automatic reset_module_test;
