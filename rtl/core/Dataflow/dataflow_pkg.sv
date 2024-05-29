@@ -3,6 +3,7 @@ package dataflow_pkg;
   import forwarding_unit_pkg::*;
   import instruction_pkg::*;
   import alu_pkg::*;
+  import control_unit_pkg::*;
 
   typedef enum logic [2:0] {
     Fetch,
@@ -37,7 +38,7 @@ package dataflow_pkg;
     logic alub_src;
     logic aluy_src;
     alu_op_t alu_op;
-    logic [1:0] wr_reg_src;  // TODO: create enum?
+    wr_reg_t wr_reg_src;
     logic wr_reg_en;
     forwarding_type_t forwarding_type;
   } id_ex_t;
@@ -54,7 +55,7 @@ package dataflow_pkg;
     logic mem_write_enable;
     logic [DataSize/8-1:0] mem_byte_en;
     logic mem_signed;
-    logic [1:0] wr_reg_src;
+    wr_reg_t wr_reg_src;
     logic wr_reg_en;
     forwarding_type_t forwarding_type;
   } ex_mem_t;
@@ -65,7 +66,7 @@ package dataflow_pkg;
     logic [DataSize-1:0] csr_read_data;
     logic [DataSize-1:0] alu_y;
     logic [DataSize-1:0] read_data;
-    logic [1:0] wr_reg_src;
+    wr_reg_t wr_reg_src;
     logic wr_reg_en;
   } mem_wb_t;
 

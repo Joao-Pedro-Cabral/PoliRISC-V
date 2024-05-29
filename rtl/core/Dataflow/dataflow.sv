@@ -5,6 +5,7 @@ import instruction_pkg::*;
 import branch_decoder_unit_pkg::*;
 import alu_pkg::*;
 import forwarding_unit_pkg::*;
+import control_unit_pkg::*;
 
 module dataflow #(
     parameter integer DATA_SIZE = 32
@@ -29,7 +30,7 @@ module dataflow #(
     input wire aluy_src,
     input alu_op_t alu_op,
     input wire alupc_src,
-    input wire [1:0] wr_reg_src,
+    input wr_reg_t wr_reg_src,
     input wire wr_reg_en,
     input logic mem_rd_en,
     input logic mem_wr_en,
@@ -196,7 +197,11 @@ module dataflow #(
         forwarded_rs1_id = id_ex_reg.csr_read_data;
       end
       ForwardFromMem: begin
-        forwarded_rs1_id = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+        unique case(ex_mem_reg.wr_reg_src)
+          WrCsrRdData: forwarded_rs1_id = ex_mem_reg.csr_read_data;
+          WrPcPlus4: forwarded_rs1_id = ex_mem_reg.pc_plus_4;
+          default: forwarded_rs1_id = ex_mem_reg.alu_y;
+        endcase
       end
       ForwardFromWb: begin
         forwarded_rs1_id = rd;
@@ -214,7 +219,11 @@ module dataflow #(
         forwarded_rs2_id = id_ex_reg.csr_read_data;
       end
       ForwardFromMem: begin
-        forwarded_rs2_id = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+        unique case(ex_mem_reg.wr_reg_src)
+          WrCsrRdData: forwarded_rs2_id = ex_mem_reg.csr_read_data;
+          WrPcPlus4: forwarded_rs2_id = ex_mem_reg.pc_plus_4;
+          default: forwarded_rs2_id = ex_mem_reg.alu_y;
+        endcase
       end
       ForwardFromWb: begin
         forwarded_rs2_id = rd;
@@ -238,7 +247,6 @@ module dataflow #(
       id_ex_reg.rd <= if_id_reg.inst[11:7];
       id_ex_reg.imm <= immediate;
       id_ex_reg.csr_read_data <= csr_mask_rd_data;
-      id_ex_reg.zicsr <= (wr_reg_src === 2'b01);
       id_ex_reg.mem_read_enable <= mem_rd_en;
       id_ex_reg.mem_write_enable <= mem_wr_en;
       id_ex_reg.mem_byte_en <= mem_byte_en;
@@ -347,7 +355,11 @@ module dataflow #(
         forwarded_rs1_ex = id_ex_reg.read_data_1;
       end
       ForwardFromMem: begin
-        forwarded_rs1_ex = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+        unique case(ex_mem_reg.wr_reg_src)
+          WrCsrRdData: forwarded_rs1_ex = ex_mem_reg.csr_read_data;
+          WrPcPlus4: forwarded_rs1_ex = ex_mem_reg.pc_plus_4;
+          default: forwarded_rs1_ex = ex_mem_reg.alu_y;
+        endcase
       end
       ForwardFromWb: begin
         forwarded_rs1_ex = rd;
@@ -362,7 +374,11 @@ module dataflow #(
         forwarded_rs2_ex = id_ex_reg.read_data_2;
       end
       ForwardFromMem: begin
-        forwarded_rs2_ex = ex_mem_reg.zicsr ? ex_mem_reg.csr_read_data : ex_mem_reg.alu_y;
+        unique case(ex_mem_reg.wr_reg_src)
+          WrCsrRdData: forwarded_rs2_ex = ex_mem_reg.csr_read_data;
+          WrPcPlus4: forwarded_rs2_ex = ex_mem_reg.pc_plus_4;
+          default: forwarded_rs2_ex = ex_mem_reg.alu_y;
+        endcase
       end
       ForwardFromWb: begin
         forwarded_rs2_ex = rd;
@@ -380,7 +396,6 @@ module dataflow #(
       ex_mem_reg.rs2 <= id_ex_reg.rs2;
       ex_mem_reg.rd <= id_ex_reg.rd;
       ex_mem_reg.csr_read_data <= id_ex_reg.csr_read_data;
-      ex_mem_reg.zicsr <= id_ex_reg.zicsr;
       ex_mem_reg.alu_y <= muxaluY_out;
       ex_mem_reg.write_data <= forwarded_rs2_ex;
       ex_mem_reg.mem_read_enable <= id_ex_reg.mem_read_enable;
@@ -456,10 +471,11 @@ endgenerate
       mem_wb_reg.wr_reg_en <= ex_mem_reg.wr_reg_en;
     end
   end
+
   gen_mux #(
       .size(DATA_SIZE),
       .N(2)
-  ) mux11 (
+  ) wb_mux41 (
       .A({mem_wb_reg.pc_plus_4, mem_wb_reg.read_data, mem_wb_reg.csr_read_data, mem_wb_reg.alu_y}),
       .S(mem_wb_reg.wr_reg_src),
       .Y(rd)
@@ -485,7 +501,7 @@ endgenerate
   assign forwarding_type_mem = ex_mem_reg.forwarding_type;
   assign reg_we_mem = ex_mem_reg.wr_reg_en;
   assign reg_we_wb = mem_wb_reg.wr_reg_en;
-  assign zicsr_ex = id_ex_reg.zicsr;
+  assign zicsr_ex = id_ex_reg.wr_reg_src == WrCsrRdData;
   assign rd_ex = id_ex_reg.rd;
   assign rd_mem = ex_mem_reg.rd;
   assign rd_wb = mem_wb_reg.rd;

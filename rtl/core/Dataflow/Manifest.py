@@ -7,6 +7,7 @@ modules = {
     "local": [
         "../Adder",
         "../CSR",
+        "../ControlUnit",
         "../ImmediateExtender",
         "../RegisterFile",
         "../ALU",

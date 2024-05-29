@@ -13,6 +13,7 @@ module dataflow_tb ();
   import forwarding_unit_pkg::*;
   import alu_pkg::*;
   import extensions_pkg::*;
+  import control_unit_pkg::*;
 
   ///////////////////////////////////
   //////////// Parameters ///////////
@@ -63,7 +64,7 @@ module dataflow_tb ();
   logic aluy_src;
   alu_op_t alu_op;
   logic alupc_src;
-  logic [1:0] wr_reg_src;
+  wr_reg_t wr_reg_src;
   logic wr_reg_en;
   logic mem_rd_en;
   logic mem_wr_en;

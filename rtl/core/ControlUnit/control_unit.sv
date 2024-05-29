@@ -5,6 +5,7 @@ import forwarding_unit_pkg::*;
 import hazard_unit_pkg::*;
 import branch_decoder_unit_pkg::*;
 import csr_pkg::*;
+import control_unit_pkg::*;
 
 module control_unit #(
     parameter integer BYTE_NUM = 8
@@ -22,7 +23,7 @@ module control_unit #(
     output reg aluy_src, // only used in RV64I
     output alu_op_t alu_op,
     output reg alupc_src,
-    output reg [1:0] wr_reg_src,
+    output wr_reg_t wr_reg_src,
     output reg wr_reg_en,
     output reg mem_rd_en,
     output reg mem_wr_en,
@@ -50,7 +51,7 @@ module control_unit #(
     aluy_src     = 1'b0;
     alu_op       = Add;
     alupc_src    = 1'b0;
-    wr_reg_src   = 2'b00;
+    wr_reg_src   = WrAluY;
     wr_reg_en    = 1'b0;
     mem_wr_en    = 1'b0;
     mem_rd_en    = 1'b0;
@@ -87,7 +88,7 @@ module control_unit #(
 
       LoadType: begin
         alub_src = 1'b1;
-        wr_reg_src = 2'b10;
+        wr_reg_src = WrRdData;
         wr_reg_en = 1'b1;
         mem_rd_en = 1'b1;
         mem_byte_en = byte_en;
@@ -126,14 +127,14 @@ module control_unit #(
       end
 
       Jal: begin
-        wr_reg_src = 2'b11;
+        wr_reg_src = WrPcPlus4;
         wr_reg_en = 1'b1;
         branch_type = Jump;
       end
 
       Jalr: begin
         alupc_src = 1'b1;
-        wr_reg_src = 2'b11;
+        wr_reg_src = WrPcPlus4;
         wr_reg_en = 1'b1;
         branch_type = Jump;
         hazard_type = HazardDecode;
@@ -159,7 +160,7 @@ module control_unit #(
           end
         end else if (funct3 !== 3'b100 && privilege_mode >= funct7[6:5]) begin
           wr_reg_en = 1'b1;
-          wr_reg_src = 2'b01;
+          wr_reg_src = WrCsrRdData;
           csr_imm = funct3[2];
           csr_op  = csr_op_t'(funct3[1:0]);
           illegal_instruction = csr_addr_invalid;
