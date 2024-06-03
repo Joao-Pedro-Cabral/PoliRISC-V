@@ -7,7 +7,6 @@ module forwarding_unit (
     input logic reg_we_ex,
     input logic reg_we_mem,
     input logic reg_we_wb,
-    input logic zicsr_ex,
     input logic [4:0] rd_ex,
     input logic [4:0] rd_mem,
     input logic [4:0] rd_wb,
@@ -45,7 +44,7 @@ module forwarding_unit (
     forwarding_src_bundle_t mem_bundle;
     forwarding_src_bundle_t wb_bundle;
 
-    ex_bundle = '{reg_we: reg_we_ex & zicsr_ex, rd: rd_ex, target_forwarding: ForwardFromEx};
+    ex_bundle = '{reg_we: reg_we_ex, rd: rd_ex, target_forwarding: ForwardFromEx};
     mem_bundle = '{
         reg_we: reg_we_mem,
         rd: rd_mem,
@@ -57,25 +56,27 @@ module forwarding_unit (
 
     unique case (forwarding_type_id)
 
-      NoType: begin
+      NoForward: begin
         rs1_id_bundle.forward_rs = NoForwarding;
         rs2_id_bundle.forward_rs = NoForwarding;
       end
 
-      Type1, Type1_3: begin
+      ForwardExecute, ForwardExecuteMemory: begin
         void'(forward(wb_bundle, rs1_id_bundle));
         void'(forward(wb_bundle, rs2_id_bundle));
       end
 
-      Type2: begin
+      ForwardDecode: begin
         if (!forward(ex_bundle, rs1_id_bundle)) begin
           if (!forward(mem_bundle, rs1_id_bundle)) begin
             void'(forward(wb_bundle, rs1_id_bundle));
           end
         end
 
-        if (!forward(mem_bundle, rs2_id_bundle)) begin
-          void'(forward(wb_bundle, rs2_id_bundle));
+        if (!forward(ex_bundle, rs2_id_bundle)) begin
+          if (!forward(mem_bundle, rs2_id_bundle)) begin
+            void'(forward(wb_bundle, rs2_id_bundle));
+          end
         end
       end
 
@@ -101,12 +102,12 @@ module forwarding_unit (
 
     unique case (forwarding_type_ex)
 
-      NoType, Type2: begin
+      NoForward, ForwardDecode: begin
         rs1_ex_bundle.forward_rs = NoForwarding;
         rs2_ex_bundle.forward_rs = NoForwarding;
       end
 
-      Type1, Type1_3: begin
+      ForwardExecute, ForwardExecuteMemory: begin
         if (!forward(mem_bundle, rs1_ex_bundle)) begin
           void'(forward(wb_bundle, rs1_ex_bundle));
         end
@@ -132,11 +133,11 @@ module forwarding_unit (
 
     unique case (forwarding_type_mem)
 
-      NoType, Type1, Type2: begin
+      NoForward, ForwardExecute, ForwardDecode: begin
         rs2_mem_bundle.forward_rs = NoForwarding;
       end
 
-      Type1_3: begin
+      ForwardExecuteMemory: begin
         void'(forward(wb_bundle, rs2_mem_bundle));
       end
 

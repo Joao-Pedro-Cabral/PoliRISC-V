@@ -529,15 +529,15 @@ module dataflow_tb ();
                                                            input logic [6:0] funct7 = 7'h0,
                                                            input logic [1:0] privilege_mode = 2'h3);
     unique case (opcode)
-      SType: return Type1_3;
-      Jalr, BType: return Type2;
+      SType: return ForwardExecuteMemory;
+      Jalr, BType: return ForwardDecode;
       SystemType: begin
         if(!(funct3 inside {3'h0, 3'h4}) && privilege_mode >= funct7[6:5])
-          return funct3[2] ? NoType : Type2;
-        else return NoType;
+          return funct3[2] ? NoForward : ForwardDecode;
+        else return NoForward;
       end
-      AluRType, AluRWType, AluIType, AluIWType, LoadType: return Type1;
-      default: return NoType; // Lui, Auipc, Jal, Fence
+      AluRType, AluRWType, AluIType, AluIWType, LoadType: return ForwardExecute;
+      default: return NoForward; // Lui, Auipc, Jal, Fence
     endcase
   endfunction
 

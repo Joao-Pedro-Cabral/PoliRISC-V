@@ -63,7 +63,7 @@ module control_unit #(
     ecall        = 1'b0;
     hazard_type = NoHazard;
     rs_used = OnlyRs1;
-    forwarding_type = NoType;
+    forwarding_type = NoForward;
     branch_type = NoBranch;
     cond_branch_type = Beq;
 
@@ -74,7 +74,7 @@ module control_unit #(
         wr_reg_en = 1'b1;
         hazard_type = HazardExecute;
         rs_used = Rs1AndRs2;
-        forwarding_type = Type1;
+        forwarding_type = ForwardExecute;
       end
 
       AluIType, AluIWType: begin
@@ -83,7 +83,7 @@ module control_unit #(
         alu_op = alu_op_t'({funct7[5] & (funct3 == 3'b101), 1'b0, funct3});
         wr_reg_en = 1'b1;
         hazard_type = HazardExecute;
-        forwarding_type = Type1;
+        forwarding_type = ForwardExecute;
       end
 
       LoadType: begin
@@ -94,7 +94,7 @@ module control_unit #(
         mem_byte_en = byte_en;
         mem_signed = ~funct3[2];
         hazard_type = HazardExecute;
-        forwarding_type = Type1;
+        forwarding_type = ForwardExecute;
       end
 
       SType: begin
@@ -103,7 +103,7 @@ module control_unit #(
         mem_byte_en = byte_en;
         hazard_type = HazardExecute;
         rs_used = Rs1AndRs2;
-        forwarding_type = Type1_3;
+        forwarding_type = ForwardExecuteMemory;
       end
 
       BType: begin
@@ -111,7 +111,7 @@ module control_unit #(
         rs_used = Rs1AndRs2;
         branch_type = CondBranch;
         cond_branch_type = cond_branch_t'(funct3);
-        forwarding_type = Type2;
+        forwarding_type = ForwardDecode;
       end
 
       Lui: begin
@@ -138,7 +138,7 @@ module control_unit #(
         wr_reg_en = 1'b1;
         branch_type = Jump;
         hazard_type = HazardDecode;
-        forwarding_type = Type2;
+        forwarding_type = ForwardDecode;
       end
 
       Fence: begin // Conservative Fence: Stall
@@ -166,7 +166,7 @@ module control_unit #(
           illegal_instruction = csr_addr_invalid;
           hazard_type = csr_addr_invalid ? HazardException :
                         (funct3[2] ? NoHazard : HazardDecode);
-          forwarding_type = funct3[2] ? NoType : Type2;
+          forwarding_type = funct3[2] ? NoForward : ForwardDecode;
         end
       end
 
