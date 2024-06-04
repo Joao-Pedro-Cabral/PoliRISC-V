@@ -193,7 +193,8 @@ module dataflow #(
         forwarded_rs1_id = rs1;
       end
       ForwardFromEx: begin
-        forwarded_rs1_id = id_ex_reg.csr_read_data;
+        forwarded_rs1_id = id_ex_reg.wr_reg_src == WrPcPlus4 ? id_ex_reg.pc_plus_4 :
+                                                               id_ex_reg.csr_read_data;
       end
       ForwardFromMem: begin
         unique case(ex_mem_reg.wr_reg_src)
@@ -215,7 +216,8 @@ module dataflow #(
         forwarded_rs2_id = rs2;
       end
       ForwardFromEx: begin
-        forwarded_rs2_id = id_ex_reg.csr_read_data;
+        forwarded_rs2_id = id_ex_reg.wr_reg_src == WrPcPlus4 ? id_ex_reg.pc_plus_4 :
+                                                               id_ex_reg.csr_read_data;
       end
       ForwardFromMem: begin
         unique case(ex_mem_reg.wr_reg_src)

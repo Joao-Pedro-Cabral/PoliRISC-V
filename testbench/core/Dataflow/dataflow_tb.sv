@@ -541,10 +541,6 @@ module dataflow_tb ();
     endcase
   endfunction
 
-  function automatic logic is_zicsr(input logic [6:0] opcode);
-    return (opcode === SystemType);
-  endfunction
-
   function automatic logic gen_we_reg_file(input logic [6:0] opcode,
                                            input logic [2:0] funct3);
     unique case(opcode)
@@ -687,12 +683,12 @@ module dataflow_tb ();
   end
 
   always_comb begin: decode_gen_aux
-    rd_data1_f = forward_data(rd_data1, is_zicsr(id_ex_tb.inst.opcode) ?
-          id_ex_tb.csr_read_data : id_ex_tb.pc + 4, gen_wr_data(ex_mem_tb.alu_y,
+    rd_data1_f = forward_data(rd_data1, id_ex_tb.inst.opcode inside {Jal, Jalr} ?
+          id_ex_tb.pc + 4 : id_ex_tb.csr_read_data, gen_wr_data(ex_mem_tb.alu_y,
           ex_mem_tb.alu_y, ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
           ex_mem_tb.inst[14:12]), reg_data, forward_rs1_id);
-    rd_data2_f = forward_data(rd_data2, is_zicsr(id_ex_tb.inst.opcode) ?
-          id_ex_tb.csr_read_data : id_ex_tb.pc + 4, gen_wr_data(ex_mem_tb.alu_y,
+    rd_data2_f = forward_data(rd_data2, id_ex_tb.inst.opcode inside {Jal, Jalr} ?
+          id_ex_tb.pc + 4 : id_ex_tb.csr_read_data, gen_wr_data(ex_mem_tb.alu_y,
           ex_mem_tb.alu_y, ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
           ex_mem_tb.inst[14:12]), reg_data, forward_rs2_id);
     csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1_f;
