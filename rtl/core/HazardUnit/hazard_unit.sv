@@ -11,7 +11,7 @@ module hazard_unit (
     input logic reg_we_mem,
     input logic mem_rd_en_ex,
     input logic mem_rd_en_mem,
-    input logic zicsr_ex,
+    input logic rd_complete_ex,
     input logic store_id,
     output logic stall_if,
     output logic stall_id,
@@ -35,12 +35,12 @@ module hazard_unit (
 
       HazardDecode: begin
         if (rd_ex && ((rs_used && rs2_id == rd_ex) || rs1_id == rd_ex)
-            && reg_we_ex && !zicsr_ex) begin
+            && reg_we_ex && !rd_complete_ex) begin
           stall_if = 1'b1;
           stall_id = 1'b1;
           flush_ex = 1'b1;
         end else if (rd_mem && ((rs_used && rs2_id == rd_mem) || rs1_id == rd_mem) && reg_we_mem
-        && mem_rd_en_mem) begin
+            && mem_rd_en_mem) begin
           stall_if = 1'b1;
           stall_id = 1'b1;
           flush_ex = 1'b1;
@@ -49,7 +49,7 @@ module hazard_unit (
 
       HazardExecute: begin
         if (rd_ex && ((!store_id && rs_used && rs2_id == rd_ex) || rs1_id == rd_ex) && reg_we_ex
-        && mem_rd_en_ex) begin
+            && mem_rd_en_ex) begin
           stall_if = 1'b1;
           stall_id = 1'b1;
           flush_ex = 1'b1;

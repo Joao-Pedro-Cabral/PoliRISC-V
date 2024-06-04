@@ -102,7 +102,7 @@ module dataflow_tb ();
   forwarding_type_t forwarding_type_mem;
   logic reg_we_mem;
   logic reg_we_wb;
-  logic zicsr_ex;
+  logic rd_complete_ex;
   logic [4:0] rd_ex;
   logic [4:0] rd_mem;
   logic [4:0] rd_wb;
@@ -284,7 +284,7 @@ module dataflow_tb ();
     .forwarding_type_mem,
     .reg_we_mem,
     .reg_we_wb,
-    .zicsr_ex,
+    .rd_complete_ex,
     .rd_ex,
     .rd_mem,
     .rd_wb,
@@ -541,9 +541,8 @@ module dataflow_tb ();
     endcase
   endfunction
 
-  function automatic logic gen_zicsr(input logic [6:0] opcode,
-                                     input logic [2:0] funct3);
-    return (opcode === SystemType) && !(funct3 inside {3'h0, 3'h4});
+  function automatic logic is_zicsr(input logic [6:0] opcode);
+    return (opcode === SystemType);
   endfunction
 
   function automatic logic gen_we_reg_file(input logic [6:0] opcode,
@@ -602,6 +601,23 @@ module dataflow_tb ();
         default: return $signed(A) + $signed(B); // Add
       endcase
     end
+  endfunction
+
+  function automatic [DataSize-1:0] gen_wr_data(input logic [DataSize-1:0] A,
+                   input logic [DataSize-1:0] B, input logic [DataSize-1:0] C,
+                   input logic [DataSize-1:0] D, input opcode_t opcode,
+                   input logic [2:0] funct3);
+    unique case(mem_wb_tb.inst.opcode)
+      Jal, Jalr: return D;
+      LoadType: return C;
+      SystemType: begin
+        if(!(mem_wb_tb.inst[14:12] inside {3'h0, 3'h4})) begin // Instruction in WB can't be illegal
+          return B;
+        end
+        return A;
+      end
+      default: return A; //AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc, SType, BType, Fence
+    endcase
   endfunction
 
   function automatic logic gen_rd_en(input logic [6:0] opcode);
@@ -671,12 +687,14 @@ module dataflow_tb ();
   end
 
   always_comb begin: decode_gen_aux
-    rd_data1_f = forward_data(rd_data1, id_ex_tb.csr_read_data, gen_zicsr(ex_mem_tb.inst[6:0],
-                ex_mem_tb.inst[14:12]) ? ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
-                reg_data, forward_rs1_id);
-    rd_data2_f = forward_data(rd_data2, id_ex_tb.csr_read_data, gen_zicsr(ex_mem_tb.inst[6:0],
-                ex_mem_tb.inst[14:12]) ? ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
-                reg_data, forward_rs2_id);
+    rd_data1_f = forward_data(rd_data1, is_zicsr(id_ex_tb.inst.opcode) ?
+          id_ex_tb.csr_read_data : id_ex_tb.pc + 4, gen_wr_data(ex_mem_tb.alu_y,
+          ex_mem_tb.alu_y, ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+          ex_mem_tb.inst[14:12]), reg_data, forward_rs1_id);
+    rd_data2_f = forward_data(rd_data2, is_zicsr(id_ex_tb.inst.opcode) ?
+          id_ex_tb.csr_read_data : id_ex_tb.pc + 4, gen_wr_data(ex_mem_tb.alu_y,
+          ex_mem_tb.alu_y, ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+          ex_mem_tb.inst[14:12]), reg_data, forward_rs2_id);
     csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1_f;
     new_pc = gen_new_pc(if_id_tb.inst, pc, immediate, rd_data1_f, rd_data2_f, mepc, sepc,
                         trap, trap_addr);
@@ -715,13 +733,13 @@ module dataflow_tb ();
   always_comb begin: execute_gen_aux
     alu_y = 0;
     alu_a_f = forward_data(id_ex_tb.read_data_1, id_ex_tb.read_data_1,
-                           gen_zicsr(ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12]) ?
-                           ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
-                           reg_data, forward_rs1_ex);
+                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.alu_y,
+                           ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+                           ex_mem_tb.inst[14:12]), reg_data, forward_rs1_ex);
     alu_b_f = forward_data(id_ex_tb.read_data_2, id_ex_tb.read_data_2,
-                           gen_zicsr(ex_mem_tb.inst[6:0], ex_mem_tb.inst[14:12]) ?
-                           ex_mem_tb.csr_read_data : ex_mem_tb.alu_y,
-                           reg_data, forward_rs2_ex);
+                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.alu_y,
+                           ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+                           ex_mem_tb.inst[14:12]), reg_data, forward_rs2_ex);
     unique case(id_ex_tb.inst.opcode)
       LoadType, SType: alu_y = alu_a_f + id_ex_tb.imm;
       Lui: alu_y = id_ex_tb.imm;
@@ -738,8 +756,9 @@ module dataflow_tb ();
 
   CHK_FORWARDING_TYPE_EX: assert property (@(posedge clock) (forwarding_type_ex ===
                                   gen_forwarding_type(id_ex_tb.inst[6:0], id_ex_tb.inst[14:12])));
-  CHK_ZICSR_EX: assert property (@(posedge clock) (zicsr_ex === gen_zicsr(id_ex_tb.inst[6:0],
-                                                                          id_ex_tb.inst[14:12])));
+  CHK_RD_COMPLETE_EX: assert property (@(posedge clock) (rd_complete_ex ===
+      (id_ex_tb.inst.opcode inside {Jal, Jalr} || (id_ex_tb.inst.opcode === SystemType &&
+      !(id_ex_tb.inst[14:12] inside {3'h0, 3'h4})))));
   CHK_REG_WE_EX: assert property (@(posedge clock) (reg_we_ex ===
                                     gen_we_reg_file(id_ex_tb.inst[6:0], id_ex_tb.inst[14:12])));
   CHK_MEM_RD_EN_EX: assert property (@(posedge clock) (mem_rd_en_ex ===
@@ -783,17 +802,8 @@ module dataflow_tb ();
   // Write Back
   always_comb begin: write_back_gen_aux
     we_reg_file = gen_we_reg_file(mem_wb_tb.inst[6:0], mem_wb_tb.inst[14:12]);
-    reg_data = mem_wb_tb.alu_y;
-    unique case(mem_wb_tb.inst.opcode)
-      Jal, Jalr: reg_data = mem_wb_tb.pc + 4;
-      LoadType: reg_data = mem_wb_tb.read_data;
-      SystemType: begin
-        if(!(mem_wb_tb.inst[14:12] inside {3'h0, 3'h4})) // Instruction in WB can't be illegal
-          reg_data = mem_wb_tb.csr_read_data;
-      end
-      default: begin // AluRType, AluRWType, AluIType, AluIWType, Lui, Auipc, SType, BType, Fence
-      end
-    endcase
+    reg_data = gen_wr_data(mem_wb_tb.alu_y, mem_wb_tb.read_data, mem_wb_tb.csr_read_data,
+                           mem_wb_tb.pc + 4, mem_wb_tb.inst.opcode, mem_wb_tb.inst[14:12]);
   end
 
   CHK_REG_DATA: assert property (@(posedge clock) (reg_data === DUT.bank.write_data));

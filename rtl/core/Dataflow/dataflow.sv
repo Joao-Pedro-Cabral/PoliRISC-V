@@ -68,7 +68,6 @@ module dataflow #(
     output forwarding_type_t forwarding_type_mem,
     output logic reg_we_mem,
     output logic reg_we_wb,
-    output logic zicsr_ex,
     output logic [4:0] rd_ex,
     output logic [4:0] rd_mem,
     output logic [4:0] rd_wb,
@@ -90,7 +89,7 @@ module dataflow #(
     output logic reg_we_ex,
     output logic mem_rd_en_ex,
     output logic mem_rd_en_mem,
-    /* output logic zicsr_ex, */
+    output logic rd_complete_ex,
     output logic store_id
 );
 
@@ -501,7 +500,7 @@ endgenerate
   assign forwarding_type_mem = ex_mem_reg.forwarding_type;
   assign reg_we_mem = ex_mem_reg.wr_reg_en;
   assign reg_we_wb = mem_wb_reg.wr_reg_en;
-  assign zicsr_ex = id_ex_reg.wr_reg_src == WrCsrRdData;
+  assign rd_complete_ex = id_ex_reg.wr_reg_src inside {WrCsrRdData, WrPcPlus4};
   assign rd_ex = id_ex_reg.rd;
   assign rd_mem = ex_mem_reg.rd;
   assign rd_wb = mem_wb_reg.rd;
