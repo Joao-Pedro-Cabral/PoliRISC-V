@@ -54,6 +54,8 @@ module dataflow_tb ();
   logic [DataSize-1:0] rd_data;
   logic rd_en;
   logic wr_en;
+  logic [DataSize/8-1:0] byte_en;
+  logic signed_en;
   logic [DataSize-1:0] wr_data;
   logic [DataSize-1:0] data_mem_addr;
   // From Memory Unit
@@ -117,6 +119,7 @@ module dataflow_tb ();
   logic flush_id;
   logic flush_ex;
   // To Hazard Unit
+  pc_src_t pc_src;
   logic reg_we_ex;
   logic mem_rd_en_ex;
   logic mem_rd_en_mem;
@@ -226,7 +229,7 @@ module dataflow_tb ();
   logic [DataSize-1:0] reg_data;
 
   // variáveis
-  integer limit = 5000;  // número máximo de iterações a serem feitas (evitar loop infinito)
+  integer limit = 1000;  // número máximo de iterações a serem feitas (evitar loop infinito)
   // Address
   localparam integer FinalAddress = 16781308; // Final execution address
   localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
@@ -244,6 +247,8 @@ module dataflow_tb ();
     .rd_data,
     .rd_en,
     .wr_en,
+    .byte_en,
+    .signed_en,
     .wr_data,
     .data_mem_addr,
     .mem_busy,
@@ -297,6 +302,7 @@ module dataflow_tb ();
     .stall_id,
     .flush_id,
     .flush_ex,
+    .pc_src,
     .reg_we_ex,
     .mem_rd_en_ex,
     .mem_rd_en_mem,
@@ -347,9 +353,9 @@ module dataflow_tb ();
   assign wish_proc0.sel = 4'hF;
   assign wish_proc0.dat_o_p = '0;
   assign wish_proc1.stb = wish_proc1.cyc;
-  assign wish_proc1.tgd = mem_signed;
+  assign wish_proc1.tgd = signed_en;
   assign wish_proc1.addr = data_mem_addr;
-  assign wish_proc1.sel = mem_byte_en;
+  assign wish_proc1.sel = byte_en;
   assign wish_proc1.dat_o_p = wr_data;
 
   ///////////////////////////////////
@@ -603,11 +609,11 @@ module dataflow_tb ();
                    input logic [DataSize-1:0] B, input logic [DataSize-1:0] C,
                    input logic [DataSize-1:0] D, input opcode_t opcode,
                    input logic [2:0] funct3);
-    unique case(mem_wb_tb.inst.opcode)
+    unique case(opcode)
       Jal, Jalr: return D;
       LoadType: return C;
       SystemType: begin
-        if(!(mem_wb_tb.inst[14:12] inside {3'h0, 3'h4})) begin // Instruction in WB can't be illegal
+        if(!(funct3 inside {3'h0, 3'h4})) begin // Instruction in WB can't be illegal
           return B;
         end
         return A;
@@ -624,15 +630,28 @@ module dataflow_tb ();
     return (opcode === SType);
   endfunction
 
+  function automatic [DataSize/8-1:0] gen_byte_en(input instruction_t instruction);
+    logic [2:0] funct3;
+    begin
+    funct3 = instruction[14:12];
+    return ((instruction.opcode inside {LoadType, SType}) ? (funct3[1] ?
+        (funct3[0] ? 'hFF : 'hF) : (funct3[0] ? 'h3 : 'h1)) : 'h0);
+    end
+  endfunction
+
+  function automatic logic gen_signed_en(input instruction_t instruction);
+    return ((instruction.opcode === LoadType) && !instruction[14]);
+  endfunction
+
   ///////////////////////////////////
   //////// Especial Address /////////
   ///////////////////////////////////
   // Always to finish the simulation
-  always @(posedge mem_wr_en) begin
+  always @(posedge wish_proc1.we) begin
     if(data_mem_addr == FinalAddress) begin // Final write addr
       $display("End of program!");
       $display("Write data: 0x%x", wr_data);
-      // $stop;
+      $stop;
     end
   end
 
@@ -651,11 +670,11 @@ module dataflow_tb ();
     else if(!stall_if) pc <= new_pc;
   end
 
-  always @(posedge clock iff (!mem_busy), posedge reset) begin: fetch_gen
+  always @(posedge clock iff (!stall_id && !mem_busy), posedge reset) begin: fetch_gen
     if(reset || flush_id) begin
       if_id_tb <= '0;
       if_id_tb.inst <= Fence;
-    end else if(!stall_id) begin
+    end else begin
       if_id_tb.inst <= inst;
       if_id_tb.pc <= pc;
     end
@@ -667,7 +686,7 @@ module dataflow_tb ();
   always @(posedge clock iff (!mem_busy), posedge reset) begin: decode_gen
     if(reset || flush_ex) begin
       id_ex_tb <= '0;
-    end else if(!stall_id) begin
+    end else begin
       id_ex_tb.pc <= if_id_tb.pc;
       id_ex_tb.rs1 <= (if_id_tb.inst.opcode === Lui) ? 5'h0 : if_id_tb.inst[19:15];
       id_ex_tb.read_data_1 <= rd_data1_f;
@@ -685,11 +704,11 @@ module dataflow_tb ();
   always_comb begin: decode_gen_aux
     rd_data1_f = forward_data(rd_data1, id_ex_tb.inst.opcode inside {Jal, Jalr} ?
           id_ex_tb.pc + 4 : id_ex_tb.csr_read_data, gen_wr_data(ex_mem_tb.alu_y,
-          ex_mem_tb.alu_y, ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+          ex_mem_tb.csr_read_data, ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
           ex_mem_tb.inst[14:12]), reg_data, forward_rs1_id);
     rd_data2_f = forward_data(rd_data2, id_ex_tb.inst.opcode inside {Jal, Jalr} ?
           id_ex_tb.pc + 4 : id_ex_tb.csr_read_data, gen_wr_data(ex_mem_tb.alu_y,
-          ex_mem_tb.alu_y, ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+          ex_mem_tb.csr_read_data, ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
           ex_mem_tb.inst[14:12]), reg_data, forward_rs2_id);
     csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1_f;
     new_pc = gen_new_pc(if_id_tb.inst, pc, immediate, rd_data1_f, rd_data2_f, mepc, sepc,
@@ -729,12 +748,12 @@ module dataflow_tb ();
   always_comb begin: execute_gen_aux
     alu_y = 0;
     alu_a_f = forward_data(id_ex_tb.read_data_1, id_ex_tb.read_data_1,
-                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.alu_y,
-                           ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.csr_read_data,
+                           ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
                            ex_mem_tb.inst[14:12]), reg_data, forward_rs1_ex);
     alu_b_f = forward_data(id_ex_tb.read_data_2, id_ex_tb.read_data_2,
-                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.alu_y,
-                           ex_mem_tb.csr_read_data, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.csr_read_data,
+                           ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
                            ex_mem_tb.inst[14:12]), reg_data, forward_rs2_ex);
     unique case(id_ex_tb.inst.opcode)
       LoadType, SType: alu_y = alu_a_f + id_ex_tb.imm;
@@ -784,6 +803,8 @@ module dataflow_tb ();
 
   CHK_RD_EN: assert property (@(posedge clock) (rd_en === gen_rd_en(ex_mem_tb.inst.opcode)));
   CHK_WR_EN: assert property (@(posedge clock) (wr_en === gen_wr_en(ex_mem_tb.inst.opcode)));
+  CHK_BYTE_EN: assert property (@(posedge clock) (byte_en === gen_byte_en(ex_mem_tb.inst)));
+  CHK_SIGNED: assert property (@(posedge clock) (signed_en === gen_signed_en(ex_mem_tb.inst)));
   CHK_WR_DATA: assert property (@(posedge clock) (wr_data === wr_data_f));
   CHK_DATA_MEM_ADDR: assert property (@(posedge clock) (data_mem_addr === ex_mem_tb.alu_y));
   CHK_FORWARDING_TYPE_MEM: assert property (@(posedge clock) (forwarding_type_mem ===
@@ -798,7 +819,7 @@ module dataflow_tb ();
   // Write Back
   always_comb begin: write_back_gen_aux
     we_reg_file = gen_we_reg_file(mem_wb_tb.inst[6:0], mem_wb_tb.inst[14:12]);
-    reg_data = gen_wr_data(mem_wb_tb.alu_y, mem_wb_tb.read_data, mem_wb_tb.csr_read_data,
+    reg_data = gen_wr_data(mem_wb_tb.alu_y, mem_wb_tb.csr_read_data, mem_wb_tb.read_data,
                            mem_wb_tb.pc + 4, mem_wb_tb.inst.opcode, mem_wb_tb.inst[14:12]);
   end
 

@@ -1,8 +1,10 @@
 import hazard_unit_pkg::*;
+import branch_decoder_unit_pkg::*;
 
 module hazard_unit (
     input hazard_t hazard_type,
     input rs_used_t rs_used,
+    input pc_src_t pc_src,
     input logic [4:0] rs1_id,
     input logic [4:0] rs2_id,
     input logic [4:0] rd_ex,
@@ -19,17 +21,21 @@ module hazard_unit (
     output logic flush_ex
 );
 
+  logic flush_id_type, flush_id_pc;
+
+  assign flush_id_pc = (pc_src != PcPlus4);
+
   always_comb begin : flushes_and_stalls_proc
     stall_if = 1'b0;
     stall_id = 1'b0;
-    flush_id = 1'b0;
+    flush_id_type = 1'b0;
     flush_ex = 1'b0;
 
     unique case (hazard_type)
       NoHazard: begin
         stall_if = 1'b0;
         stall_id = 1'b0;
-        flush_id = 1'b0;
+        flush_id_type = 1'b0;
         flush_ex = 1'b0;
       end
 
@@ -57,19 +63,20 @@ module hazard_unit (
       end
 
       HazardException: begin
-        flush_id = 1'b1;
+        flush_id_type = 1'b1;
         flush_ex = 1'b1;
       end
 
       default: begin
         stall_if = 1'b0;
         stall_id = 1'b0;
-        flush_id = 1'b0;
+        flush_id_type = 1'b0;
         flush_ex = 1'b0;
       end
     endcase
 
   end : flushes_and_stalls_proc
 
+  assign flush_id = flush_id_type | flush_id_pc;
 
 endmodule

@@ -20,6 +20,8 @@ module dataflow #(
     input wire [DATA_SIZE-1:0] rd_data,
     output wire rd_en,
     output wire wr_en,
+    output wire [DATA_SIZE/8-1:0] byte_en,
+    output wire signed_en,
     output wire [DATA_SIZE-1:0] wr_data,
     output wire [DATA_SIZE-1:0] data_mem_addr,
     // From Memory Unit
@@ -86,6 +88,7 @@ module dataflow #(
     /* output logic [4:0] rs2_id, */
     /* output logic [4:0] rd_ex, */
     /* output logic [4:0] rd_mem, */
+    output pc_src_t pc_src,
     output logic reg_we_ex,
     output logic mem_rd_en_ex,
     output logic mem_rd_en_mem,
@@ -132,7 +135,7 @@ module dataflow #(
   wire             [DATA_SIZE-1:0] csr_mask_rd_data;
   wire             [DATA_SIZE-1:0] csr_aux_wr;
   // Branch Decoder Unit
-  pc_src_t                         pc_src;
+  pc_src_t                         _pc_src;
 
   // IF stage
   always_ff @(posedge clock iff (~stall_id && ~mem_busy) or posedge reset) begin
@@ -156,7 +159,7 @@ module dataflow #(
       .S(pc_plus_4)
   );
   always_comb begin
-    unique case (pc_src)
+    unique case (_pc_src)
       SupervisorExceptionPC: begin
         new_pc = sepc;
       end
@@ -343,8 +346,9 @@ module dataflow #(
       .cond_branch_type(cond_branch_type),
       .read_data_1(rs1),
       .read_data_2(rs2),
-      .pc_src(pc_src)
+      .pc_src(_pc_src)
   );
+  assign pc_src = _pc_src;
   // ID stage
 
 
@@ -489,6 +493,8 @@ endgenerate
   assign data_mem_addr = ex_mem_reg.alu_y;
   assign rd_en = ex_mem_reg.mem_read_enable;
   assign wr_en = ex_mem_reg.mem_write_enable;
+  assign signed_en = ex_mem_reg.mem_signed;
+  assign byte_en = ex_mem_reg.mem_byte_en;
   assign wr_data = forwarded_rs2_mem;
   // Control Unit
   assign opcode = opcode_t'(if_id_reg.inst[6:0]);

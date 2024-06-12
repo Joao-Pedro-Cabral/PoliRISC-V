@@ -5,6 +5,7 @@ files = [
 modules = {
     "local": [
         "../../../rtl/core/HazardUnit",
+        "../../../rtl/core/BranchDecoderUnit",
         "../../../utils/globals"
     ],
 }

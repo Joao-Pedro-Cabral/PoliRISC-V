@@ -2,12 +2,14 @@
 module hazard_unit_tb ();
   import macros_pkg::*;
   import hazard_unit_pkg::*;
+  import branch_decoder_unit_pkg::*;
 
   int number_of_tests = 10000;
 
   // DUT Signals
   hazard_t hazard_type;
   rs_used_t rs_used;
+  pc_src_t pc_src;
   logic [4:0] rs1_id, rs2_id, rd_ex, rd_mem;
   logic reg_we_ex, reg_we_mem;
   logic mem_rd_en_ex, mem_rd_en_mem;
@@ -24,8 +26,8 @@ module hazard_unit_tb ();
       input logic [4:0] rs, input logic [4:0] rd_ex, input logic [4:0] rd_mem,
       input logic reg_we_ex, input logic reg_we_mem, input logic mem_rd_en_ex,
       input logic mem_rd_en_mem, input logic rd_complete_ex, input logic store_id,
-      input hazard_t hazard_type, output logic stall_id, output logic stall_if,
-      output logic flush_id, output logic flush_ex);
+      input hazard_t hazard_type, input pc_src_t pc_src, output logic stall_id,
+      output logic stall_if, output logic flush_id, output logic flush_ex);
     stall_id = 1'b0;
     stall_if = 1'b0;
     flush_id = 1'b0;
@@ -53,6 +55,7 @@ module hazard_unit_tb ();
       default: begin  // NoHazard
       end
     endcase
+    if(pc_src !== PcPlus4) flush_id = 1'b1;
   endfunction
 
   hazard_unit DUT (.*);
@@ -65,16 +68,18 @@ module hazard_unit_tb ();
     repeat (number_of_tests) begin
       hazard_type = hazard_t'($urandom() % hazard_type.num());
       rs_used = rs_used_t'($urandom());
+      pc_src = pc_src_t'($urandom());
       {rs1_id, rs2_id, rd_ex, rd_mem} = $urandom();
       {reg_we_ex, reg_we_mem} = $urandom();
       {mem_rd_en_ex, mem_rd_en_mem} = $urandom();
       {store_id, rd_complete_ex} = $urandom();
       #5;
       check_hazard(rs1_id, rd_ex, rd_mem, reg_we_ex, reg_we_mem, mem_rd_en_ex, mem_rd_en_mem,
-                   rd_complete_ex, 1'b0, hazard_type, stall1_id, stall1_if, flush1_id, flush1_ex);
+                   rd_complete_ex, 1'b0, hazard_type, pc_src, stall1_id, stall1_if, flush1_id,
+                   flush1_ex);
       check_hazard(rs2_id & {5{rs_used}}, rd_ex, rd_mem, reg_we_ex, reg_we_mem, mem_rd_en_ex,
-                   mem_rd_en_mem, rd_complete_ex, store_id, hazard_type, stall2_id, stall2_if, flush2_id,
-                   flush2_ex);
+                   mem_rd_en_mem, rd_complete_ex, store_id, hazard_type, pc_src, stall2_id,
+                   stall2_if, flush2_id, flush2_ex);
       CHECK_STALL_IF : assert (stall_if === (stall1_if || stall2_if));
       CHECK_STALL_ID : assert (stall_id === (stall1_id || stall2_id));
       CHECK_FLUSH_ID : assert (flush_id === (flush1_id || flush2_id));
