@@ -26,7 +26,7 @@ module dataflow_tb ();
   localparam integer CacheDataSize = 128;
   localparam integer ProcAddrSize = 32;
   localparam integer MemoryAddrSize = 16;
-  localparam integer PeriphAddrSize = 6;
+  localparam integer PeriphAddrSize = 7;
   localparam integer ByteSize = 8;
   localparam integer ByteNum = DataSize/ByteSize;
   // Memory Address
@@ -36,7 +36,7 @@ module dataflow_tb ();
   localparam reg [63:0] RamAddrMask = 64'hFFFFFFFFFF000000;
   localparam reg [63:0] UartAddr = 64'h0000000010013000;
   localparam reg [63:0] UartAddrMask = 64'hFFFFFFFFFFFFF000;
-  localparam reg [63:0] CsrAddr = 64'hFFFFFFFFFFFFFFC0;
+  localparam reg [63:0] CsrAddr = 64'h000000003FFFF000;
   localparam reg [63:0] CsrAddrMask = 64'hFFFFFFFFFFFFFFC0;
   // MTIME
   localparam integer ClockCycles = 100;
@@ -229,7 +229,7 @@ module dataflow_tb ();
   logic [DataSize-1:0] reg_data;
 
   // variáveis
-  integer limit = 1000;  // número máximo de iterações a serem feitas (evitar loop infinito)
+  integer limit = 1000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
   // Address
   localparam integer FinalAddress = 16781308; // Final execution address
   localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
@@ -651,6 +651,7 @@ module dataflow_tb ();
     if(data_mem_addr == FinalAddress) begin // Final write addr
       $display("End of program!");
       $display("Write data: 0x%x", wr_data);
+      $display("Number of Cycles: %d", i);
       $stop;
     end
   end
@@ -835,6 +836,7 @@ module dataflow_tb ();
     reset = 1'b0;
     repeat(limit) begin
       @(posedge clock);
+      i ++;
     end
     $stop;
   end

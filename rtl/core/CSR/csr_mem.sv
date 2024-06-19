@@ -18,7 +18,7 @@ module csr_mem #(
   logic [$clog2(CLOCK_CYCLES)-1:0] cycles;
   logic rd_en, wr_en;
   logic [63:0] mtime_load, mtimecmp_d;
-  logic _ack, ack;
+  logic ack;
 
   // Wishbone
   always_comb begin
@@ -102,13 +102,8 @@ module csr_mem #(
 
   // Lógica de ACK
   always @(posedge wb_if_s.clock, posedge wb_if_s.reset) begin
-    if (wb_if_s.reset || _ack) _ack <= 1'b0;
-    else if (rd_en || wr_en) _ack <= 1'b1;
-  end
-
-  always @(posedge wb_if_s.clock, posedge wb_if_s.reset) begin
     if (wb_if_s.reset || ack) ack <= 1'b0;
-    else if (_ack) ack <= 1'b1;
+    else if (rd_en || wr_en) ack <= 1'b1;
   end
 
   assign wb_if_s.ack = ack;

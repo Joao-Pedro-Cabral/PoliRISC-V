@@ -91,20 +91,20 @@ module control_unit_tb ();
         if(funct3 === 3'b000 && funct7 ==? 7'b00?1000 && (funct7[4:3] > privilege_mode)) begin
           new_expected_output = 0;
           new_expected_output.illegal_instruction = 1'b1;
-          new_expected_output.hazard_type = HazardException;
+          new_expected_output.hazard_type = NoHazard;
         end else if(funct3 !=? 3'b?00 && funct7[6:5] > privilege_mode) begin
           new_expected_output = 0;
           new_expected_output.illegal_instruction = 1'b1;
-          new_expected_output.hazard_type = HazardException;
+          new_expected_output.hazard_type = NoHazard;
         end else if(funct3 !=? 3'b?00 && csr_addr_invalid) begin
           new_expected_output = expected_output;
           new_expected_output.illegal_instruction = 1'b1;
-          new_expected_output.hazard_type = HazardException;
+          new_expected_output.hazard_type = NoHazard;
         end
       end else if(opcode === 0) begin
         new_expected_output = 0;
         new_expected_output.illegal_instruction = 1'b1;
-        new_expected_output.hazard_type = HazardException;
+        new_expected_output.hazard_type = NoHazard;
       end
       return new_expected_output;
     end

@@ -146,7 +146,6 @@ module control_unit #(
 
       SystemType: begin
         illegal_instruction = 1'b1;
-        hazard_type = HazardException;
         if (funct3 === 0) begin
           if (funct7 === 0) begin
             ecall = 1'b1;
@@ -156,7 +155,6 @@ module control_unit #(
             csr_op = funct7[4] ? CsrMret : CsrSret;
             branch_type = funct7[4] ? Mret : Sret;
             illegal_instruction = 1'b0;
-            hazard_type = NoHazard;
           end
         end else if (funct3 !== 3'b100 && privilege_mode >= funct7[6:5]) begin
           wr_reg_en = 1'b1;
@@ -164,7 +162,7 @@ module control_unit #(
           csr_imm = funct3[2];
           csr_op  = csr_op_t'(funct3[1:0]);
           illegal_instruction = csr_addr_invalid;
-          hazard_type = csr_addr_invalid ? HazardException :
+          hazard_type = csr_addr_invalid ? NoHazard :
                         (funct3[2] ? NoHazard : HazardDecode);
           forwarding_type = funct3[2] ? NoForward : ForwardDecode;
         end
@@ -172,7 +170,6 @@ module control_unit #(
 
       default: begin
         illegal_instruction = 1'b1;
-        hazard_type = HazardException;
       end
     endcase
   end

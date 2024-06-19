@@ -97,8 +97,8 @@ module memory_controller #(
   assign wish_s_proc0.ack = wish_p_cache_inst.ack;
   assign wish_s_proc0.dat_o_s = wish_p_cache_inst.dat_i_p;
 
-  assign wish_s_proc1.ack = sel_cache_data ? (sel_csr ? wish_p_csr.ack : wish_p_cache_data.ack) :
-                                             (sel_uart ? wish_p_uart.ack : 1'b0);
+  assign wish_s_proc1.ack = sel_cache_data ? wish_p_cache_data.ack :
+                                             (sel_csr ? wish_p_csr.ack : wish_p_uart.ack);
   assign wish_s_proc1.dat_o_s = sel_cache_data ?  wish_p_cache_data.dat_i_p :
                                              (sel_csr ? wish_p_csr.dat_i_p : wish_p_uart.dat_i_p);
 

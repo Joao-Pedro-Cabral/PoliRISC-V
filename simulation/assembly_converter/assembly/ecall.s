@@ -12,6 +12,7 @@ csrrw x0,stvec,t0
 ; setting mtimecmp
 lui t0,-1
 lui t1,262143             ; mtimecmp base address
+addi t1, t1, 48
 sw t0,0(t1)
 
 ori t0,x0,0b101010101010
