@@ -9,7 +9,7 @@ module csr #(
 ) (
     input logic clock,
     input logic reset,
-    input logic trap_en,
+    input logic en,
     input csr_op_t csr_op,
     input logic wr_en,
     input logic [11:0] addr,
@@ -94,9 +94,9 @@ module csr #(
   // Logic
 
   // Control Logic (Mask Inputs)
-  assign mret_  = (csr_op == CsrMret) & !_trap;
-  assign sret_  = (csr_op == CsrSret) & !_trap;
-  assign wr_en_ = ((csr_op == CsrRW) || ((csr_op inside {CsrRS, CsrRC}) && !wr_en)) & !_trap;
+  assign mret_  = (csr_op == CsrMret) & en & !_trap;
+  assign sret_  = (csr_op == CsrSret) & en & !_trap;
+  assign wr_en_ = ((csr_op == CsrRW) || ((csr_op inside {CsrRS, CsrRC}) && wr_en)) & en & !_trap;
 
   // Input data
   always_comb begin
@@ -476,8 +476,8 @@ module csr #(
     else if (|exception_vector[3:1]) cause_sync = {2'b10, priv};
   end
   assign cause  = async_trap ? cause_async : cause_sync;  // Interrupt > Exception
-  assign m_trap = m_trap_ & trap_en;
-  assign s_trap = s_trap_ & trap_en;
+  assign m_trap = m_trap_ & en;
+  assign s_trap = s_trap_ & en;
   assign _trap  = m_trap | s_trap;
   assign trap   = _trap;
 

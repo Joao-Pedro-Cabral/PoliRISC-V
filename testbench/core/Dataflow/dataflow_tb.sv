@@ -478,7 +478,7 @@ module dataflow_tb ();
       .illegal_instruction(illegal_instruction),
       .addr_exception(csr_addr_invalid_tb),
       // Trap Handler
-      .trap_en(!stall_id && !mem_busy),
+      .en(!stall_id && !mem_busy),
       .trap(trap),
       .trap_addr(trap_addr),
       .pc(if_id_tb.pc),

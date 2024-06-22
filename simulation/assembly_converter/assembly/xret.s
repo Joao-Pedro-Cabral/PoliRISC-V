@@ -12,6 +12,7 @@ csrrw x0,stvec,t0
 ; setting mtimecmp
 lui t0,-1
 lui t1,262143             ; mtimecmp base address
+addi t1, t1, 48
 sw t0,0(t1)
 
 addi a0,x0,0b1            ; SSI
@@ -23,7 +24,7 @@ csrrw x0,mstatus,t0       ; enables global interrupts
 
 ; Machine Software Interrupt
 addi t0,x0,-1
-lui s2,262144             ; msip base address
+lui s2,262143             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
@@ -41,7 +42,6 @@ add x0,x0,x0
 
 addi t6,t6,1
 csrrs t2,sepc,x0          ; does not write to sepc
-addi t2,t2,4
 csrrw x0,sepc,t2
 csrrs t0,scause,x0        ; does not write to scause
 csrrw x0,scause,x0        ; writes to scause
@@ -50,12 +50,10 @@ srli t0,t0,1
 sub t2,t0,a0
 beq t2,x0,24
 csrrs t2,mepc,x0          ; does not write to mepc
-addi t2,t2,4
 csrrw x0,mepc,t2
 sw x0,0(s2)
 mret
 csrrs t2,sepc,x0          ; does not write to sepc
-addi t2,t2,-4
 csrrw x0,sepc,t2
 ori t0,x0,0b100000000000  ; SSI ISR
 sb t0,0(s0)

@@ -22,7 +22,7 @@ module hazard_unit (
     output logic flush_ex
 );
 
-  logic flush_id_type, flush_id_pc, flush_id_trap;
+  logic flush_id_pc, flush_id_trap;
   logic flush_ex_type, flush_ex_trap;
 
   assign flush_id_pc = (pc_src != PcPlus4);
@@ -33,14 +33,12 @@ module hazard_unit (
   always_comb begin : flushes_and_stalls_proc
     stall_if = 1'b0;
     stall_id = 1'b0;
-    flush_id_type = 1'b0;
     flush_ex_type = 1'b0;
 
     unique case (hazard_type)
       NoHazard: begin
         stall_if = 1'b0;
         stall_id = 1'b0;
-        flush_id_type = 1'b0;
         flush_ex_type = 1'b0;
       end
 
@@ -70,14 +68,13 @@ module hazard_unit (
       default: begin
         stall_if = 1'b0;
         stall_id = 1'b0;
-        flush_id_type = 1'b0;
         flush_ex_type = 1'b0;
       end
     endcase
 
   end : flushes_and_stalls_proc
 
-  assign flush_id = flush_id_type | flush_id_pc | flush_id_trap;
+  assign flush_id = flush_id_pc | flush_id_trap;
   assign flush_ex = flush_ex_type | flush_ex_trap;
 
 endmodule

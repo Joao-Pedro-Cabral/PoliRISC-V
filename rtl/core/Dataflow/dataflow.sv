@@ -312,7 +312,7 @@ module dataflow #(
   ) csr_bank (
       .clock(clock),
       .reset(reset),
-      .trap_en(~stall_id && ~mem_busy),
+      .en(~stall_id && ~mem_busy),
       .csr_op(csr_op),
       .wr_en(|if_id_reg.inst[19:15]),
       // Interrupt/Exception Signals
@@ -344,8 +344,8 @@ module dataflow #(
   ) branch_decoder_unit_inst (
       .branch_type(branch_type),
       .cond_branch_type(cond_branch_type),
-      .read_data_1(rs1),
-      .read_data_2(rs2),
+      .read_data_1(forwarded_rs1_id),
+      .read_data_2(forwarded_rs2_id),
       .pc_src(_pc_src)
   );
   assign pc_src = _pc_src;

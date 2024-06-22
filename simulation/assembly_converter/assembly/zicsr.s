@@ -12,6 +12,7 @@ csrrw x0,stvec,t0
 ; setting mtimecmp
 lui t0,-1
 lui t1,262143             ; mtimecmp base address
+addi t1, t1, 48
 sw t0,0(t1)
 
 addi a2,x0,0b1            ; SSI
@@ -29,6 +30,7 @@ ecall
 ; Machine Timer Interrupt
 add t0,x0,x0
 lui t1,262143             ; mtimecmp base address
+addi t1, t1, 48
 sw t0,0(t1)
 
 ; Supervisor Timer Interrupt
@@ -43,7 +45,7 @@ csrrc x0,6,x0
 
 ; Machine Software Interrupt
 addi t0,x0,-1
-lui s2,262144             ; msip base address
+lui s2,262143             ; msip base address
 sw t0,0(s2)
 
 ; Supervisor Software Interrupt
@@ -90,6 +92,7 @@ j 132
 ori t0,x0,0b100000        ; MTI ISR
 lui t0,-1
 lui t1,262143             ; mtimecmp base address
+addi t1, t1, 48
 sw t0,0(t1)
 sb t0,3(s0)
 mret
