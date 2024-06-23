@@ -1,20 +1,22 @@
 import forwarding_unit_pkg::*;
 
-module forwarding_unit (
+module forwarding_unit #(
+    parameter integer N = 5
+  ) (
     input forwarding_type_t forwarding_type_id,
     input forwarding_type_t forwarding_type_ex,
     input forwarding_type_t forwarding_type_mem,
     input logic reg_we_ex,
     input logic reg_we_mem,
     input logic reg_we_wb,
-    input logic [4:0] rd_ex,
-    input logic [4:0] rd_mem,
-    input logic [4:0] rd_wb,
-    input logic [4:0] rs1_id,
-    input logic [4:0] rs2_id,
-    input logic [4:0] rs1_ex,
-    input logic [4:0] rs2_ex,
-    input logic [4:0] rs2_mem,
+    input logic [N-1:0] rd_ex,
+    input logic [N-1:0] rd_mem,
+    input logic [N-1:0] rd_wb,
+    input logic [N-1:0] rs1_id,
+    input logic [N-1:0] rs2_id,
+    input logic [N-1:0] rs1_ex,
+    input logic [N-1:0] rs2_ex,
+    input logic [N-1:0] rs2_mem,
     output forwarding_t forward_rs1_id,
     output forwarding_t forward_rs2_id,
     output forwarding_t forward_rs1_ex,
@@ -22,136 +24,99 @@ module forwarding_unit (
     output forwarding_t forward_rs2_mem
 );
 
-  function automatic bit valid_forwarding(input logic reg_we, input logic [4:0] rs,
-                                          input logic [4:0] rd);
+  function automatic bit valid_forwarding(input logic reg_we, input logic [N-1:0] rs,
+                                          input logic [N-1:0] rd);
     return reg_we && rs && rd == rs;
   endfunction
 
-  function automatic bit forward(input forwarding_src_bundle_t src_bundle,
-                                 ref forwarding_dst_bundle_t dst_bundle);
-    if (valid_forwarding(src_bundle.reg_we, dst_bundle.rs, src_bundle.rd)) begin
-      dst_bundle.forward_rs = src_bundle.target_forwarding;
+  function automatic bit forward(input logic reg_we, input logic [N-1:0] rd,
+                                 input forwarding_t target_forwarding, input logic [N-1:0] rs,
+                                 output forwarding_t forward_rs);
+    if (valid_forwarding(reg_we, rs, rd)) begin
+      forward_rs = target_forwarding;
       return 1'b1;
     end
-    dst_bundle.forward_rs = NoForwarding;
+    forward_rs = NoForwarding;
     return 1'b0;
   endfunction
 
-  forwarding_dst_bundle_t rs1_id_bundle;
-  forwarding_dst_bundle_t rs2_id_bundle;
   always_comb begin : forward_rsx_id_proc
-    forwarding_src_bundle_t ex_bundle;
-    forwarding_src_bundle_t mem_bundle;
-    forwarding_src_bundle_t wb_bundle;
-
-    ex_bundle = '{reg_we: reg_we_ex, rd: rd_ex, target_forwarding: ForwardFromEx};
-    mem_bundle = '{
-        reg_we: reg_we_mem,
-        rd: rd_mem,
-        target_forwarding: ForwardFromMem
-    };
-    wb_bundle = '{reg_we: reg_we_wb, rd: rd_wb, target_forwarding: ForwardFromWb};
-    rs1_id_bundle = '{rs: rs1_id, forward_rs: NoForwarding};
-    rs2_id_bundle = '{rs: rs2_id, forward_rs: NoForwarding};
-
     unique case (forwarding_type_id)
 
       NoForward: begin
-        rs1_id_bundle.forward_rs = NoForwarding;
-        rs2_id_bundle.forward_rs = NoForwarding;
+        forward_rs1_id = NoForwarding;
+        forward_rs2_id = NoForwarding;
       end
 
       ForwardExecute, ForwardExecuteMemory: begin
-        void'(forward(wb_bundle, rs1_id_bundle));
-        void'(forward(wb_bundle, rs2_id_bundle));
+        void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs1_id, forward_rs1_id));
+        void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs2_id, forward_rs2_id));
       end
 
       ForwardDecode: begin
-        if (!forward(ex_bundle, rs1_id_bundle)) begin
-          if (!forward(mem_bundle, rs1_id_bundle)) begin
-            void'(forward(wb_bundle, rs1_id_bundle));
+        if (!forward(reg_we_ex, rd_ex, ForwardFromEx, rs1_id, forward_rs1_id)) begin
+          if (!forward(reg_we_mem, rd_mem, ForwardFromMem, rs1_id, forward_rs1_id)) begin
+            void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs1_id, forward_rs1_id));
           end
         end
 
-        if (!forward(ex_bundle, rs2_id_bundle)) begin
-          if (!forward(mem_bundle, rs2_id_bundle)) begin
-            void'(forward(wb_bundle, rs2_id_bundle));
+        if (!forward(reg_we_ex, rd_ex, ForwardFromEx, rs2_id, forward_rs2_id)) begin
+          if (!forward(reg_we_mem, rd_mem, ForwardFromMem, rs2_id, forward_rs2_id)) begin
+            void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs2_id, forward_rs2_id));
           end
         end
       end
 
       default: begin
-        rs1_id_bundle.forward_rs = NoForwarding;
-        rs2_id_bundle.forward_rs = NoForwarding;
+        forward_rs1_id = NoForwarding;
+        forward_rs2_id = NoForwarding;
       end
 
     endcase
   end : forward_rsx_id_proc
 
-
-  forwarding_dst_bundle_t rs1_ex_bundle;
-  forwarding_dst_bundle_t rs2_ex_bundle;
   always_comb begin : forward_rsx_ex_proc
-    forwarding_src_bundle_t mem_bundle;
-    forwarding_src_bundle_t wb_bundle;
-
-    mem_bundle = '{reg_we: reg_we_mem, rd: rd_mem, target_forwarding: ForwardFromMem};
-    wb_bundle = '{reg_we: reg_we_wb, rd: rd_wb, target_forwarding: ForwardFromWb};
-    rs1_ex_bundle = '{rs: rs1_ex, forward_rs: NoForwarding};
-    rs2_ex_bundle = '{rs: rs2_ex, forward_rs: NoForwarding};
-
     unique case (forwarding_type_ex)
 
       NoForward, ForwardDecode: begin
-        rs1_ex_bundle.forward_rs = NoForwarding;
-        rs2_ex_bundle.forward_rs = NoForwarding;
+        forward_rs1_ex = NoForwarding;
+        forward_rs2_ex = NoForwarding;
       end
 
       ForwardExecute, ForwardExecuteMemory: begin
-        if (!forward(mem_bundle, rs1_ex_bundle)) begin
-          void'(forward(wb_bundle, rs1_ex_bundle));
+        if (!forward(reg_we_mem, rd_mem, ForwardFromMem, rs1_ex, forward_rs1_ex)) begin
+          void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs1_ex, forward_rs1_ex));
         end
-        if (!forward(mem_bundle, rs2_ex_bundle)) begin
-          void'(forward(wb_bundle, rs2_ex_bundle));
+        if (!forward(reg_we_mem, rd_mem, ForwardFromMem, rs2_ex, forward_rs2_ex)) begin
+          void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs2_ex, forward_rs2_ex));
         end
       end
 
       default: begin
-        rs1_ex_bundle.forward_rs = NoForwarding;
-        rs2_ex_bundle.forward_rs = NoForwarding;
+        forward_rs1_ex = NoForwarding;
+        forward_rs2_ex = NoForwarding;
       end
 
     endcase
   end : forward_rsx_ex_proc
 
-  forwarding_dst_bundle_t rs2_mem_bundle;
   always_comb begin : forward_rs2_mem_proc
     forwarding_src_bundle_t wb_bundle;
-
-    wb_bundle      = '{reg_we: reg_we_wb, rd: rd_wb, target_forwarding: ForwardFromWb};
-    rs2_mem_bundle = '{rs: rs2_mem, forward_rs: NoForwarding};
-
     unique case (forwarding_type_mem)
 
       NoForward, ForwardExecute, ForwardDecode: begin
-        rs2_mem_bundle.forward_rs = NoForwarding;
+        forward_rs2_mem = NoForwarding;
       end
 
       ForwardExecuteMemory: begin
-        void'(forward(wb_bundle, rs2_mem_bundle));
+        void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs2_mem, forward_rs2_ex));
       end
 
       default: begin
-        rs2_mem_bundle.forward_rs = NoForwarding;
+        forward_rs2_mem = NoForwarding;
       end
 
     endcase
   end : forward_rs2_mem_proc
-
-  assign forward_rs1_id  = rs1_id_bundle.forward_rs;
-  assign forward_rs2_id  = rs2_id_bundle.forward_rs;
-  assign forward_rs1_ex  = rs1_ex_bundle.forward_rs;
-  assign forward_rs2_ex  = rs2_ex_bundle.forward_rs;
-  assign forward_rs2_mem = rs2_mem_bundle.forward_rs;
 
 endmodule

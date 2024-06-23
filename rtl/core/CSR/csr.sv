@@ -1,5 +1,4 @@
 
-// Note: Privilege checks is made in UC
 // Note: Never writes in CSR if a trap happened
 
 import csr_pkg::*;
@@ -20,10 +19,7 @@ module csr #(
     input logic [31:0] instruction,
     input logic [63:0] mtime,
     input logic [63:0] mtimecmp,
-    input logic illegal_instruction,
-    input logic ecall,
     output logic [DATA_SIZE-1:0] rd_data,
-    output logic addr_exception,
     output logic [DATA_SIZE-1:0] mepc,
     output logic [DATA_SIZE-1:0] sepc,
     output logic [DATA_SIZE-1:0] trap_addr,
@@ -36,8 +32,8 @@ module csr #(
   // Control Logic
   logic wr_en_, mret_, sret_;
 
-  // Data
-  logic [DATA_SIZE-1:0] wr_data_, rd_data_, mask_rd_data;
+  // Exceptions
+  logic ecall, addr_exception, illegal_instruction;
 
   // CSR
   logic [DATA_SIZE-1:0]
@@ -98,16 +94,10 @@ module csr #(
   assign sret_  = (csr_op == CsrSret) & en & !_trap;
   assign wr_en_ = ((csr_op == CsrRW) || ((csr_op inside {CsrRS, CsrRC}) && wr_en)) & en & !_trap;
 
-  // Input data
-  always_comb begin
-    wr_data_ = wr_data;
-    unique case (csr_op)
-      CsrRS: wr_data_ = wr_data | rd_data_;
-      CsrRC: wr_data_ = wr_data & (~rd_data_);
-      default: begin  // wr_data_ = wr_data
-      end
-    endcase
-  end
+  // Exceptions
+  assign illegal_instruction = (csr_op == CsrIllegalInstruction) ||
+                               (csr_op inside {CsrRW, CsrRS, CsrRC} && addr_exception);
+  assign ecall = (csr_op == CsrEcall);
 
   // XSTATUS
   logic sie, mie, spie, mpie, spp;
@@ -135,9 +125,9 @@ module csr #(
       mpie <= 1'b1;
       mpp  <= Machine;
     end else if (wr_en_ && (addr == Mstatus)) begin
-      mie  <= wr_data_[MIE];
-      mpie <= wr_data_[MPIE];
-      if (wr_data_[MPP+1:MPP] != 2'b10) mpp <= privilege_mode_t'(wr_data_[MPP+1:MPP]);
+      mie  <= wr_data[MIE];
+      mpie <= wr_data[MPIE];
+      if (wr_data[MPP+1:MPP] != 2'b10) mpp <= privilege_mode_t'(wr_data[MPP+1:MPP]);
     end
   end
 
@@ -153,9 +143,9 @@ module csr #(
       spp  <= 1'b0;
       // Common with S-Mode
     end else if (wr_en_ && (addr inside {Mstatus, Sstatus})) begin
-      sie  <= wr_data_[SIE];
-      spie <= wr_data_[SPIE];
-      spp  <= wr_data_[SPP];
+      sie  <= wr_data[SIE];
+      spie <= wr_data[SPIE];
+      spp  <= wr_data[SPP];
     end
   end
 
@@ -184,7 +174,7 @@ module csr #(
       .clock(clock),
       .reset(reset),
       .enable(wr_en_ && (addr == Mtvec)),
-      .D({wr_data_[DATA_SIZE-1:2], wr_data_[0]}),
+      .D({wr_data[DATA_SIZE-1:2], wr_data[0]}),
       .Q({mtvec[DATA_SIZE-1:2], mtvec[0]})
   );
 
@@ -197,7 +187,7 @@ module csr #(
       .clock(clock),
       .reset(reset),
       .enable(wr_en_ && (addr == Stvec)),
-      .D({wr_data_[DATA_SIZE-1:2], wr_data_[0]}),
+      .D({wr_data[DATA_SIZE-1:2], wr_data[0]}),
       .Q({stvec[DATA_SIZE-1:2], stvec[0]})
   );
 
@@ -205,14 +195,14 @@ module csr #(
   always_ff @(posedge clock, posedge reset) begin
     if (reset) mideleg <= 0;
     else if (wr_en_ && (addr == Mideleg))
-      mideleg <= '{SSI: wr_data_[SSI], STI: wr_data_[STI], SEI: wr_data_[SEI], default: 0};
+      mideleg <= '{SSI: wr_data[SSI], STI: wr_data[STI], SEI: wr_data[SEI], default: 0};
   end
 
   // MEDELEG
   always_ff @(posedge clock, posedge reset) begin
     if (reset) medeleg <= 0;
     else if (wr_en_ && (addr == Medeleg))
-      medeleg <= '{II: wr_data_[II], ECS: wr_data_[ECS], ECU: wr_data_[ECU], default: 0};
+      medeleg <= '{II: wr_data[II], ECS: wr_data[ECS], ECU: wr_data[ECU], default: 0};
   end
 
   // XIP
@@ -232,8 +222,8 @@ module csr #(
       stip <= 0;
       seip <= 0;
     end else if (wr_en_ && addr == Mip) begin
-      stip <= wr_data_[STI];
-      seip <= wr_data_[SEI];
+      stip <= wr_data[STI];
+      seip <= wr_data[SEI];
     end
   end
 
@@ -241,7 +231,7 @@ module csr #(
     if (reset) begin
       ssip <= 0;
     end else if (wr_en_ && addr inside {Mip, Sip}) begin
-      ssip <= wr_data_[SSI];
+      ssip <= wr_data[SSI];
     end
   end
 
@@ -255,9 +245,9 @@ module csr #(
       mtie <= 0;
       meie <= 0;
     end else if (wr_en_ && addr == Mie) begin
-      msie <= wr_data_[MSI];
-      mtie <= wr_data_[MTI];
-      meie <= wr_data_[MEI];
+      msie <= wr_data[MSI];
+      mtie <= wr_data[MTI];
+      meie <= wr_data[MEI];
     end
   end
 
@@ -267,9 +257,9 @@ module csr #(
       stie <= 0;
       seie <= 0;
     end else if (wr_en_ && addr inside {Mie, Sie}) begin
-      ssie <= wr_data_[SSI];
-      stie <= wr_data_[STI];
-      seie <= wr_data_[SEI];
+      ssie <= wr_data[SSI];
+      stie <= wr_data[STI];
+      seie <= wr_data[SEI];
     end
   end
 
@@ -281,7 +271,7 @@ module csr #(
       .clock(clock),
       .reset(reset),
       .enable(wr_en_ && (addr == Mscratch)),
-      .D(wr_data_),
+      .D(wr_data),
       .Q(mscratch)
   );
 
@@ -293,7 +283,7 @@ module csr #(
       .clock(clock),
       .reset(reset),
       .enable(wr_en_ && (addr == Sscratch)),
-      .D(wr_data_),
+      .D(wr_data),
       .Q(sscratch)
   );
 
@@ -301,7 +291,7 @@ module csr #(
   always @(posedge clock, posedge reset) begin
     if (reset) mepc_ <= 0;
     else if (m_trap) mepc_ <= pc;
-    else if (wr_en_ && (addr == Mepc)) mepc_ <= {wr_data_[DATA_SIZE-1:2], 2'b00};
+    else if (wr_en_ && (addr == Mepc)) mepc_ <= {wr_data[DATA_SIZE-1:2], 2'b00};
   end
   assign mepc = mepc_;
 
@@ -309,7 +299,7 @@ module csr #(
   always @(posedge clock, posedge reset) begin
     if (reset) sepc_ <= 0;
     else if (s_trap) sepc_ <= pc;
-    else if (wr_en_ && (addr == Sepc)) sepc_ <= {wr_data_[DATA_SIZE-1:2], 2'b00};
+    else if (wr_en_ && (addr == Sepc)) sepc_ <= {wr_data[DATA_SIZE-1:2], 2'b00};
   end
   assign sepc = sepc_;
 
@@ -318,25 +308,25 @@ module csr #(
   always @(posedge clock, posedge reset) begin
     if (reset) mcause <= 0;
     else if (m_trap) mcause <= cause;
-    else if (m_legal_write && wr_en_ && (addr == Mcause)) mcause <= wr_data_;  // WLRL
+    else if (m_legal_write && wr_en_ && (addr == Mcause)) mcause <= wr_data;  // WLRL
   end
-  assign m_legal_write = check_cause_write(wr_data_, 1'b1);
+  assign m_legal_write = check_cause_write(wr_data, 1'b1);
 
   // SCAUSE
   logic s_legal_write;
   always @(posedge clock, posedge reset) begin
     if (reset) scause <= 0;
     else if (s_trap) scause <= cause;
-    else if (s_legal_write && wr_en_ && (addr == Scause)) scause <= wr_data_;  // WLRL
+    else if (s_legal_write && wr_en_ && (addr == Scause)) scause <= wr_data;  // WLRL
   end
-  assign s_legal_write = check_cause_write(wr_data_, 1'b0);
+  assign s_legal_write = check_cause_write(wr_data, 1'b0);
 
   // MTVAL
   always @(posedge clock, posedge reset) begin
     if (reset) mtval <= 0;
     //  Store Illegal Instruction
     else if (m_trap && !async_trap && sync_trap && illegal_instruction) mtval <= instruction;
-    else if (wr_en_ && (addr == Mtval)) mtval <= wr_data_;
+    else if (wr_en_ && (addr == Mtval)) mtval <= wr_data;
   end
 
   // STVAL
@@ -344,7 +334,7 @@ module csr #(
     if (reset) stval <= 0;
     //  Store Illegal Instruction
     else if (s_trap && !async_trap && sync_trap && illegal_instruction) stval <= instruction;
-    else if (wr_en_ && (addr == Stval)) stval <= wr_data_;
+    else if (wr_en_ && (addr == Stval)) stval <= wr_data;
   end
 
   // PRIV
@@ -359,38 +349,35 @@ module csr #(
 
   // read data
   always_comb begin
-    rd_data_ = 0;
+    rd_data = 0;
     addr_exception = 1'b0;
     unique case (addr)
-      Sstatus: rd_data_ = sstatus;
-      Sie: rd_data_ = sie_;
-      Stvec: rd_data_ = stvec;
-      Sscratch: rd_data_ = sscratch;
-      Sepc: rd_data_ = sepc_;
-      Scause: rd_data_ = scause;
-      Stval: rd_data_ = stval;
-      Sip: rd_data_ = sip;
-      Mstatus: rd_data_ = mstatus;
-      Misa: rd_data_ = misa;
-      Medeleg: rd_data_ = medeleg;
-      Mideleg: rd_data_ = mideleg;
-      Mie: rd_data_ = mie_;
-      Mtvec: rd_data_ = mtvec;
-      Mscratch: rd_data_ = mscratch;
-      Mepc: rd_data_ = mepc_;
-      Mcause: rd_data_ = mcause;
-      Mtval: rd_data_ = mtval;
-      Mip: rd_data_ = mip;
-      Mvendorid: rd_data_ = mvendorid;
-      Marchid: rd_data_ = marchid;
-      Mimpid: rd_data_ = mimpid;
-      Mhartid: rd_data_ = mhartid;
+      Sstatus: rd_data = sstatus;
+      Sie: rd_data = sie_;
+      Stvec: rd_data = stvec;
+      Sscratch: rd_data = sscratch;
+      Sepc: rd_data = sepc_;
+      Scause: rd_data = scause;
+      Stval: rd_data = stval;
+      Sip: rd_data = sip;
+      Mstatus: rd_data = mstatus;
+      Misa: rd_data = misa;
+      Medeleg: rd_data = medeleg;
+      Mideleg: rd_data = mideleg;
+      Mie: rd_data = mie_;
+      Mtvec: rd_data = mtvec;
+      Mscratch: rd_data = mscratch;
+      Mepc: rd_data = mepc_;
+      Mcause: rd_data = mcause;
+      Mtval: rd_data = mtval;
+      Mip: rd_data = mip;
+      Mvendorid: rd_data = mvendorid;
+      Marchid: rd_data = marchid;
+      Mimpid: rd_data = mimpid;
+      Mhartid: rd_data = mhartid;
       default: addr_exception = 1'b1;
     endcase
   end
-
-  assign mask_rd_data = '{SEI: (external_interrupt & addr == Mip), default: 1'b0};
-  assign rd_data = rd_data_ | mask_rd_data;
 
   // Trap
   logic [5:0] interrupt_vector;  // If bit i is high, so interrupt 2*i + 1 happened

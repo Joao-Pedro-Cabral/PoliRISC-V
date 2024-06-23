@@ -13,7 +13,9 @@ package csr_pkg;
     CsrRS,
     CsrRC,
     CsrMret,
-    CsrSret
+    CsrSret,
+    CsrEcall,
+    CsrIllegalInstruction
   } csr_op_t;
 
   typedef enum logic [3:0] {

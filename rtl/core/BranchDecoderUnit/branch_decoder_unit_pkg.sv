@@ -1,10 +1,8 @@
 
 package branch_decoder_unit_pkg;
 
-  typedef enum logic [2:0] {
+  typedef enum logic [1:0] {
     NoBranch,
-    Mret,
-    Sret,
     Jump,
     CondBranch
   } branch_t;
@@ -18,10 +16,8 @@ package branch_decoder_unit_pkg;
     Bgeu
   } cond_branch_t;
 
-  typedef enum logic [1:0] {
+  typedef enum logic {
     PcPlus4,
-    SupervisorExceptionPC,
-    MachineExceptionPC,
     PcOrReadDataPlusImm
   } pc_src_t;
 

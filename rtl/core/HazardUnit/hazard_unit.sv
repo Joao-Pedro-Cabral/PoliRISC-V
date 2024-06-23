@@ -5,7 +5,7 @@ module hazard_unit (
     input hazard_t hazard_type,
     input rs_used_t rs_used,
     input pc_src_t pc_src,
-    input logic trap,
+    input logic flush_all,
     input logic [4:0] rs1_id,
     input logic [4:0] rs2_id,
     input logic [4:0] rd_ex,
@@ -19,16 +19,14 @@ module hazard_unit (
     output logic stall_if,
     output logic stall_id,
     output logic flush_id,
-    output logic flush_ex
+    output logic flush_ex,
+    output logic flush_mem
 );
 
-  logic flush_id_pc, flush_id_trap;
-  logic flush_ex_type, flush_ex_trap;
+  logic flush_id_pc;
+  logic flush_ex_type;
 
   assign flush_id_pc = (pc_src != PcPlus4);
-
-  assign flush_id_trap = trap;
-  assign flush_ex_trap = trap;
 
   always_comb begin : flushes_and_stalls_proc
     stall_if = 1'b0;
@@ -36,12 +34,6 @@ module hazard_unit (
     flush_ex_type = 1'b0;
 
     unique case (hazard_type)
-      NoHazard: begin
-        stall_if = 1'b0;
-        stall_id = 1'b0;
-        flush_ex_type = 1'b0;
-      end
-
       HazardDecode: begin
         if (rd_ex && ((rs_used && rs2_id == rd_ex) || rs1_id == rd_ex)
             && reg_we_ex && !rd_complete_ex) begin
@@ -65,16 +57,14 @@ module hazard_unit (
         end
       end
 
-      default: begin
-        stall_if = 1'b0;
-        stall_id = 1'b0;
-        flush_ex_type = 1'b0;
+      default: begin // No Hazard
       end
     endcase
 
   end : flushes_and_stalls_proc
 
-  assign flush_id = flush_id_pc | flush_id_trap;
-  assign flush_ex = flush_ex_type | flush_ex_trap;
+  assign flush_id = flush_id_pc | flush_all;
+  assign flush_ex = flush_ex_type | flush_all;
+  assign flush_mem = flush_all;
 
 endmodule

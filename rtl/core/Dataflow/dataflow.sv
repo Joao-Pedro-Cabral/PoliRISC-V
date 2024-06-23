@@ -44,7 +44,7 @@ module dataflow #(
     // Interrupts/Exceptions from UC
     input wire ecall,
     input wire illegal_instruction,
-    // Trap Return
+    // Trap Return/Zicsr
     input csr_op_t csr_op,
     input wire csr_imm,
     // Interrupts from Memory
@@ -58,13 +58,13 @@ module dataflow #(
     output wire [6:0] funct7,
     output wire csr_addr_invalid,
     output privilege_mode_t privilege_mode,
-    // From Forwarding Unit
+    // From Forwarding Unit: Register Bank
     input forwarding_t forward_rs1_id,
     input forwarding_t forward_rs2_id,
     input forwarding_t forward_rs1_ex,
     input forwarding_t forward_rs2_ex,
     input forwarding_t forward_rs2_mem,
-    // To Forwarding Unit
+    // To Forwarding Unit: Register Bank
     output forwarding_type_t forwarding_type_id,
     output forwarding_type_t forwarding_type_ex,
     output forwarding_type_t forwarding_type_mem,
@@ -78,6 +78,16 @@ module dataflow #(
     output logic [4:0] rs1_ex,
     output logic [4:0] rs2_ex,
     output logic [4:0] rs2_mem,
+    // From Forwarding Unit: CSR Bank
+    input forwarding_t forward_csr_id,
+    input forwarding_t forward_csr_ex,
+    // To Forwarding Unit: CSR Bank
+    output logic csr_we_mem,
+    output logic csr_we_wb,
+    output logic [11:0] csr_addr_id,
+    output logic [11:0] csr_addr_ex,
+    output logic [11:0] csr_addr_mem,
+    output logic [11:0] csr_addr_wb,
     // From Hazard Unit
     input logic stall_if,
     input logic stall_id,
@@ -89,6 +99,7 @@ module dataflow #(
     /* output logic [4:0] rd_ex, */
     /* output logic [4:0] rd_mem, */
     output pc_src_t pc_src,
+    output logic flush_all,
     output logic reg_we_ex,
     output logic mem_rd_en_ex,
     output logic mem_rd_en_mem,
@@ -131,9 +142,11 @@ module dataflow #(
   wire             [DATA_SIZE-1:0] mepc;
   wire             [DATA_SIZE-1:0] sepc;
   // ZICSR
-  wire             [DATA_SIZE-1:0] csr_rd_data;
-  wire             [DATA_SIZE-1:0] csr_mask_rd_data;
-  wire             [DATA_SIZE-1:0] csr_aux_wr;
+  logic            [DATA_SIZE-1:0] csr_rd_data;
+  logic            [DATA_SIZE-1:0] csr_mask_rd;
+  logic            [DATA_SIZE-1:0] csr_mask_rd_data;
+  logic            [DATA_SIZE-1:0] csr_aux_wr;
+  logic            [DATA_SIZE-1:0] csr_wr_data;
   // Branch Decoder Unit
   pc_src_t                         _pc_src;
 
@@ -159,21 +172,19 @@ module dataflow #(
       .S(pc_plus_4)
   );
   always_comb begin
-    unique case (_pc_src)
-      SupervisorExceptionPC: begin
-        new_pc = sepc;
-      end
-      MachineExceptionPC: begin
-        new_pc = mepc;
-      end
-      PcOrReadDataPlusImm: begin
-        new_pc = pc_plus_immediate;
-      end
-      default: begin // PcPlus4
-        new_pc = pc_plus_4;
-      end
-    endcase
     if(_trap) new_pc = trap_addr;
+    else if(mem_wb_reg.csr_op == CsrMret) new_pc = mepc;
+    else if(mem_wb_reg.csr_op == CsrSret) new_pc = sepc;
+    else begin
+      unique case (_pc_src)
+        PcOrReadDataPlusImm: begin
+          new_pc = pc_plus_immediate;
+        end
+        default: begin // PcPlus4
+          new_pc = pc_plus_4;
+        end
+      endcase
+    end
   end
   register_d #(
       .N(DATA_SIZE),
@@ -189,19 +200,18 @@ module dataflow #(
 
 
   // ID stage
-  logic [DATA_SIZE-1:0] forwarded_rs1_id, forwarded_rs2_id;
+  logic [DATA_SIZE-1:0] forwarded_rs1_id, forwarded_rs2_id, forwarded_csr_id;
   always_comb begin : id_forwarding_logic
     unique case (forward_rs1_id)
       NoForwarding: begin
         forwarded_rs1_id = rs1;
       end
       ForwardFromEx: begin
-        forwarded_rs1_id = id_ex_reg.wr_reg_src == WrPcPlus4 ? id_ex_reg.pc_plus_4 :
-                                                               id_ex_reg.csr_read_data;
+        forwarded_rs1_id = id_ex_reg.pc_plus_4;
       end
       ForwardFromMem: begin
         unique case(ex_mem_reg.wr_reg_src)
-          WrCsrRdData: forwarded_rs1_id = ex_mem_reg.csr_read_data;
+          WrCsrRdData: forwarded_rs1_id = ex_mem_reg.csr_rd_data;
           WrPcPlus4: forwarded_rs1_id = ex_mem_reg.pc_plus_4;
           default: forwarded_rs1_id = ex_mem_reg.alu_y;
         endcase
@@ -219,12 +229,11 @@ module dataflow #(
         forwarded_rs2_id = rs2;
       end
       ForwardFromEx: begin
-        forwarded_rs2_id = id_ex_reg.wr_reg_src == WrPcPlus4 ? id_ex_reg.pc_plus_4 :
-                                                               id_ex_reg.csr_read_data;
+        forwarded_rs2_id = id_ex_reg.pc_plus_4;
       end
       ForwardFromMem: begin
         unique case(ex_mem_reg.wr_reg_src)
-          WrCsrRdData: forwarded_rs2_id = ex_mem_reg.csr_read_data;
+          WrCsrRdData: forwarded_rs2_id = ex_mem_reg.csr_rd_data;
           WrPcPlus4: forwarded_rs2_id = ex_mem_reg.pc_plus_4;
           default: forwarded_rs2_id = ex_mem_reg.alu_y;
         endcase
@@ -234,6 +243,15 @@ module dataflow #(
       end
       default: begin
         forwarded_rs2_id = rs2;
+      end
+    endcase
+
+    unique case (forward_csr_id)
+      ForwardFromWb: begin
+        forwarded_csr_id = mem_wb_reg.csr_wr_data;
+      end
+      default: begin // No Forwarding, ForwardFromMem, ForwardFromEx
+        forward_csr_id = csr_rd_data;
       end
     endcase
   end : id_forwarding_logic
@@ -250,7 +268,7 @@ module dataflow #(
       id_ex_reg.read_data_2 <= forwarded_rs2_id;
       id_ex_reg.rd <= if_id_reg.inst[11:7];
       id_ex_reg.imm <= immediate;
-      id_ex_reg.csr_read_data <= csr_mask_rd_data;
+      id_ex_reg.csr_rd_data <= forwarded_csr_id;
       id_ex_reg.mem_read_enable <= mem_rd_en;
       id_ex_reg.mem_write_enable <= mem_wr_en;
       id_ex_reg.mem_byte_en <= mem_byte_en;
@@ -262,6 +280,9 @@ module dataflow #(
       id_ex_reg.wr_reg_src <= wr_reg_src;
       id_ex_reg.wr_reg_en <= wr_reg_en;
       id_ex_reg.forwarding_type <= forwarding_type;
+      id_ex_reg.csr_op <= csr_op;
+      id_ex_reg.csr_imm <= csr_imm;
+      id_ex_reg.inst <= if_id_reg.inst;
     end
   end
 
@@ -300,24 +321,15 @@ module dataflow #(
       .S(pc_plus_immediate)
   );
   // CSR
-  assign csr_mask_rd_data[8:0] = csr_rd_data[8:0];
-  assign csr_mask_rd_data[9] =
-    (if_id_reg.inst[31:20] == 12'h344 || if_id_reg.inst[31:20] == 12'h144)
-                                            ? (csr_rd_data[9] | external_interrupt)
-                                            : csr_rd_data[9];
-  assign csr_mask_rd_data[DATA_SIZE-1:10] = csr_rd_data[DATA_SIZE-1:10];
-  assign csr_aux_wr = csr_imm ? $unsigned(if_id_reg.inst[19:15]) : forwarded_rs1_id;
   csr #(
     .DATA_SIZE(DATA_SIZE)
   ) csr_bank (
       .clock(clock),
       .reset(reset),
-      .en(~stall_id && ~mem_busy),
-      .csr_op(csr_op),
-      .wr_en(|if_id_reg.inst[19:15]),
-      // Interrupt/Exception Signals
-      .ecall(ecall),
-      .illegal_instruction(illegal_instruction),
+      .en(~mem_busy),
+      .csr_op(mem_wb_reg.csr_op),
+      .wr_en(|mem_wb_reg.inst[19:15]),
+      // Interrupt Signals
       .external_interrupt(external_interrupt),
       .msip(|msip),
       .mtime(mtime),
@@ -325,12 +337,11 @@ module dataflow #(
       .trap_addr(trap_addr),
       .trap(_trap),
       .privilege_mode(_privilege_mode),
-      .addr_exception(csr_addr_invalid),
-      .pc(if_id_reg.pc),
-      .instruction(if_id_reg.inst),
+      .pc(mem_wb_reg.pc),
+      .instruction(mem_wb_reg.inst),
       // CSR RW interface
       .addr(if_id_reg.inst[31:20]),
-      .wr_data(csr_aux_wr),
+      .wr_data(mem_wb_reg.csr_wr_data),
       .rd_data(csr_rd_data),
       // TrapReturn
       .mepc(mepc),
@@ -353,7 +364,7 @@ module dataflow #(
 
 
   // EX stage
-  logic [DATA_SIZE-1:0] forwarded_rs1_ex, forwarded_rs2_ex;
+  logic [DATA_SIZE-1:0] forwarded_rs1_ex, forwarded_rs2_ex, forwarded_csr_ex;
   always_comb begin : ex_forwarding_logic
     unique case (forward_rs1_ex)
       NoForwarding, ForwardFromEx: begin
@@ -361,7 +372,7 @@ module dataflow #(
       end
       ForwardFromMem: begin
         unique case(ex_mem_reg.wr_reg_src)
-          WrCsrRdData: forwarded_rs1_ex = ex_mem_reg.csr_read_data;
+          WrCsrRdData: forwarded_rs1_ex = ex_mem_reg.csr_rd_data;
           WrPcPlus4: forwarded_rs1_ex = ex_mem_reg.pc_plus_4;
           default: forwarded_rs1_ex = ex_mem_reg.alu_y;
         endcase
@@ -380,7 +391,7 @@ module dataflow #(
       end
       ForwardFromMem: begin
         unique case(ex_mem_reg.wr_reg_src)
-          WrCsrRdData: forwarded_rs2_ex = ex_mem_reg.csr_read_data;
+          WrCsrRdData: forwarded_rs2_ex = ex_mem_reg.csr_rd_data;
           WrPcPlus4: forwarded_rs2_ex = ex_mem_reg.pc_plus_4;
           default: forwarded_rs2_ex = ex_mem_reg.alu_y;
         endcase
@@ -392,15 +403,43 @@ module dataflow #(
         forwarded_rs2_ex = id_ex_reg.read_data_2;
       end
     endcase
+
+    unique case(forward_csr_ex)
+      ForwardFromMem: begin
+        forward_csr_ex = ex_mem_reg.csr_wr_data;
+      end
+      ForwardFromWb: begin
+        forward_csr_ex = mem_wb_reg.csr_wr_data;
+      end
+      default: begin // No Fowarding
+        forward_csr_ex = id_ex_reg.csr_wr_data;
+      end
+    endcase
   end : ex_forwarding_logic
+
+  // CSR Read/Write Logic
+  assign csr_mask_rd = '{SEI: (external_interrupt & csr_addr_t'(id_ex_reg.inst[31:20]) == Mip),
+                         default: 1'b0};
+  assign csr_mask_rd_data = forward_csr_ex | csr_mask_rd;
+  assign csr_aux_wr = csr_imm ? $unsigned(id_ex_reg.inst[19:15]) : forwarded_rs1_ex;
+  always_comb begin
+    csr_wr_data = csr_aux_wr;
+    unique case (csr_op)
+      CsrRS: csr_wr_data = csr_aux_wr | forward_csr_ex;
+      CsrRC: csr_wr_data = csr_aux_wr & (~forward_csr_ex);
+      default: begin
+      end
+    endcase
+  end
 
   always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
     if (reset) ex_mem_reg <= '0;
     else begin
+      ex_mem_reg.pc <= id_ex_reg.pc;
       ex_mem_reg.pc_plus_4 <= id_ex_reg.pc_plus_4;
       ex_mem_reg.rs2 <= id_ex_reg.rs2;
       ex_mem_reg.rd <= id_ex_reg.rd;
-      ex_mem_reg.csr_read_data <= id_ex_reg.csr_read_data;
+      ex_mem_reg.csr_rd_data <= csr_mask_rd_data;
       ex_mem_reg.alu_y <= muxaluY_out;
       ex_mem_reg.write_data <= forwarded_rs2_ex;
       ex_mem_reg.mem_read_enable <= id_ex_reg.mem_read_enable;
@@ -410,6 +449,10 @@ module dataflow #(
       ex_mem_reg.wr_reg_src <= id_ex_reg.wr_reg_src;
       ex_mem_reg.wr_reg_en <= id_ex_reg.wr_reg_en;
       ex_mem_reg.forwarding_type <= id_ex_reg.forwarding_type;
+      ex_mem_reg.csr_op <= id_ex_reg.csr_op;
+      ex_mem_reg.csr_imm <= id_ex_reg.csr_imm;
+      ex_mem_reg.csr_wr_data <= csr_wr_data;
+      ex_mem_reg.inst <= id_ex_reg.inst;
     end
   end
 
@@ -430,7 +473,6 @@ generate;
     assign aluB = id_ex_reg.alub_src ? id_ex_reg.imm : forwarded_rs2_ex;
   end
 endgenerate
-  // Mascarar LUI no Rs1
   assign muxaluY_out[31:0] = aluY[31:0];
 
   alu #(
@@ -467,13 +509,18 @@ endgenerate
   always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
     if (reset) mem_wb_reg <= '0;
     else begin
+      mem_wb_reg.pc <= pc;
       mem_wb_reg.pc_plus_4 <= ex_mem_reg.pc_plus_4;
       mem_wb_reg.rd <= ex_mem_reg.rd;
-      mem_wb_reg.csr_read_data <= ex_mem_reg.csr_read_data;
+      mem_wb_reg.csr_rd_data <= ex_mem_reg.csr_rd_data;
       mem_wb_reg.alu_y <= ex_mem_reg.alu_y;
       mem_wb_reg.read_data <= rd_data;
       mem_wb_reg.wr_reg_src <= ex_mem_reg.wr_reg_src;
       mem_wb_reg.wr_reg_en <= ex_mem_reg.wr_reg_en;
+      mem_wb_reg.csr_op <= ex_mem_reg.csr_op;
+      mem_wb_reg.csr_imm <= ex_mem_reg.csr_imm;
+      mem_wb_reg.csr_wr_data <= ex_mem_reg.csr_wr_data;
+      mem_wb_reg.inst <= ex_mem_reg.inst;
     end
   end
 
@@ -481,7 +528,7 @@ endgenerate
       .size(DATA_SIZE),
       .N(2)
   ) wb_mux41 (
-      .A({mem_wb_reg.pc_plus_4, mem_wb_reg.read_data, mem_wb_reg.csr_read_data, mem_wb_reg.alu_y}),
+      .A({mem_wb_reg.pc_plus_4, mem_wb_reg.read_data, mem_wb_reg.csr_rd_data, mem_wb_reg.alu_y}),
       .S(mem_wb_reg.wr_reg_src),
       .Y(rd)
   );
@@ -502,13 +549,12 @@ endgenerate
   assign funct7 = if_id_reg.inst[31:25];
   assign privilege_mode = _privilege_mode;
 
-  // Forwarding Unit
+  // Forwarding Unit: Register Bank
   assign forwarding_type_id = forwarding_type;
   assign forwarding_type_ex = id_ex_reg.forwarding_type;
   assign forwarding_type_mem = ex_mem_reg.forwarding_type;
   assign reg_we_mem = ex_mem_reg.wr_reg_en;
   assign reg_we_wb = mem_wb_reg.wr_reg_en;
-  assign rd_complete_ex = id_ex_reg.wr_reg_src inside {WrCsrRdData, WrPcPlus4};
   assign rd_ex = id_ex_reg.rd;
   assign rd_mem = ex_mem_reg.rd;
   assign rd_wb = mem_wb_reg.rd;
@@ -518,7 +564,18 @@ endgenerate
   assign rs2_ex = id_ex_reg.rs2;
   assign rs2_mem = ex_mem_reg.rs2;
 
+  // Forwarding Unit: CSR Bank
+  assign csr_we_mem = (ex_mem_reg.csr_op == CsrRW) ||
+                      ((ex_mem_reg.csr_op inside {CsrRS, CsrRC}) && (|ex_mem_reg.inst[19:15]));
+  assign csr_we_wb = (mem_wb_reg.csr_op == CsrRW) ||
+                     ((mem_wb_reg.csr_op inside {CsrRS, CsrRC}) && (|mem_wb_reg.inst[19:15]));
+  assign csr_addr_id = if_id_reg.inst[31:20];
+  assign csr_addr_ex = id_ex_reg.inst[31:20];
+  assign csr_addr_mem = ex_mem_reg.inst[31:20];
+  assign csr_addr_wb = mem_wb_reg.inst[31:20];
   // Hazard Unit
+  assign flush_all = _trap | (mem_wb_reg.csr_op inside {CsrSret, CsrMret});
+  assign rd_complete_ex = id_ex_reg.wr_reg_src inside {WrPcPlus4};
   assign reg_we_ex = id_ex_reg.wr_reg_en;
   assign mem_rd_en_ex = id_ex_reg.mem_read_enable;
   assign mem_rd_en_mem = ex_mem_reg.mem_read_enable;

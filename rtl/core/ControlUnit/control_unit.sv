@@ -15,7 +15,6 @@ module control_unit #(
     input wire [2:0] funct3,
     input wire [6:0] funct7,
     input privilege_mode_t privilege_mode,
-    input wire csr_addr_invalid,
 
     // Sinais de Controle do Fluxo de Dados
     output reg alua_src,
@@ -31,8 +30,6 @@ module control_unit #(
     output reg mem_signed,
     output reg csr_imm,
     output csr_op_t csr_op,
-    output reg illegal_instruction,
-    output reg ecall,
     output hazard_t hazard_type,
     output rs_used_t rs_used,
     output forwarding_type_t forwarding_type,
@@ -59,8 +56,6 @@ module control_unit #(
     mem_signed = 1'b0;
     csr_imm      = 1'b0;
     csr_op       = CsrNoOp;
-    illegal_instruction = 1'b0;
-    ecall        = 1'b0;
     hazard_type = NoHazard;
     rs_used = OnlyRs1;
     forwarding_type = NoForward;
@@ -145,31 +140,26 @@ module control_unit #(
       end
 
       SystemType: begin
-        illegal_instruction = 1'b1;
+        csr_op = CsrIllegalInstruction;
         if (funct3 === 0) begin
           if (funct7 === 0) begin
-            ecall = 1'b1;
-            illegal_instruction = 1'b0;
+            csr_op = CsrEcall;
           end else if((funct7 == 7'h18 && privilege_mode == Machine) ||
                       (funct7 == 7'h08 && (privilege_mode inside {Machine, Supervisor}))) begin
             csr_op = funct7[4] ? CsrMret : CsrSret;
-            branch_type = funct7[4] ? Mret : Sret;
-            illegal_instruction = 1'b0;
           end
         end else if (funct3 !== 3'b100 && privilege_mode >= funct7[6:5]) begin
           wr_reg_en = 1'b1;
           wr_reg_src = WrCsrRdData;
           csr_imm = funct3[2];
           csr_op  = csr_op_t'(funct3[1:0]);
-          illegal_instruction = csr_addr_invalid;
-          hazard_type = csr_addr_invalid ? NoHazard :
-                        (funct3[2] ? NoHazard : HazardDecode);
-          forwarding_type = funct3[2] ? NoForward : ForwardDecode;
+          hazard_type = HazardExecute;
+          forwarding_type = ForwardExecute;
         end
       end
 
       default: begin
-        illegal_instruction = 1'b1;
+        csr_op = CsrIllegalInstruction;
       end
     endcase
   end
