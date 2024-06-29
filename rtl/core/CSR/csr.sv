@@ -24,6 +24,7 @@ module csr #(
     output logic [DATA_SIZE-1:0] sepc,
     output logic [DATA_SIZE-1:0] trap_addr,
     output logic trap,
+    output logic has_trap,
     output privilege_mode_t privilege_mode
 );
 
@@ -467,6 +468,7 @@ module csr #(
   assign s_trap = s_trap_ & en;
   assign _trap  = m_trap | s_trap;
   assign trap   = _trap;
+  assign has_trap = m_trap_ | s_trap_;
 
   // Trap Address
   logic [DATA_SIZE-3:0] m_trap_addr_vet, s_trap_addr_vet;

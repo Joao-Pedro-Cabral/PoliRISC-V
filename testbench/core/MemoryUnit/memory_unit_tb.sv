@@ -7,6 +7,7 @@ module memory_unit_tb;
 
   logic clock;
   logic reset;
+  logic en;
   logic rd_data_mem;
   logic wr_data_mem;
   logic inst_mem_ack;
@@ -27,15 +28,16 @@ module memory_unit_tb;
 
   initial begin
     $display("SOT!");
-    init_vars;
-    reset_module_test;
-    only_inst_mem_read_test;
+    init_vars();
+    reset_module_test();
+    only_inst_mem_read_test();
     inst_mem_read_then_data_mem_op(1'b0);
     inst_mem_read_then_data_mem_op(1'b1);
     data_mem_op_then_inst_mem_read(1'b0);
     data_mem_op_then_inst_mem_read(1'b1);
     simultaneous_mem_ops(1'b0);
     simultaneous_mem_ops(1'b1);
+    no_op_test();
     $display("EOT!");
     $stop;
   end
@@ -43,6 +45,7 @@ module memory_unit_tb;
   task automatic init_vars;
     clock = '0;
     reset = '0;
+    en = '0;
     rd_data_mem = '0;
     wr_data_mem = '0;
     inst_mem_ack = '0;
@@ -57,6 +60,7 @@ module memory_unit_tb;
 
   task automatic reset_module_test;
     reset = 1'b1;
+    en = 1'b1;
     @(posedge clock);
     @(negedge clock);
     RESET_MODULE_TEST :
@@ -256,6 +260,18 @@ module memory_unit_tb;
 
     WAIT_ANY_MEM_TEST :
     assert (busy & inst_mem_en & data_mem_en & (data_mem_we == rd_or_wr))
+    else $stop;
+  endtask
+
+  task automatic no_op_test();
+    en = 1'b0;
+    @(negedge clock);
+    NO_OPERATION: assert(!busy && !inst_mem_en && !data_mem_en && !data_mem_we)
+    else $stop;
+    @(posedge clock);
+    wait_time = $urandom;
+    #(wait_time);
+    NO_OPERATION2: assert(!busy && !inst_mem_en && !data_mem_en && !data_mem_we)
     else $stop;
   endtask
 

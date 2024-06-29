@@ -1,9 +1,11 @@
+
 module memory_unit #(
     parameter integer InstSize = 32,
     parameter integer DataSize = 64
 ) (
     input logic clock,
     input logic reset,
+    input logic en,
     input logic rd_data_mem,
     input logic wr_data_mem,
     input logic inst_mem_ack,
@@ -54,11 +56,12 @@ module memory_unit #(
     data_mem_bypass = 1'b0;
     unique case (present_state)
       Idle: begin
-        busy = 1'b1;
-        inst_mem_en = 1'b1;
-        data_mem_en = rd_data_mem | wr_data_mem;
-        data_mem_we = wr_data_mem;
-        if (!rd_data_mem && !wr_data_mem) next_state = WaitInstMem;
+        busy = en;
+        inst_mem_en = en;
+        data_mem_en = (rd_data_mem | wr_data_mem) & en;
+        data_mem_we = wr_data_mem & en;
+        if(!en) next_state = Idle;
+        else if (!rd_data_mem && !wr_data_mem) next_state = WaitInstMem;
         else next_state = WaitAnyMem;
       end
       WaitAnyMem: begin

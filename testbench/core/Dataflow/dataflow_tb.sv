@@ -47,6 +47,8 @@ module dataflow_tb ();
   // Common
   logic clock;
   logic reset;
+  // To Memory Unit
+  logic mem_unit_en;
   // Instruction Memory
   instruction_t inst;
   logic [DataSize-1:0] inst_mem_addr;
@@ -75,9 +77,6 @@ module dataflow_tb ();
   forwarding_type_t forwarding_type;
   branch_t branch_type;
   cond_branch_t cond_branch_type;
-  // Interrupts/Exceptions from UC
-  logic ecall;
-  logic illegal_instruction;
   // Trap Return
   csr_op_t csr_op;
   logic csr_imm;
@@ -90,15 +89,14 @@ module dataflow_tb ();
   opcode_t opcode;
   logic [2:0] funct3;
   logic [6:0] funct7;
-  logic csr_addr_invalid;
   privilege_mode_t privilege_mode;
-  // From Forwarding Unit
+  // From Forwarding Unit : Register Bank
   forwarding_t forward_rs1_id;
   forwarding_t forward_rs2_id;
   forwarding_t forward_rs1_ex;
   forwarding_t forward_rs2_ex;
   forwarding_t forward_rs2_mem;
-  // To Forwarding Unit
+  // To Forwarding Unit : Register Bank
   forwarding_type_t forwarding_type_id;
   forwarding_type_t forwarding_type_ex;
   forwarding_type_t forwarding_type_mem;
@@ -113,20 +111,29 @@ module dataflow_tb ();
   logic [4:0] rs1_ex;
   logic [4:0] rs2_ex;
   logic [4:0] rs2_mem;
+  // From Forwarding Unit: CSR Bank
+  forwarding_t forward_csr_id;
+  forwarding_t forward_csr_ex;
+  // To Forwarding Unit: CSR Bank
+  logic csr_we_mem;
+  logic csr_we_wb;
+  logic [11:0] csr_addr_id;
+  logic [11:0] csr_addr_ex;
+  logic [11:0] csr_addr_mem;
+  logic [11:0] csr_addr_wb;
   // From Hazard Unit
   logic stall_if;
   logic stall_id;
   logic flush_id;
   logic flush_ex;
+  logic flush_mem;
   // To Hazard Unit
   pc_src_t pc_src;
+  logic flush_all;
   logic reg_we_ex;
   logic mem_rd_en_ex;
   logic mem_rd_en_mem;
   logic store_id;
-  // Others
-  hazard_t hazard_type;
-  rs_used_t rs_used;
 
   ///////////////////////////////////
   /////////// Interfaces ////////////
@@ -212,19 +219,19 @@ module dataflow_tb ();
   id_ex_tb_t id_ex_tb;
   logic [DataSize-1:0] immediate;
   logic [DataSize-1:0] rd_data1, rd_data1_f, rd_data2, rd_data2_f;
-  logic [DataSize-1:0] csr_rd_data, csr_wr_data;
-  logic trap;
-  logic [DataSize-1:0] trap_addr;
-  logic csr_addr_invalid_tb;
-  logic [DataSize-1:0] mepc, sepc;
-  privilege_mode_t privilege_mode_tb;
+  logic [DataSize-1:0] csr_rd_data, csr_rd_data_f;
   // Execute
   ex_mem_tb_t ex_mem_tb;
   logic [DataSize-1:0] alu_y, alu_a_f, alu_b_f;
+  logic [DataSize-1:0] csr_wr_data, csr_aux_wr, csr_aux_f;
   // Memory
   mem_wb_tb_t mem_wb_tb;
   logic [DataSize-1:0] wr_data_f = 0;
   // Write Back
+  csr_op_t csr_op_tb;
+  logic has_trap, trap;
+  logic [DataSize-1:0] trap_addr, mepc, sepc;
+  privilege_mode_t privilege_mode_tb;
   logic we_reg_file;
   logic [DataSize-1:0] reg_data;
 
@@ -242,6 +249,7 @@ module dataflow_tb ();
   ) DUT (
     .clock,
     .reset,
+    .mem_unit_en,
     .inst,
     .inst_mem_addr,
     .rd_data,
@@ -266,8 +274,6 @@ module dataflow_tb ();
     .forwarding_type,
     .branch_type,
     .cond_branch_type,
-    .ecall,
-    .illegal_instruction,
     .csr_op,
     .csr_imm,
     .external_interrupt,
@@ -277,7 +283,6 @@ module dataflow_tb ();
     .opcode,
     .funct3,
     .funct7,
-    .csr_addr_invalid,
     .privilege_mode,
     .forward_rs1_id,
     .forward_rs2_id,
@@ -298,11 +303,21 @@ module dataflow_tb ();
     .rs1_ex,
     .rs2_ex,
     .rs2_mem,
+    .forward_csr_id,
+    .forward_csr_ex,
+    .csr_we_mem,
+    .csr_we_wb,
+    .csr_addr_id,
+    .csr_addr_ex,
+    .csr_addr_mem,
+    .csr_addr_wb,
     .stall_if,
     .stall_id,
     .flush_id,
     .flush_ex,
+    .flush_mem,
     .pc_src,
+    .flush_all,
     .reg_we_ex,
     .mem_rd_en_ex,
     .mem_rd_en_mem,
@@ -322,8 +337,34 @@ module dataflow_tb ();
     .*
   );
 
-  forwarding_unit forwardingUnit (
+  forwarding_unit #(
+    .N(5)
+  ) bankForwardingUnit (
     .*
+  );
+
+  forwarding_unit #(
+    .N(12)
+  ) csrForwardingUnit (
+    .forwarding_type_id(ForwardExecute),
+    .forwarding_type_ex(ForwardExecute),
+    .forwarding_type_mem(ForwardExecute),
+    .reg_we_ex(1'b0),
+    .reg_we_mem(csr_we_mem),
+    .reg_we_wb(csr_we_wb),
+    .rd_ex(12'h0),
+    .rd_mem(csr_addr_mem),
+    .rd_wb(csr_addr_wb),
+    .rs1_id(csr_addr_id),
+    .rs2_id(12'h0),
+    .rs1_ex(csr_addr_ex),
+    .rs2_ex(12'h0),
+    .rs2_mem(12'h0),
+    .forward_rs1_id(forward_csr_id),
+    .forward_rs2_id(),
+    .forward_rs1_ex(forward_csr_ex),
+    .forward_rs2_ex(),
+    .forward_rs2_mem()
   );
 
   memory_unit #(
@@ -332,6 +373,7 @@ module dataflow_tb ();
   ) memoryUnit (
     .clock,
     .reset,
+    .en(mem_unit_en),
     .rd_data_mem(rd_en),
     .wr_data_mem(wr_en),
     .inst_mem_ack(wish_proc0.ack),
@@ -462,10 +504,10 @@ module dataflow_tb ();
       .reset(reset),
       .privilege_mode(privilege_mode_tb),
       // CSR RW interface
-      .csr_op(csr_op),
-      .wr_en(|if_id_tb.inst[19:15]),
-      .addr(if_id_tb.inst[31:20]),
-      .wr_data(csr_wr_data),
+      .csr_op(csr_op_tb),
+      .wr_en(|mem_wb_tb.inst[19:15]),
+      .addr(mem_wb_tb.inst[31:20]),
+      .wr_data(mem_wb_tb.csr_wr_data),
       .rd_data(csr_rd_data),
       // Memory Interrupt
       .msip(|msip),
@@ -473,16 +515,13 @@ module dataflow_tb ();
       .mtimecmp(mtimecmp),
       // External Interrupt
       .external_interrupt(external_interrupt),
-      // Control Unit Exception
-      .ecall(ecall),
-      .illegal_instruction(illegal_instruction),
-      .addr_exception(csr_addr_invalid_tb),
       // Trap Handler
-      .en(!stall_id && !mem_busy),
+      .en(!mem_busy),
       .trap(trap),
+      .has_trap(has_trap),
       .trap_addr(trap_addr),
-      .pc(if_id_tb.pc),
-      .instruction(if_id_tb.inst),
+      .pc(mem_wb_tb.pc),
+      .instruction(mem_wb_tb.inst),
       // MRET & SRET
       .mepc(mepc),
       .sepc(sepc)
@@ -502,9 +541,12 @@ module dataflow_tb ();
   function automatic [DataSize-1:0] gen_new_pc(input instruction_t instruction,
                 input logic [DataSize-1:0] pc, input logic [DataSize-1:0] imm,
                 input logic [DataSize-1:0] A, input logic [DataSize-1:0] B,
-                input logic [DataSize-1:0] mepc, input logic [DataSize-1:0] sepc,
-                input logic trap, input logic [DataSize-1:0] trap_addr);
+                input logic mret, input logic sret, input logic [DataSize-1:0] mepc,
+                input logic [DataSize-1:0] sepc, input logic trap,
+                input logic [DataSize-1:0] trap_addr);
     if(trap) return trap_addr;
+    else if(mret) return mepc;
+    else if(sret) return sepc;
     unique case(instruction.opcode)
       Jal: return pc + (imm - 4);
       Jalr: return {A[DataSize-1:1], 1'b0} + imm;
@@ -518,13 +560,6 @@ module dataflow_tb ();
           Bgeu: return ($unsigned(A) >= $unsigned(B)) ? pc + (imm - 4) : pc + 4;
           default: return pc + 4;
         endcase
-      end
-      SystemType: begin
-        if(funct3 === 3'b000) begin
-          if(instruction.fields.r_type.funct7 == 7'h18) return mepc;
-          else if(instruction.fields.r_type.funct7 == 7'h08) return sepc;
-        end
-        return pc + 4;
       end
       default: return pc + 4;
     endcase
@@ -643,6 +678,41 @@ module dataflow_tb ();
     return ((instruction.opcode === LoadType) && !instruction[14]);
   endfunction
 
+  function automatic csr_op_t gen_csr_op(input instruction_t instruction,
+                                         input privilege_mode_t privilege_mode);
+    csr_op_t csr_op;
+    begin
+      csr_op = CsrNoOp;
+      if(instruction.opcode === SystemType) begin
+        csr_op = CsrIllegalInstruction;
+        if (instruction.fields.i_type.funct3 === 0) begin
+          if (instruction.fields.i_type.imm === 0)
+            csr_op = CsrEcall;
+          else if(instruction.fields.i_type.imm == 7'h18 && privilege_mode == Machine)
+            csr_op = CsrMret;
+          else if(instruction.fields.i_type.imm == 7'h08 &&
+                  (privilege_mode inside {Machine, Supervisor}))
+            csr_op = CsrSret;
+        end else if (funct3 !== 3'b100 && privilege_mode >= funct7[6:5])
+          csr_op  = csr_op_t'(funct3[1:0]);
+      end
+      return csr_op;
+    end
+  endfunction
+
+  function automatic logic gen_csr_imm(input instruction_t instruction);
+    return (instruction.opcode === SystemType) &&
+           (instruction.fields.i_type.imm inside {3'b101, 3'b110, 3'b111});
+  endfunction
+
+  function automatic logic gen_csr_we(input csr_op_t csr_op, input logic [4:0] rd);
+    return (csr_op == CsrRW) || ((csr_op inside {CsrRS, CsrRC}) && (|rd));
+  endfunction
+
+  function automatic logic gen_flush_all(input logic trap, input csr_op_t csr_op);
+    return trap || (csr_op inside {CsrSret, CsrMret});
+  endfunction
+
   ///////////////////////////////////
   //////// Especial Address /////////
   ///////////////////////////////////
@@ -695,34 +765,30 @@ module dataflow_tb ();
       id_ex_tb.read_data_2 <= rd_data2_f;
       id_ex_tb.rd <= if_id_tb.inst[11:7];
       id_ex_tb.imm <= immediate;
-      id_ex_tb.csr_read_data <= {csr_rd_data[DataSize-1:10],
-            (csr_rd_data[9] | (external_interrupt & (if_id_tb.inst[31:20] inside {Mip, Sip}))),
-                                 csr_rd_data[8:0]};
+      id_ex_tb.csr_rd_data <= csr_rd_data_f;
       id_ex_tb.inst <= if_id_tb.inst;
     end
   end
 
   always_comb begin: decode_gen_aux
     rd_data1_f = forward_data(rd_data1, id_ex_tb.inst.opcode inside {Jal, Jalr} ?
-          id_ex_tb.pc + 4 : id_ex_tb.csr_read_data, gen_wr_data(ex_mem_tb.alu_y,
-          ex_mem_tb.csr_read_data, ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+          id_ex_tb.pc + 4 : id_ex_tb.csr_rd_data, gen_wr_data(ex_mem_tb.alu_y,
+          ex_mem_tb.csr_rd_data, ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
           ex_mem_tb.inst[14:12]), reg_data, forward_rs1_id);
     rd_data2_f = forward_data(rd_data2, id_ex_tb.inst.opcode inside {Jal, Jalr} ?
-          id_ex_tb.pc + 4 : id_ex_tb.csr_read_data, gen_wr_data(ex_mem_tb.alu_y,
-          ex_mem_tb.csr_read_data, ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
+          id_ex_tb.pc + 4 : id_ex_tb.csr_rd_data, gen_wr_data(ex_mem_tb.alu_y,
+          ex_mem_tb.csr_rd_data, ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
           ex_mem_tb.inst[14:12]), reg_data, forward_rs2_id);
-    csr_wr_data = csr_imm ? $unsigned(if_id_tb.inst[19:15]) : rd_data1_f;
-    new_pc = gen_new_pc(if_id_tb.inst, pc, immediate, rd_data1_f, rd_data2_f, mepc, sepc,
+    csr_rd_data_f = forward_data(csr_rd_data, csr_rd_data, csr_rd_data, mem_wb_tb.csr_wr_data,
+          forward_csr_id);
+    new_pc = gen_new_pc(if_id_tb.inst, pc, immediate, rd_data1_f, rd_data2_f,
+                        (csr_op_tb === CsrMret), (csr_op_tb === CsrSret), mepc, sepc,
                         trap, trap_addr);
   end
 
   CHK_OPCODE: assert property (@(posedge clock) (opcode === if_id_tb.inst[6:0]));
   CHK_FUNCT3: assert property (@(posedge clock) (funct3 === if_id_tb.inst[14:12]));
   CHK_FUNCT7: assert property (@(posedge clock) (funct7 === if_id_tb.inst[31:25]));
-  CHK_PRIVILEGE_MODE: assert property (@(posedge clock) (privilege_mode === privilege_mode_tb));
-  CHK_ADDR_INVALID: assert property (@(posedge clock) (csr_addr_invalid === csr_addr_invalid_tb));
-  CHK_CSR_WR_DATA: assert property (@(posedge clock) (csr_wr_data === DUT.csr_bank.wr_data));
-  // Check Privilege only in decode
   CHK_FORWARDING_TYPE_ID: assert property (@(posedge clock) (forwarding_type_id ===
                                     gen_forwarding_type(if_id_tb.inst[6:0], if_id_tb.inst[14:12],
                                     if_id_tb.inst[31:25], privilege_mode_tb)));
@@ -730,18 +796,22 @@ module dataflow_tb ();
   CHK_RS1_ID: assert property (@(posedge clock) (rs1_id === ((if_id_tb.inst.opcode === Lui) ? 5'h0 :
                                                                           if_id_tb.inst[19:15])));
   CHK_RS2_ID: assert property (@(posedge clock) (rs2_id === if_id_tb.inst[24:20]));
+  CHK_CSR_ADDR_ID: assert property (@(posedge clock) (csr_addr_id === if_id_tb.inst[31:20]));
 
   // Execute
   always @(posedge clock iff (!mem_busy), posedge reset) begin: execute_gen
-    if(reset) begin
+    if(reset || flush_mem) begin
       ex_mem_tb <= '0;
     end else begin
       ex_mem_tb.pc <= id_ex_tb.pc;
       ex_mem_tb.rs2 <= id_ex_tb.rs2;
       ex_mem_tb.rd <= id_ex_tb.rd;
-      ex_mem_tb.csr_read_data <= id_ex_tb.csr_read_data;
+      ex_mem_tb.csr_rd_data <= {csr_aux_f[DataSize-1:10], (csr_aux_f[9] |
+                                (external_interrupt & (id_ex_tb.inst[31:20] inside {Mip, Sip}))),
+                                csr_aux_f[8:0]};
       ex_mem_tb.alu_y <= alu_y;
       ex_mem_tb.write_data <= alu_b_f;
+      ex_mem_tb.csr_wr_data <= csr_wr_data;
       ex_mem_tb.inst <= id_ex_tb.inst;
     end
   end
@@ -749,11 +819,11 @@ module dataflow_tb ();
   always_comb begin: execute_gen_aux
     alu_y = 0;
     alu_a_f = forward_data(id_ex_tb.read_data_1, id_ex_tb.read_data_1,
-                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.csr_read_data,
+                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.csr_rd_data,
                            ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
                            ex_mem_tb.inst[14:12]), reg_data, forward_rs1_ex);
     alu_b_f = forward_data(id_ex_tb.read_data_2, id_ex_tb.read_data_2,
-                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.csr_read_data,
+                           gen_wr_data(ex_mem_tb.alu_y, ex_mem_tb.csr_rd_data,
                            ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
                            ex_mem_tb.inst[14:12]), reg_data, forward_rs2_ex);
     unique case(id_ex_tb.inst.opcode)
@@ -768,6 +838,14 @@ module dataflow_tb ();
       default: alu_y = alu_a_f + alu_b_f; // BType, Jal, Jalr, Fence, SystemType
     endcase
     if(id_ex_tb.inst.opcode inside {AluRWType, AluIWType}) alu_y = {{32{alu_y[31]}}, alu_y[31:0]};
+    csr_aux_f = forward_data(id_ex_tb.csr_rd_data, id_ex_tb.csr_rd_data, ex_mem_tb.csr_wr_data,
+                             mem_wb_tb.csr_wr_data, forward_csr_ex);
+    csr_aux_wr = gen_csr_imm(id_ex_tb.inst) ? $unsigned(id_ex_tb.inst[19:15]) : csr_aux_f;
+    unique case (gen_csr_op(id_ex_tb.inst))
+      CsrRS: csr_wr_data = csr_aux_wr | forwarded_csr_ex;
+      CsrRC: csr_wr_data = csr_aux_wr & (~forwarded_csr_ex);
+      default: csr_wr_data = csr_aux_wr;
+    endcase
   end
 
   CHK_FORWARDING_TYPE_EX: assert property (@(posedge clock) (forwarding_type_ex ===
@@ -782,6 +860,7 @@ module dataflow_tb ();
   CHK_RS1_EX: assert property (@(posedge clock) (rs1_ex === id_ex_tb.rs1));
   CHK_RS2_EX: assert property (@(posedge clock) (rs2_ex === id_ex_tb.rs2));
   CHK_RD_EX: assert property (@(posedge clock) (rd_ex === id_ex_tb.rd));
+  CHK_CSR_ADDR_EX: assert property (@(posedge clock) (csr_addr_ex === id_ex_tb.inst[31:20]));
 
   // Memory
   always @(posedge clock iff (!mem_busy), posedge reset) begin: memory_gen
@@ -790,7 +869,7 @@ module dataflow_tb ();
     end else begin
       mem_wb_tb.pc <= ex_mem_tb.pc;
       mem_wb_tb.rd <= ex_mem_tb.rd;
-      mem_wb_tb.csr_read_data <= ex_mem_tb.csr_read_data;
+      mem_wb_tb.csr_rd_data <= ex_mem_tb.csr_rd_data;
       mem_wb_tb.alu_y <= ex_mem_tb.alu_y;
       mem_wb_tb.read_data <= rd_data;
       mem_wb_tb.inst <= ex_mem_tb.inst;
@@ -816,17 +895,30 @@ module dataflow_tb ();
                                                        gen_rd_en(ex_mem_tb.inst.opcode)));
   CHK_RS2_MEM: assert property (@(posedge clock) (rs2_mem === ex_mem_tb.rs2));
   CHK_RD_MEM: assert property (@(posedge clock) (rd_mem === ex_mem_tb.rd));
+  CHK_CSR_WE_MEM: assert property (@(posedge clock) (csr_we_mem === gen_csr_we(
+                          gen_csr_op(ex_mem_tb.inst, privilege_mode_tb), ex_mem_tb.inst[19:15])));
+  CHK_CSR_ADDR_MEM: assert property (@(posedge clock) (csr_addr_mem === ex_mem_tb.inst[31:20]));
+  CHK_MEM_UNIT_EN: assert property (@(posedge clock) (mem_unit_en === has_trap));
 
   // Write Back
   always_comb begin: write_back_gen_aux
+    csr_op_tb = gen_csr_op(mem_wb_tb.inst, privilege_mode_tb);
     we_reg_file = gen_we_reg_file(mem_wb_tb.inst[6:0], mem_wb_tb.inst[14:12]);
-    reg_data = gen_wr_data(mem_wb_tb.alu_y, mem_wb_tb.csr_read_data, mem_wb_tb.read_data,
+    reg_data = gen_wr_data(mem_wb_tb.alu_y, mem_wb_tb.csr_rd_data, mem_wb_tb.read_data,
                            mem_wb_tb.pc + 4, mem_wb_tb.inst.opcode, mem_wb_tb.inst[14:12]);
   end
 
   CHK_REG_DATA: assert property (@(posedge clock) (reg_data === DUT.bank.write_data));
   CHK_RD_WB: assert property (@(posedge clock) (mem_wb_tb.rd === DUT.bank.write_address));
   CHK_REG_WE_WB: assert property (@(posedge clock) (we_reg_file === DUT.bank.write_enable));
+  CHK_PRIVILEGE_MODE: assert property (@(posedge clock) (privilege_mode === privilege_mode_tb));
+  CHK_CSR_WR_DATA: assert property (@(posedge clock)
+                                    (mem_wb_tb.csr_wr_data === DUT.csr_bank.wr_data));
+  CHK_CSR_OP: assert property (@(posedge clock) (csr_op_tb === DUT.csr_bank.csr_op));
+  CHK_CSR_WE_WB: assert property (@(posedge clock) (csr_we_wb === gen_csr_we(
+                                                    csr_op_tb, mem_wb_tb.inst[19:15])));
+  CHK_CSR_ADDR_WB: assert property (@(posedge clock) (csr_addr_wb === mem_wb_tb.inst[31:20]));
+  CHK_FLUSH_ALL: assert property (@(posedge clock) (flush_all === gen_flush_all(trap, csr_op_tb)));
 
   // testar o DUT
   initial begin

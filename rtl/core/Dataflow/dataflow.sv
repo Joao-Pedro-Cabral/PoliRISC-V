@@ -13,6 +13,8 @@ module dataflow #(
     // Common
     input wire clock,
     input wire reset,
+    // To Memory Unit
+    output wire mem_unit_en,
     // Instruction Memory
     input instruction_t inst,
     output wire [DATA_SIZE-1:0] inst_mem_addr,
@@ -41,9 +43,6 @@ module dataflow #(
     input forwarding_type_t forwarding_type,
     input branch_t branch_type,
     input cond_branch_t cond_branch_type,
-    // Interrupts/Exceptions from UC
-    input wire ecall,
-    input wire illegal_instruction,
     // Trap Return/Zicsr
     input csr_op_t csr_op,
     input wire csr_imm,
@@ -56,7 +55,6 @@ module dataflow #(
     output opcode_t opcode,
     output wire [2:0] funct3,
     output wire [6:0] funct7,
-    output wire csr_addr_invalid,
     output privilege_mode_t privilege_mode,
     // From Forwarding Unit: Register Bank
     input forwarding_t forward_rs1_id,
@@ -93,6 +91,7 @@ module dataflow #(
     input logic stall_id,
     input logic flush_id,
     input logic flush_ex,
+    input logic flush_mem,
     // To Hazard Unit
     /* output logic [4:0] rs1_id, */
     /* output logic [4:0] rs2_id, */
@@ -251,7 +250,7 @@ module dataflow #(
         forwarded_csr_id = mem_wb_reg.csr_wr_data;
       end
       default: begin // No Forwarding, ForwardFromMem, ForwardFromEx
-        forward_csr_id = csr_rd_data;
+        forwarded_csr_id = csr_rd_data;
       end
     endcase
   end : id_forwarding_logic
@@ -336,6 +335,7 @@ module dataflow #(
       .mtimecmp(mtimecmp),
       .trap_addr(trap_addr),
       .trap(_trap),
+      .has_trap(mem_unit_en),
       .privilege_mode(_privilege_mode),
       .pc(mem_wb_reg.pc),
       .instruction(mem_wb_reg.inst),
@@ -406,13 +406,13 @@ module dataflow #(
 
     unique case(forward_csr_ex)
       ForwardFromMem: begin
-        forward_csr_ex = ex_mem_reg.csr_wr_data;
+        forwarded_csr_ex = ex_mem_reg.csr_wr_data;
       end
       ForwardFromWb: begin
-        forward_csr_ex = mem_wb_reg.csr_wr_data;
+        forwarded_csr_ex = mem_wb_reg.csr_wr_data;
       end
-      default: begin // No Fowarding
-        forward_csr_ex = id_ex_reg.csr_wr_data;
+      default: begin // No Forwarding
+        forwarded_csr_ex = id_ex_reg.csr_rd_data;
       end
     endcase
   end : ex_forwarding_logic
@@ -420,13 +420,13 @@ module dataflow #(
   // CSR Read/Write Logic
   assign csr_mask_rd = '{SEI: (external_interrupt & csr_addr_t'(id_ex_reg.inst[31:20]) == Mip),
                          default: 1'b0};
-  assign csr_mask_rd_data = forward_csr_ex | csr_mask_rd;
+  assign csr_mask_rd_data = forwarded_csr_ex | csr_mask_rd;
   assign csr_aux_wr = csr_imm ? $unsigned(id_ex_reg.inst[19:15]) : forwarded_rs1_ex;
   always_comb begin
     csr_wr_data = csr_aux_wr;
     unique case (csr_op)
-      CsrRS: csr_wr_data = csr_aux_wr | forward_csr_ex;
-      CsrRC: csr_wr_data = csr_aux_wr & (~forward_csr_ex);
+      CsrRS: csr_wr_data = csr_aux_wr | forwarded_csr_ex;
+      CsrRC: csr_wr_data = csr_aux_wr & (~forwarded_csr_ex);
       default: begin
       end
     endcase
@@ -434,6 +434,7 @@ module dataflow #(
 
   always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
     if (reset) ex_mem_reg <= '0;
+    else if(flush_mem) ex_mem_reg <= '0;
     else begin
       ex_mem_reg.pc <= id_ex_reg.pc;
       ex_mem_reg.pc_plus_4 <= id_ex_reg.pc_plus_4;
