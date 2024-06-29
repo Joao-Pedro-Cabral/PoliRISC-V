@@ -4,15 +4,17 @@ module forwarding_unit_tb ();
   import dataflow_pkg::*;
   import forwarding_unit_pkg::*;
 
+  // Parameters
+  localparam int N = 12;
   int number_of_tests = 100_000;
 
   // DUT Signals
   forwarding_type_t forwarding_type_id, forwarding_type_ex, forwarding_type_mem;
   logic reg_we_ex, reg_we_mem, reg_we_wb;
-  logic [4:0] rd_ex, rd_mem, rd_wb, rs1_id, rs2_id, rs1_ex, rs2_ex, rs2_mem;
+  logic [N-1:0] rd_ex, rd_mem, rd_wb, rs1_id, rs2_id, rs1_ex, rs2_ex, rs2_mem;
   forwarding_t forward_rs1_id, forward_rs2_id, forward_rs1_ex, forward_rs2_ex, forward_rs2_mem;
 
-  function automatic bit match_registers(input logic [4:0] rs, input logic [4:0] rd,
+  function automatic bit match_registers(input logic [N-1:0] rs, input logic [N-1:0] rd,
                                          input logic we);
     return ((rs === rd) && (rd !== 0) && we);
   endfunction
@@ -35,9 +37,9 @@ module forwarding_unit_tb ();
   endfunction
 
   function automatic forwarding_t get_forward_t(
-      input logic [4:0] rs, input logic rs_num, input logic [4:0] rd_ex, input logic [4:0] rd_mem,
-      input logic [4:0] rd_wb, input forwarding_type_t forward_type, input stages_t stage,
-      input logic reg_we_ex, input logic reg_we_mem, input logic reg_we_wb);
+      input logic [N-1:0] rs, input logic rs_num, input logic [N-1:0] rd_ex,
+      input logic [N-1:0] rd_mem, input logic [N-1:0] rd_wb, input forwarding_type_t forward_type,
+      input stages_t stage, input logic reg_we_ex, input logic reg_we_mem, input logic reg_we_wb);
     if (match_registers(rs, rd_ex, reg_we_ex) &&
         check_type(forward_type, stage, Execute, rs_num))
       return ForwardFromEx;
@@ -50,7 +52,7 @@ module forwarding_unit_tb ();
     else return NoForwarding;
   endfunction
 
-  function automatic logic [4:0] gen_rd(input logic [4:0] [4:0] rs_list);
+  function automatic logic [N-1:0] gen_rd(input logic [4:0] [N-1:0] rs_list);
     int i;
     begin
       i = $urandom()%6;
@@ -58,7 +60,7 @@ module forwarding_unit_tb ();
     end
   endfunction
 
-  forwarding_unit DUT (.*);
+  forwarding_unit #(.N(N)) DUT (.*);
 
   initial begin : verify_dut
     $display("SOT!");

@@ -4,6 +4,7 @@ package dataflow_pkg;
   import instruction_pkg::*;
   import alu_pkg::*;
   import control_unit_pkg::*;
+  import csr_pkg::*;
 
   typedef enum logic [2:0] {
     Fetch,

@@ -101,7 +101,6 @@ module forwarding_unit #(
   end : forward_rsx_ex_proc
 
   always_comb begin : forward_rs2_mem_proc
-    forwarding_src_bundle_t wb_bundle;
     unique case (forwarding_type_mem)
 
       NoForward, ForwardExecute, ForwardDecode: begin
@@ -109,7 +108,7 @@ module forwarding_unit #(
       end
 
       ForwardExecuteMemory: begin
-        void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs2_mem, forward_rs2_ex));
+        void'(forward(reg_we_wb, rd_wb, ForwardFromWb, rs2_mem, forward_rs2_mem));
       end
 
       default: begin

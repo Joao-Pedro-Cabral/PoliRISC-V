@@ -32,18 +32,6 @@ module branch_decoder_unit_tb;
           assert (pc_src == PcPlus4) $display("Case %s: OK", branch_type_vec[i].name());
           else $stop;
         end
-        Mret: begin
-          #Interval;
-          MRET :
-          assert (pc_src == MachineExceptionPC) $display("Case %s: OK", branch_type_vec[i].name());
-          else $stop;
-        end
-        Sret: begin
-          #Interval;
-          SRET :
-          assert (pc_src == SupervisorExceptionPC) $display("Case %s: OK", branch_type_vec[i].name());
-          else $stop;
-        end
         Jump: begin
           #Interval;
           JUMP :
@@ -77,7 +65,7 @@ module branch_decoder_unit_tb;
       cond_branch_val = cond_branch_val.next();
     end
 
-    $urandom(Seed);
+    void'($urandom(Seed));
   endtask
 
   task automatic test_cond_branch;

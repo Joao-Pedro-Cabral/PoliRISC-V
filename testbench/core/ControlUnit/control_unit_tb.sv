@@ -11,7 +11,7 @@ module control_unit_tb ();
 
   // Parameters
   localparam integer Line = (DataSize == 64) ? 72 : 55;
-  localparam integer Column = (DataSize == 64) ? 57 : 53;
+  localparam integer Column = (DataSize == 64) ? 54 : 50;
   localparam integer NumberOfTests = 100000;
 
   // Data Types
@@ -29,13 +29,11 @@ module control_unit_tb ();
     logic mem_signed;
     logic csr_imm;
     logic [2:0] csr_op;
-    logic ecall;
     logic [1:0] hazard_type;
     logic rs_used;
     logic [1:0] forwarding_type;
-    logic [2:0] branch_type;
+    logic [1:0] branch_type;
     logic [2:0] cond_branch_type;
-    logic illegal_instruction;
   } control_unit_output_t;
 
   typedef struct packed {
@@ -82,7 +80,7 @@ module control_unit_tb ();
   function automatic control_unit_output_t check_exception(
     input opcode_t opcode, input logic [2:0] funct3,
     input logic [6:0] funct7, input privilege_mode_t privilege_mode,
-    input logic csr_addr_invalid, input control_unit_output_t expected_output);
+    input control_unit_output_t expected_output);
     control_unit_output_t new_expected_output;
     begin
       new_expected_output = expected_output;
@@ -90,21 +88,14 @@ module control_unit_tb ();
         // MRET, SRET
         if(funct3 === 3'b000 && funct7 ==? 7'b00?1000 && (funct7[4:3] > privilege_mode)) begin
           new_expected_output = 0;
-          new_expected_output.illegal_instruction = 1'b1;
-          new_expected_output.hazard_type = NoHazard;
+          new_expected_output.csr_op = CsrIllegalInstruction;
         end else if(funct3 !=? 3'b?00 && funct7[6:5] > privilege_mode) begin
           new_expected_output = 0;
-          new_expected_output.illegal_instruction = 1'b1;
-          new_expected_output.hazard_type = NoHazard;
-        end else if(funct3 !=? 3'b?00 && csr_addr_invalid) begin
-          new_expected_output = expected_output;
-          new_expected_output.illegal_instruction = 1'b1;
-          new_expected_output.hazard_type = NoHazard;
+          new_expected_output.csr_op = CsrIllegalInstruction;
         end
       end else if(opcode === 0) begin
         new_expected_output = 0;
-        new_expected_output.illegal_instruction = 1'b1;
-        new_expected_output.hazard_type = NoHazard;
+        new_expected_output.csr_op = CsrIllegalInstruction;
       end
       return new_expected_output;
     end
@@ -116,7 +107,6 @@ module control_unit_tb ();
   logic [2:0] funct3;
   logic [6:0] funct7;
   privilege_mode_t privilege_mode;
-  logic csr_addr_invalid;
   lut_line_t expected_output;
   control_unit_output_t dut_output;
   // Auxiliaries
@@ -131,7 +121,6 @@ module control_unit_tb ();
     .funct3(funct3),
     .funct7(funct7),
     .privilege_mode(privilege_mode),
-    .csr_addr_invalid(csr_addr_invalid),
     .alua_src(dut_output.alua_src),
     .alub_src(dut_output.alub_src),
     .aluy_src(dut_output.aluy_src),
@@ -145,8 +134,6 @@ module control_unit_tb ();
     .mem_signed(dut_output.mem_signed),
     .csr_imm(dut_output.csr_imm),
     .csr_op(dut_output.csr_op),
-    .illegal_instruction(dut_output.illegal_instruction),
-    .ecall(dut_output.ecall),
     .hazard_type(dut_output.hazard_type),
     .rs_used(dut_output.rs_used),
     .forwarding_type(dut_output.forwarding_type),
@@ -174,11 +161,10 @@ module control_unit_tb ();
       funct3 = gen_random_funct3(opcode, DataSize == 64);
       funct7 = gen_random_funct7(opcode, funct3, DataSize == 64);
       privilege_mode = gen_random_privilege_mode();
-      csr_addr_invalid = $urandom();
       expected_output = find_instruction(opcode, funct3, funct7, lut);
       #3;
       expected_output.control_unit_output = check_exception(opcode, funct3, funct7, privilege_mode,
-                                            csr_addr_invalid, expected_output.control_unit_output);
+                                            expected_output.control_unit_output);
       #2;
       CHECK_OUTPUT: assert (dut_output == expected_output.control_unit_output);
       #5;

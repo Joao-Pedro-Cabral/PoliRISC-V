@@ -15,8 +15,8 @@ module hazard_unit_tb ();
   logic mem_rd_en_ex, mem_rd_en_mem;
   logic store_id, rd_complete_ex;
   logic stall_if, stall_id;
-  logic flush_id, flush_ex;
-  logic trap;
+  logic flush_id, flush_ex, flush_mem;
+  logic flush_all;
 
   function automatic bit detect_hazard(input logic [4:0] rs, input logic [4:0] rd, input logic we,
                                        input logic enable_detect);
@@ -27,12 +27,14 @@ module hazard_unit_tb ();
       input logic [4:0] rs, input logic [4:0] rd_ex, input logic [4:0] rd_mem,
       input logic reg_we_ex, input logic reg_we_mem, input logic mem_rd_en_ex,
       input logic mem_rd_en_mem, input logic rd_complete_ex, input logic store_id,
-      input hazard_t hazard_type, input pc_src_t pc_src, input logic trap, output logic stall_id,
-      output logic stall_if, output logic flush_id, output logic flush_ex);
+      input hazard_t hazard_type, input pc_src_t pc_src, input logic flush_all,
+      output logic stall_id, output logic stall_if, output logic flush_id, output logic flush_ex,
+      output logic flush_mem);
     stall_id = 1'b0;
     stall_if = 1'b0;
     flush_id = 1'b0;
     flush_ex = 1'b0;
+    flush_mem = 1'b0;
     unique case (hazard_type)
       HazardDecode: begin
         if (detect_hazard(rs, rd_ex, reg_we_ex, !rd_complete_ex) ||
@@ -52,9 +54,10 @@ module hazard_unit_tb ();
       default: begin  // NoHazard
       end
     endcase
-    if(trap) begin
+    if(flush_all) begin
       flush_id = 1'b1;
       flush_ex = 1'b1;
+      flush_mem = 1'b1;
     end else if(pc_src !== PcPlus4) flush_id = 1'b1;
   endfunction
 
@@ -65,6 +68,7 @@ module hazard_unit_tb ();
     logic stall1_id, stall2_id;
     logic flush1_id, flush2_id;
     logic flush1_ex, flush2_ex;
+    logic flush1_mem, flush2_mem;
     repeat (number_of_tests) begin
       hazard_type = hazard_t'($urandom() % hazard_type.num());
       rs_used = rs_used_t'($urandom());
@@ -73,18 +77,19 @@ module hazard_unit_tb ();
       {reg_we_ex, reg_we_mem} = $urandom();
       {mem_rd_en_ex, mem_rd_en_mem} = $urandom();
       {store_id, rd_complete_ex} = $urandom();
-      trap = $urandom();
+      flush_all = $urandom();
       #5;
       check_hazard(rs1_id, rd_ex, rd_mem, reg_we_ex, reg_we_mem, mem_rd_en_ex, mem_rd_en_mem,
-                   rd_complete_ex, 1'b0, hazard_type, pc_src, trap, stall1_id, stall1_if, flush1_id,
-                   flush1_ex);
+                   rd_complete_ex, 1'b0, hazard_type, pc_src, flush_all, stall1_id, stall1_if,
+                   flush1_id, flush1_ex, flush1_mem);
       check_hazard(rs2_id & {5{rs_used}}, rd_ex, rd_mem, reg_we_ex, reg_we_mem, mem_rd_en_ex,
-                   mem_rd_en_mem, rd_complete_ex, store_id, hazard_type, pc_src, trap, stall2_id,
-                   stall2_if, flush2_id, flush2_ex);
-      CHECK_STALL_IF : assert (stall_if === (stall1_if || stall2_if));
-      CHECK_STALL_ID : assert (stall_id === (stall1_id || stall2_id));
-      CHECK_FLUSH_ID : assert (flush_id === (flush1_id || flush2_id));
-      CHECK_FLUSH_EX : assert (flush_ex === (flush1_ex || flush2_ex));
+                   mem_rd_en_mem, rd_complete_ex, store_id, hazard_type, pc_src, flush_all,
+                   stall2_id, stall2_if, flush2_id, flush2_ex, flush2_mem);
+      CHECK_STALL_IF : assert (stall_if  === (stall1_if  || stall2_if ));
+      CHECK_STALL_ID : assert (stall_id  === (stall1_id  || stall2_id ));
+      CHECK_FLUSH_ID : assert (flush_id  === (flush1_id  || flush2_id ));
+      CHECK_FLUSH_EX : assert (flush_ex  === (flush1_ex  || flush2_ex ));
+      CHECK_FLUSH_MEM: assert (flush_mem === (flush1_mem || flush2_mem));
       #5;
     end
     $stop();
