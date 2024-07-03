@@ -140,6 +140,7 @@ module dataflow #(
   // Trap Return
   wire             [DATA_SIZE-1:0] mepc;
   wire             [DATA_SIZE-1:0] sepc;
+  logic                            has_trap;
   // ZICSR
   logic            [DATA_SIZE-1:0] csr_rd_data;
   logic            [DATA_SIZE-1:0] csr_mask_rd;
@@ -335,12 +336,12 @@ module dataflow #(
       .mtimecmp(mtimecmp),
       .trap_addr(trap_addr),
       .trap(_trap),
-      .has_trap(mem_unit_en),
+      .has_trap(has_trap),
       .privilege_mode(_privilege_mode),
       .pc(mem_wb_reg.pc),
       .instruction(mem_wb_reg.inst),
       // CSR RW interface
-      .addr(if_id_reg.inst[31:20]),
+      .addr(mem_wb_reg.inst[31:20]),
       .wr_data(mem_wb_reg.csr_wr_data),
       .rd_data(csr_rd_data),
       // TrapReturn
@@ -537,6 +538,7 @@ endgenerate
 
   // Saídas
   // Memory
+  assign mem_unit_en = ~has_trap;
   assign inst_mem_addr = pc;
   assign data_mem_addr = ex_mem_reg.alu_y;
   assign rd_en = ex_mem_reg.mem_read_enable;

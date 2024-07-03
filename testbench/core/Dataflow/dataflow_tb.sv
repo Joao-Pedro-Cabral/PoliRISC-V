@@ -134,6 +134,9 @@ module dataflow_tb ();
   logic mem_rd_en_ex;
   logic mem_rd_en_mem;
   logic store_id;
+  // Others
+  hazard_t hazard_type;
+  rs_used_t rs_used;
 
   ///////////////////////////////////
   /////////// Interfaces ////////////
@@ -574,7 +577,7 @@ module dataflow_tb ();
       Jalr, BType: return ForwardDecode;
       SystemType: begin
         if(!(funct3 inside {3'h0, 3'h4}) && privilege_mode >= funct7[6:5])
-          return funct3[2] ? NoForward : ForwardDecode;
+          return ForwardExecute;
         else return NoForward;
       end
       AluRType, AluRWType, AluIType, AluIWType, LoadType: return ForwardExecute;
@@ -688,13 +691,14 @@ module dataflow_tb ();
         if (instruction.fields.i_type.funct3 === 0) begin
           if (instruction.fields.i_type.imm === 0)
             csr_op = CsrEcall;
-          else if(instruction.fields.i_type.imm == 7'h18 && privilege_mode == Machine)
+          else if(instruction.fields.i_type.imm == 12'h102 && privilege_mode == Machine)
             csr_op = CsrMret;
-          else if(instruction.fields.i_type.imm == 7'h08 &&
+          else if(instruction.fields.i_type.imm == 12'h302 &&
                   (privilege_mode inside {Machine, Supervisor}))
             csr_op = CsrSret;
-        end else if (funct3 !== 3'b100 && privilege_mode >= funct7[6:5])
-          csr_op  = csr_op_t'(funct3[1:0]);
+        end else if (instruction.fields.i_type.funct3 !== 3'b100 &&
+                      (privilege_mode >= instruction.fields.i_type.imm[11:10]))
+          csr_op  = csr_op_t'(instruction.fields.i_type.funct3[1:0]);
       end
       return csr_op;
     end
@@ -840,10 +844,10 @@ module dataflow_tb ();
     if(id_ex_tb.inst.opcode inside {AluRWType, AluIWType}) alu_y = {{32{alu_y[31]}}, alu_y[31:0]};
     csr_aux_f = forward_data(id_ex_tb.csr_rd_data, id_ex_tb.csr_rd_data, ex_mem_tb.csr_wr_data,
                              mem_wb_tb.csr_wr_data, forward_csr_ex);
-    csr_aux_wr = gen_csr_imm(id_ex_tb.inst) ? $unsigned(id_ex_tb.inst[19:15]) : csr_aux_f;
-    unique case (gen_csr_op(id_ex_tb.inst))
-      CsrRS: csr_wr_data = csr_aux_wr | forwarded_csr_ex;
-      CsrRC: csr_wr_data = csr_aux_wr & (~forwarded_csr_ex);
+    csr_aux_wr = gen_csr_imm(id_ex_tb.inst) ? $unsigned(id_ex_tb.inst[19:15]) : alu_a_f;
+    unique case (gen_csr_op(id_ex_tb.inst, privilege_mode_tb))
+      CsrRS: csr_wr_data = csr_aux_wr | csr_aux_f;
+      CsrRC: csr_wr_data = csr_aux_wr & (~csr_aux_f);
       default: csr_wr_data = csr_aux_wr;
     endcase
   end
@@ -851,8 +855,7 @@ module dataflow_tb ();
   CHK_FORWARDING_TYPE_EX: assert property (@(posedge clock) (forwarding_type_ex ===
                                   gen_forwarding_type(id_ex_tb.inst[6:0], id_ex_tb.inst[14:12])));
   CHK_RD_COMPLETE_EX: assert property (@(posedge clock) (rd_complete_ex ===
-      (id_ex_tb.inst.opcode inside {Jal, Jalr} || (id_ex_tb.inst.opcode === SystemType &&
-      !(id_ex_tb.inst[14:12] inside {3'h0, 3'h4})))));
+                                                         id_ex_tb.inst.opcode inside {Jal, Jalr}));
   CHK_REG_WE_EX: assert property (@(posedge clock) (reg_we_ex ===
                                     gen_we_reg_file(id_ex_tb.inst[6:0], id_ex_tb.inst[14:12])));
   CHK_MEM_RD_EN_EX: assert property (@(posedge clock) (mem_rd_en_ex ===
@@ -872,6 +875,7 @@ module dataflow_tb ();
       mem_wb_tb.csr_rd_data <= ex_mem_tb.csr_rd_data;
       mem_wb_tb.alu_y <= ex_mem_tb.alu_y;
       mem_wb_tb.read_data <= rd_data;
+      mem_wb_tb.csr_wr_data <= ex_mem_tb.csr_wr_data;
       mem_wb_tb.inst <= ex_mem_tb.inst;
     end
   end
@@ -898,7 +902,7 @@ module dataflow_tb ();
   CHK_CSR_WE_MEM: assert property (@(posedge clock) (csr_we_mem === gen_csr_we(
                           gen_csr_op(ex_mem_tb.inst, privilege_mode_tb), ex_mem_tb.inst[19:15])));
   CHK_CSR_ADDR_MEM: assert property (@(posedge clock) (csr_addr_mem === ex_mem_tb.inst[31:20]));
-  CHK_MEM_UNIT_EN: assert property (@(posedge clock) (mem_unit_en === has_trap));
+  CHK_MEM_UNIT_EN: assert property (@(posedge clock) (mem_unit_en === ~has_trap));
 
   // Write Back
   always_comb begin: write_back_gen_aux
@@ -925,6 +929,7 @@ module dataflow_tb ();
     $display("SOT!");
     reset = 1'b1;
     @(posedge clock);
+    @(negedge clock);
     reset = 1'b0;
     repeat(limit) begin
       @(posedge clock);
