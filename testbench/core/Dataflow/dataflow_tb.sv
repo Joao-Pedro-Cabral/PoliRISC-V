@@ -239,7 +239,7 @@ module dataflow_tb ();
   logic [DataSize-1:0] reg_data;
 
   // variáveis
-  integer limit = 1000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
+  integer limit = 10000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
   // Address
   localparam integer FinalAddress = 16781308; // Final execution address
   localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
@@ -491,7 +491,7 @@ module dataflow_tb ();
       .clock(clock),
       .reset(reset),
       .write_enable(we_reg_file),
-      .read_address1(if_id_tb.inst.fields.r_type.rs1),
+      .read_address1((if_id_tb.inst.opcode === Lui) ? 5'h0 : if_id_tb.inst.fields.r_type.rs1),
       .read_address2(if_id_tb.inst.fields.r_type.rs2),
       .write_address(mem_wb_tb.rd),
       .write_data(reg_data),
@@ -691,9 +691,9 @@ module dataflow_tb ();
         if (instruction.fields.i_type.funct3 === 0) begin
           if (instruction.fields.i_type.imm === 0)
             csr_op = CsrEcall;
-          else if(instruction.fields.i_type.imm == 12'h102 && privilege_mode == Machine)
+          else if(instruction.fields.i_type.imm == 12'h302 && privilege_mode == Machine)
             csr_op = CsrMret;
-          else if(instruction.fields.i_type.imm == 12'h302 &&
+          else if(instruction.fields.i_type.imm == 12'h102 &&
                   (privilege_mode inside {Machine, Supervisor}))
             csr_op = CsrSret;
         end else if (instruction.fields.i_type.funct3 !== 3'b100 &&
@@ -775,12 +775,10 @@ module dataflow_tb ();
   end
 
   always_comb begin: decode_gen_aux
-    rd_data1_f = forward_data(rd_data1, id_ex_tb.inst.opcode inside {Jal, Jalr} ?
-          id_ex_tb.pc + 4 : id_ex_tb.csr_rd_data, gen_wr_data(ex_mem_tb.alu_y,
+    rd_data1_f = forward_data(rd_data1, id_ex_tb.pc + 4, gen_wr_data(ex_mem_tb.alu_y,
           ex_mem_tb.csr_rd_data, ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
           ex_mem_tb.inst[14:12]), reg_data, forward_rs1_id);
-    rd_data2_f = forward_data(rd_data2, id_ex_tb.inst.opcode inside {Jal, Jalr} ?
-          id_ex_tb.pc + 4 : id_ex_tb.csr_rd_data, gen_wr_data(ex_mem_tb.alu_y,
+    rd_data2_f = forward_data(rd_data2, id_ex_tb.pc + 4, gen_wr_data(ex_mem_tb.alu_y,
           ex_mem_tb.csr_rd_data, ex_mem_tb.alu_y, ex_mem_tb.pc + 4, ex_mem_tb.inst.opcode,
           ex_mem_tb.inst[14:12]), reg_data, forward_rs2_id);
     csr_rd_data_f = forward_data(csr_rd_data, csr_rd_data, csr_rd_data, mem_wb_tb.csr_wr_data,

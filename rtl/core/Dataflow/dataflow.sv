@@ -425,7 +425,7 @@ module dataflow #(
   assign csr_aux_wr = csr_imm ? $unsigned(id_ex_reg.inst[19:15]) : forwarded_rs1_ex;
   always_comb begin
     csr_wr_data = csr_aux_wr;
-    unique case (csr_op)
+    unique case (id_ex_reg.csr_op)
       CsrRS: csr_wr_data = csr_aux_wr | forwarded_csr_ex;
       CsrRC: csr_wr_data = csr_aux_wr & (~forwarded_csr_ex);
       default: begin
@@ -511,7 +511,7 @@ endgenerate
   always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
     if (reset) mem_wb_reg <= '0;
     else begin
-      mem_wb_reg.pc <= pc;
+      mem_wb_reg.pc <= ex_mem_reg.pc;
       mem_wb_reg.pc_plus_4 <= ex_mem_reg.pc_plus_4;
       mem_wb_reg.rd <= ex_mem_reg.rd;
       mem_wb_reg.csr_rd_data <= ex_mem_reg.csr_rd_data;
