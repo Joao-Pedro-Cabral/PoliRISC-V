@@ -34,7 +34,7 @@ module csr_mem #(
   ) msip_reg (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .enable((wb_if_s.addr[5:4] == Msip) && wr_en),
+      .enable((wb_if_s.addr[5:4] == Msip) && wr_en && ack),
       .D(wb_if_s.dat_i_s),
       .Q(msip_)
   );
@@ -45,7 +45,7 @@ module csr_mem #(
   ) mtime_counter (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .load((wb_if_s.addr[5:4] == Mtime) && wr_en),
+      .load((wb_if_s.addr[5:4] == Mtime) && wr_en && ack),
       .load_value(mtime_load),
       .inc_enable(tick),
       .dec_enable(1'b0),
@@ -75,7 +75,7 @@ module csr_mem #(
   ) mtimecmp_reg (
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
-      .enable((wb_if_s.addr[5:4] == Mtimecmp) && wr_en),
+      .enable((wb_if_s.addr[5:4] == Mtimecmp) && wr_en && ack),
       .D(mtimecmp_d),
       .Q(mtimecmp_)
   );

@@ -89,15 +89,20 @@ module dataflow #(
     // From Hazard Unit
     input logic stall_if,
     input logic stall_id,
+    input logic stall_ex,
+    input logic stall_mem,
+    input logic stall_wb,
     input logic flush_id,
     input logic flush_ex,
     input logic flush_mem,
+    input logic flush_wb,
     // To Hazard Unit
     /* output logic [4:0] rs1_id, */
     /* output logic [4:0] rs2_id, */
     /* output logic [4:0] rd_ex, */
     /* output logic [4:0] rd_mem, */
     output pc_src_t pc_src,
+    output logic interrupt,
     output logic flush_all,
     output logic reg_we_ex,
     output logic mem_rd_en_ex,
@@ -140,7 +145,7 @@ module dataflow #(
   // Trap Return
   wire             [DATA_SIZE-1:0] mepc;
   wire             [DATA_SIZE-1:0] sepc;
-  logic                            has_trap;
+  logic                            exception;
   // ZICSR
   logic            [DATA_SIZE-1:0] csr_rd_data;
   logic            [DATA_SIZE-1:0] csr_mask_rd;
@@ -256,7 +261,7 @@ module dataflow #(
     endcase
   end : id_forwarding_logic
 
-  always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
+  always_ff @(posedge clock iff (~stall_ex && ~mem_busy) or posedge reset) begin
     if (reset) id_ex_reg <= '0;
     else if (flush_ex) id_ex_reg <= '0;
     else begin
@@ -295,7 +300,7 @@ module dataflow #(
   ) bank (
       .clock(clock),
       .reset(reset),
-      .write_enable(mem_wb_reg.wr_reg_en),
+      .write_enable(mem_wb_reg.wr_reg_en && ~mem_busy && ~_trap),
       .read_address1(rs1_addr),
       .read_address2(if_id_reg.inst[24:20]),
       .write_address(mem_wb_reg.rd),
@@ -336,12 +341,14 @@ module dataflow #(
       .mtimecmp(mtimecmp),
       .trap_addr(trap_addr),
       .trap(_trap),
-      .has_trap(has_trap),
+      .exception(exception),
       .privilege_mode(_privilege_mode),
-      .pc(mem_wb_reg.pc),
+      .interrupt_pc(if_id_reg.pc == 0 ? pc : if_id_reg.pc),
+      .exception_pc(mem_wb_reg.pc),
       .instruction(mem_wb_reg.inst),
       // CSR RW interface
-      .addr(mem_wb_reg.inst[31:20]),
+      .rd_addr(if_id_reg.inst[31:20]),
+      .wr_addr(mem_wb_reg.inst[31:20]),
       .wr_data(mem_wb_reg.csr_wr_data),
       .rd_data(csr_rd_data),
       // TrapReturn
@@ -422,7 +429,7 @@ module dataflow #(
   assign csr_mask_rd = '{SEI: (external_interrupt & csr_addr_t'(id_ex_reg.inst[31:20]) == Mip),
                          default: 1'b0};
   assign csr_mask_rd_data = forwarded_csr_ex | csr_mask_rd;
-  assign csr_aux_wr = csr_imm ? $unsigned(id_ex_reg.inst[19:15]) : forwarded_rs1_ex;
+  assign csr_aux_wr = id_ex_reg.csr_imm ? $unsigned(id_ex_reg.inst[19:15]) : forwarded_rs1_ex;
   always_comb begin
     csr_wr_data = csr_aux_wr;
     unique case (id_ex_reg.csr_op)
@@ -433,7 +440,7 @@ module dataflow #(
     endcase
   end
 
-  always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
+  always_ff @(posedge clock iff (~stall_mem && ~mem_busy) or posedge reset) begin
     if (reset) ex_mem_reg <= '0;
     else if(flush_mem) ex_mem_reg <= '0;
     else begin
@@ -508,8 +515,9 @@ endgenerate
     endcase
   end : mem_forwarding_logic
 
-  always_ff @(posedge clock iff (~mem_busy) or posedge reset) begin
+  always_ff @(posedge clock iff (~stall_wb && ~mem_busy) or posedge reset) begin
     if (reset) mem_wb_reg <= '0;
+    else if(flush_wb) mem_wb_reg <= '0;
     else begin
       mem_wb_reg.pc <= ex_mem_reg.pc;
       mem_wb_reg.pc_plus_4 <= ex_mem_reg.pc_plus_4;
@@ -538,7 +546,7 @@ endgenerate
 
   // Saídas
   // Memory
-  assign mem_unit_en = ~has_trap;
+  assign mem_unit_en = ~exception;
   assign inst_mem_addr = pc;
   assign data_mem_addr = ex_mem_reg.alu_y;
   assign rd_en = ex_mem_reg.mem_read_enable;
@@ -577,7 +585,8 @@ endgenerate
   assign csr_addr_mem = ex_mem_reg.inst[31:20];
   assign csr_addr_wb = mem_wb_reg.inst[31:20];
   // Hazard Unit
-  assign flush_all = _trap | (mem_wb_reg.csr_op inside {CsrSret, CsrMret});
+  assign interrupt = _trap && !exception;
+  assign flush_all = exception | (mem_wb_reg.csr_op inside {CsrSret, CsrMret});
   assign rd_complete_ex = id_ex_reg.wr_reg_src inside {WrPcPlus4};
   assign reg_we_ex = id_ex_reg.wr_reg_en;
   assign mem_rd_en_ex = id_ex_reg.mem_read_enable;

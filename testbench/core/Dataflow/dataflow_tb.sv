@@ -124,11 +124,16 @@ module dataflow_tb ();
   // From Hazard Unit
   logic stall_if;
   logic stall_id;
+  logic stall_ex;
+  logic stall_mem;
+  logic stall_wb;
   logic flush_id;
   logic flush_ex;
   logic flush_mem;
+  logic flush_wb;
   // To Hazard Unit
   pc_src_t pc_src;
+  logic interrupt;
   logic flush_all;
   logic reg_we_ex;
   logic mem_rd_en_ex;
@@ -232,14 +237,14 @@ module dataflow_tb ();
   logic [DataSize-1:0] wr_data_f = 0;
   // Write Back
   csr_op_t csr_op_tb;
-  logic has_trap, trap;
+  logic exception, trap;
   logic [DataSize-1:0] trap_addr, mepc, sepc;
   privilege_mode_t privilege_mode_tb;
   logic we_reg_file;
   logic [DataSize-1:0] reg_data;
 
   // variáveis
-  integer limit = 10000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
+  integer limit = 1000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
   // Address
   localparam integer FinalAddress = 16781308; // Final execution address
   localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
@@ -316,10 +321,15 @@ module dataflow_tb ();
     .csr_addr_wb,
     .stall_if,
     .stall_id,
+    .stall_ex,
+    .stall_mem,
+    .stall_wb,
     .flush_id,
     .flush_ex,
     .flush_mem,
+    .flush_wb,
     .pc_src,
+    .interrupt,
     .flush_all,
     .reg_we_ex,
     .mem_rd_en_ex,
@@ -509,7 +519,8 @@ module dataflow_tb ();
       // CSR RW interface
       .csr_op(csr_op_tb),
       .wr_en(|mem_wb_tb.inst[19:15]),
-      .addr(mem_wb_tb.inst[31:20]),
+      .rd_addr(if_id_tb.inst[31:20]),
+      .wr_addr(mem_wb_tb.inst[31:20]),
       .wr_data(mem_wb_tb.csr_wr_data),
       .rd_data(csr_rd_data),
       // Memory Interrupt
@@ -521,9 +532,10 @@ module dataflow_tb ();
       // Trap Handler
       .en(!mem_busy),
       .trap(trap),
-      .has_trap(has_trap),
+      .exception(exception),
       .trap_addr(trap_addr),
-      .pc(mem_wb_tb.pc),
+      .interrupt_pc(if_id_tb.pc == 0 ? pc : if_id_tb.pc),
+      .exception_pc(mem_wb_tb.pc),
       .instruction(mem_wb_tb.inst),
       // MRET & SRET
       .mepc(mepc),
@@ -706,15 +718,19 @@ module dataflow_tb ();
 
   function automatic logic gen_csr_imm(input instruction_t instruction);
     return (instruction.opcode === SystemType) &&
-           (instruction.fields.i_type.imm inside {3'b101, 3'b110, 3'b111});
+           (instruction.fields.i_type.funct3 inside {3'b101, 3'b110, 3'b111});
   endfunction
 
   function automatic logic gen_csr_we(input csr_op_t csr_op, input logic [4:0] rd);
     return (csr_op == CsrRW) || ((csr_op inside {CsrRS, CsrRC}) && (|rd));
   endfunction
 
-  function automatic logic gen_flush_all(input logic trap, input csr_op_t csr_op);
-    return trap || (csr_op inside {CsrSret, CsrMret});
+  function automatic logic gen_flush_all(input logic exception, input csr_op_t csr_op);
+    return exception || (csr_op inside {CsrSret, CsrMret});
+  endfunction
+
+  function automatic logic gen_hazard_interrupt(input logic trap, input logic exception);
+    return trap && !exception;
   endfunction
 
   ///////////////////////////////////
@@ -758,7 +774,7 @@ module dataflow_tb ();
   CHK_PC: assert property (@(posedge clock) (inst_mem_addr === pc));
 
   // Decode
-  always @(posedge clock iff (!mem_busy), posedge reset) begin: decode_gen
+  always @(posedge clock iff (!stall_ex && !mem_busy), posedge reset) begin: decode_gen
     if(reset || flush_ex) begin
       id_ex_tb <= '0;
     end else begin
@@ -801,7 +817,7 @@ module dataflow_tb ();
   CHK_CSR_ADDR_ID: assert property (@(posedge clock) (csr_addr_id === if_id_tb.inst[31:20]));
 
   // Execute
-  always @(posedge clock iff (!mem_busy), posedge reset) begin: execute_gen
+  always @(posedge clock iff (!stall_mem && !mem_busy), posedge reset) begin: execute_gen
     if(reset || flush_mem) begin
       ex_mem_tb <= '0;
     end else begin
@@ -864,8 +880,8 @@ module dataflow_tb ();
   CHK_CSR_ADDR_EX: assert property (@(posedge clock) (csr_addr_ex === id_ex_tb.inst[31:20]));
 
   // Memory
-  always @(posedge clock iff (!mem_busy), posedge reset) begin: memory_gen
-    if(reset) begin
+  always @(posedge clock iff (!stall_wb && !mem_busy), posedge reset) begin: memory_gen
+    if(reset || flush_wb) begin
       mem_wb_tb <= '0;
     end else begin
       mem_wb_tb.pc <= ex_mem_tb.pc;
@@ -900,12 +916,12 @@ module dataflow_tb ();
   CHK_CSR_WE_MEM: assert property (@(posedge clock) (csr_we_mem === gen_csr_we(
                           gen_csr_op(ex_mem_tb.inst, privilege_mode_tb), ex_mem_tb.inst[19:15])));
   CHK_CSR_ADDR_MEM: assert property (@(posedge clock) (csr_addr_mem === ex_mem_tb.inst[31:20]));
-  CHK_MEM_UNIT_EN: assert property (@(posedge clock) (mem_unit_en === ~has_trap));
+  CHK_MEM_UNIT_EN: assert property (@(posedge clock) (mem_unit_en === ~exception));
 
   // Write Back
   always_comb begin: write_back_gen_aux
     csr_op_tb = gen_csr_op(mem_wb_tb.inst, privilege_mode_tb);
-    we_reg_file = gen_we_reg_file(mem_wb_tb.inst[6:0], mem_wb_tb.inst[14:12]);
+    we_reg_file = gen_we_reg_file(mem_wb_tb.inst[6:0], mem_wb_tb.inst[14:12]) && !mem_busy && !trap;
     reg_data = gen_wr_data(mem_wb_tb.alu_y, mem_wb_tb.csr_rd_data, mem_wb_tb.read_data,
                            mem_wb_tb.pc + 4, mem_wb_tb.inst.opcode, mem_wb_tb.inst[14:12]);
   end
@@ -920,7 +936,10 @@ module dataflow_tb ();
   CHK_CSR_WE_WB: assert property (@(posedge clock) (csr_we_wb === gen_csr_we(
                                                     csr_op_tb, mem_wb_tb.inst[19:15])));
   CHK_CSR_ADDR_WB: assert property (@(posedge clock) (csr_addr_wb === mem_wb_tb.inst[31:20]));
-  CHK_FLUSH_ALL: assert property (@(posedge clock) (flush_all === gen_flush_all(trap, csr_op_tb)));
+  CHK_HAZARD_INTERRUPT: assert property (@(posedge clock) (interrupt ===
+                                                           gen_hazard_interrupt(trap, exception)));
+  CHK_FLUSH_ALL: assert property (@(posedge clock) (flush_all === gen_flush_all(exception,
+                                                                                csr_op_tb)));
 
   // testar o DUT
   initial begin

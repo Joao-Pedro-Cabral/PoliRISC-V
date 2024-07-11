@@ -11,11 +11,13 @@ module csr #(
     input logic en,
     input csr_op_t csr_op,
     input logic wr_en,
-    input logic [11:0] addr,
+    input logic [11:0] rd_addr,
+    input logic [11:0] wr_addr,
     input logic [DATA_SIZE-1:0] wr_data,
     input logic external_interrupt,
     input logic msip,
-    input logic [DATA_SIZE-1:0] pc,
+    input logic [DATA_SIZE-1:0] interrupt_pc,
+    input logic [DATA_SIZE-1:0] exception_pc,
     input logic [31:0] instruction,
     input logic [63:0] mtime,
     input logic [63:0] mtimecmp,
@@ -24,7 +26,7 @@ module csr #(
     output logic [DATA_SIZE-1:0] sepc,
     output logic [DATA_SIZE-1:0] trap_addr,
     output logic trap,
-    output logic has_trap,
+    output logic exception,
     output privilege_mode_t privilege_mode
 );
 
@@ -125,7 +127,7 @@ module csr #(
       mie  <= mpie;
       mpie <= 1'b1;
       mpp  <= Machine;
-    end else if (wr_en_ && (addr == Mstatus)) begin
+    end else if (wr_en_ && (wr_addr == Mstatus)) begin
       mie  <= wr_data[MIE];
       mpie <= wr_data[MPIE];
       if (wr_data[MPP+1:MPP] != 2'b10) mpp <= privilege_mode_t'(wr_data[MPP+1:MPP]);
@@ -143,7 +145,7 @@ module csr #(
       spie <= 1'b1;
       spp  <= 1'b0;
       // Common with S-Mode
-    end else if (wr_en_ && (addr inside {Mstatus, Sstatus})) begin
+    end else if (wr_en_ && (wr_addr inside {Mstatus, Sstatus})) begin
       sie  <= wr_data[SIE];
       spie <= wr_data[SPIE];
       spp  <= wr_data[SPP];
@@ -174,7 +176,7 @@ module csr #(
   ) mtvec_reg (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en_ && (addr == Mtvec)),
+      .enable(wr_en_ && (wr_addr == Mtvec)),
       .D({wr_data[DATA_SIZE-1:2], wr_data[0]}),
       .Q({mtvec[DATA_SIZE-1:2], mtvec[0]})
   );
@@ -187,7 +189,7 @@ module csr #(
   ) stvec_reg (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en_ && (addr == Stvec)),
+      .enable(wr_en_ && (wr_addr == Stvec)),
       .D({wr_data[DATA_SIZE-1:2], wr_data[0]}),
       .Q({stvec[DATA_SIZE-1:2], stvec[0]})
   );
@@ -195,14 +197,14 @@ module csr #(
   // MIDELEG
   always_ff @(posedge clock, posedge reset) begin
     if (reset) mideleg <= 0;
-    else if (wr_en_ && (addr == Mideleg))
+    else if (wr_en_ && (wr_addr == Mideleg))
       mideleg <= '{SSI: wr_data[SSI], STI: wr_data[STI], SEI: wr_data[SEI], default: 0};
   end
 
   // MEDELEG
   always_ff @(posedge clock, posedge reset) begin
     if (reset) medeleg <= 0;
-    else if (wr_en_ && (addr == Medeleg))
+    else if (wr_en_ && (wr_addr == Medeleg))
       medeleg <= '{II: wr_data[II], ECS: wr_data[ECS], ECU: wr_data[ECU], default: 0};
   end
 
@@ -222,7 +224,7 @@ module csr #(
     if (reset) begin
       stip <= 0;
       seip <= 0;
-    end else if (wr_en_ && addr == Mip) begin
+    end else if (wr_en_ && wr_addr == Mip) begin
       stip <= wr_data[STI];
       seip <= wr_data[SEI];
     end
@@ -231,7 +233,7 @@ module csr #(
   always_ff @(posedge clock, posedge reset) begin
     if (reset) begin
       ssip <= 0;
-    end else if (wr_en_ && addr inside {Mip, Sip}) begin
+    end else if (wr_en_ && wr_addr inside {Mip, Sip}) begin
       ssip <= wr_data[SSI];
     end
   end
@@ -245,7 +247,7 @@ module csr #(
       msie <= 0;
       mtie <= 0;
       meie <= 0;
-    end else if (wr_en_ && addr == Mie) begin
+    end else if (wr_en_ && wr_addr == Mie) begin
       msie <= wr_data[MSI];
       mtie <= wr_data[MTI];
       meie <= wr_data[MEI];
@@ -257,7 +259,7 @@ module csr #(
       ssie <= 0;
       stie <= 0;
       seie <= 0;
-    end else if (wr_en_ && addr inside {Mie, Sie}) begin
+    end else if (wr_en_ && wr_addr inside {Mie, Sie}) begin
       ssie <= wr_data[SSI];
       stie <= wr_data[STI];
       seie <= wr_data[SEI];
@@ -271,7 +273,7 @@ module csr #(
   ) mscratch_reg (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en_ && (addr == Mscratch)),
+      .enable(wr_en_ && (wr_addr == Mscratch)),
       .D(wr_data),
       .Q(mscratch)
   );
@@ -283,7 +285,7 @@ module csr #(
   ) sscratch_reg (
       .clock(clock),
       .reset(reset),
-      .enable(wr_en_ && (addr == Sscratch)),
+      .enable(wr_en_ && (wr_addr == Sscratch)),
       .D(wr_data),
       .Q(sscratch)
   );
@@ -291,16 +293,18 @@ module csr #(
   // MEPC
   always @(posedge clock, posedge reset) begin
     if (reset) mepc_ <= 0;
-    else if (m_trap) mepc_ <= pc;
-    else if (wr_en_ && (addr == Mepc)) mepc_ <= {wr_data[DATA_SIZE-1:2], 2'b00};
+    else if (m_trap && async_trap) mepc_ <= interrupt_pc;
+    else if (m_trap && sync_trap)  mepc_ <= exception_pc;
+    else if (wr_en_ && (wr_addr == Mepc)) mepc_ <= {wr_data[DATA_SIZE-1:2], 2'b00};
   end
   assign mepc = mepc_;
 
   // SEPC
   always @(posedge clock, posedge reset) begin
     if (reset) sepc_ <= 0;
-    else if (s_trap) sepc_ <= pc;
-    else if (wr_en_ && (addr == Sepc)) sepc_ <= {wr_data[DATA_SIZE-1:2], 2'b00};
+    else if (s_trap && async_trap) sepc_ <= interrupt_pc;
+    else if (s_trap && sync_trap)  sepc_ <= exception_pc;
+    else if (wr_en_ && (wr_addr == Sepc)) sepc_ <= {wr_data[DATA_SIZE-1:2], 2'b00};
   end
   assign sepc = sepc_;
 
@@ -309,7 +313,7 @@ module csr #(
   always @(posedge clock, posedge reset) begin
     if (reset) mcause <= 0;
     else if (m_trap) mcause <= cause;
-    else if (m_legal_write && wr_en_ && (addr == Mcause)) mcause <= wr_data;  // WLRL
+    else if (m_legal_write && wr_en_ && (wr_addr == Mcause)) mcause <= wr_data;  // WLRL
   end
   assign m_legal_write = check_cause_write(wr_data, 1'b1);
 
@@ -318,7 +322,7 @@ module csr #(
   always @(posedge clock, posedge reset) begin
     if (reset) scause <= 0;
     else if (s_trap) scause <= cause;
-    else if (s_legal_write && wr_en_ && (addr == Scause)) scause <= wr_data;  // WLRL
+    else if (s_legal_write && wr_en_ && (wr_addr == Scause)) scause <= wr_data;  // WLRL
   end
   assign s_legal_write = check_cause_write(wr_data, 1'b0);
 
@@ -327,7 +331,7 @@ module csr #(
     if (reset) mtval <= 0;
     //  Store Illegal Instruction
     else if (m_trap && !async_trap && sync_trap && illegal_instruction) mtval <= instruction;
-    else if (wr_en_ && (addr == Mtval)) mtval <= wr_data;
+    else if (wr_en_ && (wr_addr == Mtval)) mtval <= wr_data;
   end
 
   // STVAL
@@ -335,7 +339,7 @@ module csr #(
     if (reset) stval <= 0;
     //  Store Illegal Instruction
     else if (s_trap && !async_trap && sync_trap && illegal_instruction) stval <= instruction;
-    else if (wr_en_ && (addr == Stval)) stval <= wr_data;
+    else if (wr_en_ && (wr_addr == Stval)) stval <= wr_data;
   end
 
   // PRIV
@@ -351,8 +355,7 @@ module csr #(
   // read data
   always_comb begin
     rd_data = 0;
-    addr_exception = 1'b0;
-    unique case (addr)
+    unique case (rd_addr)
       Sstatus: rd_data = sstatus;
       Sie: rd_data = sie_;
       Stvec: rd_data = stvec;
@@ -376,9 +379,14 @@ module csr #(
       Marchid: rd_data = marchid;
       Mimpid: rd_data = mimpid;
       Mhartid: rd_data = mhartid;
-      default: addr_exception = 1'b1;
+      default: rd_data = 0;
     endcase
   end
+
+  assign addr_exception = !(wr_addr inside {Sstatus, Sie, Stvec, Sscratch, Sepc, Scause, Stval, Sip,
+                                            Mstatus, Misa, Medeleg, Mideleg, Mie, Mtvec, Mscratch,
+                                            Mepc, Mcause, Mtval, Mip, Mvendorid, Marchid, Mimpid,
+                                            Mhartid});
 
   // Trap
   logic [5:0] interrupt_vector;  // If bit i is high, so interrupt 2*i + 1 happened
@@ -468,7 +476,7 @@ module csr #(
   assign s_trap = s_trap_ & en;
   assign _trap  = m_trap | s_trap;
   assign trap   = _trap;
-  assign has_trap = m_trap_ | s_trap_;
+  assign exception = sync_trap & en;
 
   // Trap Address
   logic [DATA_SIZE-3:0] m_trap_addr_vet, s_trap_addr_vet;
