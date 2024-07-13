@@ -58,7 +58,7 @@ csrrs t2,sepc,x0          ; does not write to sepc
 csrrw x0,sepc,t2
 ori t0,x0,0b100000000000  ; SSI ISR
 sb t0,0(s0)
-csrrc x0,sip,s3
+csrrci x0,sip,0b0010
 sret
 
 ; go to supervisor mode

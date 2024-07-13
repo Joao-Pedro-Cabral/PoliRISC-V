@@ -518,7 +518,6 @@ module dataflow_tb ();
       .privilege_mode(privilege_mode_tb),
       // CSR RW interface
       .csr_op(csr_op_tb),
-      .wr_en(|mem_wb_tb.inst[19:15]),
       .rd_addr(if_id_tb.inst[31:20]),
       .wr_addr(mem_wb_tb.inst[31:20]),
       .wr_data(mem_wb_tb.csr_wr_data),
@@ -711,6 +710,9 @@ module dataflow_tb ();
         end else if (instruction.fields.i_type.funct3 !== 3'b100 &&
                       (privilege_mode >= instruction.fields.i_type.imm[11:10]))
           csr_op  = csr_op_t'(instruction.fields.i_type.funct3[1:0]);
+      end else if(!(instruction.opcode inside {AluRType, AluRWType, AluIType, AluIWType, LoadType,
+                                              SType, BType, Lui, Auipc, Jal, Jalr, Fence, 0})) begin
+        csr_op = CsrIllegalInstruction;
       end
       return csr_op;
     end
@@ -860,8 +862,8 @@ module dataflow_tb ();
                              mem_wb_tb.csr_wr_data, forward_csr_ex);
     csr_aux_wr = gen_csr_imm(id_ex_tb.inst) ? $unsigned(id_ex_tb.inst[19:15]) : alu_a_f;
     unique case (gen_csr_op(id_ex_tb.inst, privilege_mode_tb))
-      CsrRS: csr_wr_data = csr_aux_wr | csr_aux_f;
-      CsrRC: csr_wr_data = csr_aux_wr & (~csr_aux_f);
+      CsrRS: csr_wr_data = csr_aux_f | csr_aux_wr;
+      CsrRC: csr_wr_data = csr_aux_f & (~csr_aux_wr);
       default: csr_wr_data = csr_aux_wr;
     endcase
   end

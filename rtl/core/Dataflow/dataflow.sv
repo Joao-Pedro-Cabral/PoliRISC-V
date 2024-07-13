@@ -333,7 +333,6 @@ module dataflow #(
       .reset(reset),
       .en(~mem_busy),
       .csr_op(mem_wb_reg.csr_op),
-      .wr_en(|mem_wb_reg.inst[19:15]),
       // Interrupt Signals
       .external_interrupt(external_interrupt),
       .msip(|msip),
@@ -433,8 +432,8 @@ module dataflow #(
   always_comb begin
     csr_wr_data = csr_aux_wr;
     unique case (id_ex_reg.csr_op)
-      CsrRS: csr_wr_data = csr_aux_wr | forwarded_csr_ex;
-      CsrRC: csr_wr_data = csr_aux_wr & (~forwarded_csr_ex);
+      CsrRS: csr_wr_data = forwarded_csr_ex | csr_aux_wr;
+      CsrRC: csr_wr_data = forwarded_csr_ex & (~csr_aux_wr);
       default: begin
       end
     endcase

@@ -10,7 +10,6 @@ module csr #(
     input logic reset,
     input logic en,
     input csr_op_t csr_op,
-    input logic wr_en,
     input logic [11:0] rd_addr,
     input logic [11:0] wr_addr,
     input logic [DATA_SIZE-1:0] wr_data,
@@ -95,7 +94,7 @@ module csr #(
   // Control Logic (Mask Inputs)
   assign mret_  = (csr_op == CsrMret) & en & !_trap;
   assign sret_  = (csr_op == CsrSret) & en & !_trap;
-  assign wr_en_ = ((csr_op == CsrRW) || ((csr_op inside {CsrRS, CsrRC}) && wr_en)) & en & !_trap;
+  assign wr_en_ = (csr_op inside {CsrRW, CsrRS, CsrRC}) & en & !_trap;
 
   // Exceptions
   assign illegal_instruction = (csr_op == CsrIllegalInstruction) ||
@@ -109,6 +108,7 @@ module csr #(
           SIE: sie,
           MIE: mie,
           SPIE: spie,
+          MPIE: mpie,
           SPP: spp,
           MPP + 1: mpp[1],
           MPP: mpp,
@@ -399,20 +399,20 @@ module csr #(
     for (i = 0; i < 6; i = i + 1) begin : gen_interrupt_vector
       if (i % 2 == 1)  // MEI, MTI, MSI: U, S -> Always Enabled, M -> MIE
         assign interrupt_vector[i] =  mip[2*i+1]  &
-            ((priv inside {User, Supervisor}) | ((priv == Machine) & mie_[2*i+1] & mstatus[MIE]));
+            ((priv inside {User, Supervisor}) | ((priv == Machine) & mie_[2*i+1] & mie));
       // SEI, STI, SSI: U -> Always Enabled, S -> SIE or !mideleg, M -> mideleg
       else
         assign interrupt_vector[i] =  mip[2*i+1] & ((priv == User) |
-            (!priv[1] & mstatus[SIE] & mie_[2*i+1]));
+            (!priv[1] & sie & mie_[2*i+1]));
     end
   endgenerate
   // Exception Vector
   assign exception_vector[0] = illegal_instruction & ((priv == User) |
-            (priv == Supervisor & (!medeleg[II] | mstatus[SIE])) |
-            (priv == Machine & mstatus[MIE]));  // II
+            (priv == Supervisor & (!medeleg[II] | sie)) |
+            (priv == Machine & mie));  // II
   assign exception_vector[1] = ecall & (priv == User);  // ECU
-  assign exception_vector[2] = ecall & (priv == Supervisor) & (!medeleg[ECS] | mstatus[SIE]); // ECS
-  assign exception_vector[3] = ecall & (priv == Machine) & mstatus[MIE];  // ECM
+  assign exception_vector[2] = ecall & (priv == Supervisor) & (!medeleg[ECS] | sie); // ECS
+  assign exception_vector[3] = ecall & (priv == Machine) & mie;  // ECM
   // Trap
   assign async_trap = |(interrupt_vector);
   assign sync_trap = |(exception_vector);
