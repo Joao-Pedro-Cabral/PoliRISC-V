@@ -71,7 +71,7 @@ module hazard_unit (
   end : flushes_and_stalls_proc
 
   assign flush_id = flush_id_pc | flush_all | interrupt;
-  assign flush_ex = flush_ex_type | flush_all | interrupt;
+  assign flush_ex = flush_ex_type | flush_all;
   assign flush_mem = flush_all;
   assign flush_wb = flush_all;
 

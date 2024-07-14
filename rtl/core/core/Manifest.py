@@ -1,10 +1,14 @@
 files = [
-    "core.v"
+    "core.sv"
 ]
 
 modules = {
-    "local" : [
+    "local": [
         "../ControlUnit",
-        "../Dataflow"
+        "../CSR",
+        "../Dataflow",
+        "../ForwardingUnit",
+        "../HazardUnit",
+        "../MemoryUnit"
     ]
 }

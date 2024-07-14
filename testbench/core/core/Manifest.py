@@ -1,19 +1,14 @@
 files = [
-    "core_tb.v",
-    "RV32I_uart_tb.v",
-    "RV32I_litex_de10nano_tb.v",
-    "RV32I_litex_nexys4ddr_tb.v"
+    "core_tb.sv"
 ]
 
 modules = {
     "local": [
         "../../../rtl/core/core",
-        "../../../rtl/core/ImmediateExtender",
-        "../../../rtl/core/RegisterFile",
+        "../../../rtl/core/CSR",
         "../../../rtl/memory/Cache",
         "../../../rtl/memory/Controller",
         "../../../rtl/memory/RAM",
-        "../../../rtl/memory/ROM",
-        "../../../rtl/peripheral/UART"
+        "../../../rtl/memory/ROM"
     ],
 }
