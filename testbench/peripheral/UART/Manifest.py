@@ -1,12 +1,13 @@
 files = [
-    "FIFO_tb.v",
-    "uart_rx_tb.v",
-    "uart_tb.v",
-    "uart_tx_tb.v"
+    "fifo_tb.sv",
+    "uart_rx_tb.sv",
+    "uart_tb.sv",
+    "uart_tx_tb.sv"
 ]
 
 modules = {
-    "local" : [
+    "local": [
         "../../../rtl/peripheral/UART",
+        "../../../utils/globals"
     ]
 }

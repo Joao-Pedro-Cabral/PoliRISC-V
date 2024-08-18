@@ -1,7 +1,4 @@
 
-`include "macros.vh"
-`include "extensions.vh"
-
 module uart_fsm #(
     parameter integer LITEX_ARCH = 0
 ) (
@@ -17,13 +14,11 @@ module uart_fsm #(
     output wire bank_rd_en,
     output wire bank_wr_en,
     output wire rxdata_wr_en,
-    // DEBUG
-`ifdef DEBUG
-    output wire [2:0] present_state_,
-`endif
     // PHY
     output wire tx_fifo_wr_en,
-    output wire rx_fifo_rd_en
+    output wire rx_fifo_rd_en,
+    // DEBUG
+    output wire [2:0] present_state_db
 );
 
   reg _rd_en, _wr_en;
@@ -47,13 +42,13 @@ module uart_fsm #(
     end
   endfunction
 
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) present_state <= Idle;
     else present_state <= next_state;
   end
 
   // Lógica de Transição de Estado
-  always @(*) begin
+  always_comb begin
     next_state = Idle;
     case (present_state)
       Idle: begin
@@ -74,7 +69,7 @@ module uart_fsm #(
   end
 
   // Lógica de saída
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     ack    <= 1'b0;
     op     <= 1'b0;
     _rd_en <= 1'b0;
@@ -113,8 +108,6 @@ module uart_fsm #(
   assign rx_fifo_rd_en = _rd_en & is_rxdata_addr(LITEX_ARCH, addr);
 
   // DEBUG
-`ifdef DEBUG
-  assign present_state_ = present_state;
-`endif
+  assign present_state_db = present_state;
 
 endmodule

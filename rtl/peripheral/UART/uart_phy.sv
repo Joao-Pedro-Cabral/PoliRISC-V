@@ -1,7 +1,3 @@
-
-`include "macros.vh"
-`include "extensions.vh"
-
 module uart_phy #(
     parameter integer FIFO_DEPTH = 8
 ) (
@@ -26,18 +22,15 @@ module uart_phy #(
     // FSM
     input  wire                          tx_fifo_wr_en,
     input  wire                          rx_fifo_rd_en,
-    // DEBUG
-`ifdef DEBUG
-    output wire                          rx_data_valid_,
-    output wire                          tx_data_valid_,
-    output wire                          tx_rdy_,
-    output wire [$clog2(FIFO_DEPTH)-1:0] tx_watermark_reg_,
-    output wire [$clog2(FIFO_DEPTH)-1:0] rx_watermark_reg_,
-`endif
     // SERIAL
     output wire                          txd,
-    input  wire                          rxd
-
+    input  wire                          rxd,
+    // DEBUG
+    output wire                          rx_data_valid_db,
+    output wire                          tx_data_valid_db,
+    output wire                          tx_rdy_db,
+    output wire [$clog2(FIFO_DEPTH)-1:0] tx_watermark_reg_db,
+    output wire [$clog2(FIFO_DEPTH)-1:0] rx_watermark_reg_db
 );
 
   // Tx Fifo
@@ -60,8 +53,8 @@ module uart_phy #(
   wire rx_data_valid;
 
   // FIFOs
-  // TX FIFO
-  FIFO #(
+  // TX fifo
+  fifo #(
       .DATA_SIZE(8),
       .DEPTH(FIFO_DEPTH)
   ) tx_fifo (
@@ -73,9 +66,7 @@ module uart_phy #(
       .wr_data(tx_fifo_wr_data),
       .rd_data(tx_fifo_rd_data),
       .less_than_watermark(tx_fifo_less_than_watermark),
-`ifdef DEBUG
-      .watermark_reg_(tx_watermark_reg_),
-`endif
+      .watermark_reg_db(tx_watermark_reg_db),
       .empty(tx_fifo_empty_),
       .full(tx_fifo_full),
       .greater_than_watermark()
@@ -85,9 +76,9 @@ module uart_phy #(
 
   reg tx_rdy_aux, tx_fifo_empty_aux;
 
-  // Leitura da FIFO -> UART TX pronta (borda de subida)
-  // Mantenho o rd_en ativo até que a FIFO tenha algum dado para transmitir
-  always @(posedge clock, posedge reset) begin
+  // Leitura da fifo -> UART TX pronta (borda de subida)
+  // Mantenho o rd_en ativo até que a fifo tenha algum dado para transmitir
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) begin
       tx_fifo_rd_en <= 1'b0;
       tx_fifo_empty_aux <= 1'b0;
@@ -107,13 +98,13 @@ module uart_phy #(
   // Detecto a borda de subida do tx_rdy
   // Apenas esse tem reset, pois no estado padrão do transmissor tx_rdy = 1'b1
   // Enquanto no estado padrão do receptor o rx_data_valid = 1'b0
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) tx_rdy_aux <= 1'b0;
     else tx_rdy_aux <= tx_rdy;
   end
 
-  // RX FIFO
-  FIFO #(
+  // RX fifo
+  fifo #(
       .DATA_SIZE(8),
       .DEPTH(FIFO_DEPTH)
   ) rx_fifo (
@@ -125,9 +116,7 @@ module uart_phy #(
       .wr_data(rx_fifo_wr_data),
       .rd_data(rx_fifo_rd_data),
       .greater_than_watermark(rx_fifo_greater_than_watermark),
-`ifdef DEBUG
-      .watermark_reg_(rx_watermark_reg_),
-`endif
+      .watermark_reg_db(rx_watermark_reg_db),
       .empty(rx_fifo_empty),
       .full(rx_fifo_full_),
       .less_than_watermark()
@@ -137,9 +126,9 @@ module uart_phy #(
 
   reg rx_data_valid_aux, rx_fifo_full_aux;
 
-  // Escrita na FIFO -> UART RX válido (borda de subida)
-  // Mantenho o wr_en ativo até que a FIFO tenha espaço sobrando
-  always @(posedge clock, posedge reset) begin
+  // Escrita na fifo -> UART RX válido (borda de subida)
+  // Mantenho o wr_en ativo até que a fifo tenha espaço sobrando
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) begin
       rx_fifo_wr_en <= 1'b0;
       rx_fifo_full_aux <= 1'b0;
@@ -157,7 +146,7 @@ module uart_phy #(
 
   // Para evitar múltiplas escritas por ciclo de clock da UART
   // Detecto a borda de subida do rx_data_valid
-  always @(posedge clock) begin
+  always_ff @(posedge clock) begin
     rx_data_valid_aux <= rx_data_valid;
   end
 
@@ -176,14 +165,14 @@ module uart_phy #(
   );
 
   // Caso o TX não esteja pronto -> Valid 0
-  // Caso TX pronto e houve uma leitura na FIFO -> Valid 1
+  // Caso TX pronto e houve uma leitura na fifo -> Valid 1
   reg tx_fifo_rd_en_aux;
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset || !tx_rdy) tx_data_valid <= 1'b0;
     else if (!tx_fifo_rd_en && tx_fifo_rd_en_aux) tx_data_valid <= 1'b1;
   end
 
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) tx_fifo_rd_en_aux <= 1'b0;
     else tx_fifo_rd_en_aux <= tx_fifo_rd_en;
   end
@@ -208,7 +197,7 @@ module uart_phy #(
   wire div_change;
   reg [15:0] old_div;
   // Detector de mudança do div
-  always @(posedge clock) begin
+  always_ff @(posedge clock) begin
     old_div <= div;
   end
 
@@ -228,7 +217,7 @@ module uart_phy #(
       .value(tx_counter)
   );
 
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset | div_change) tx_clock <= 1'b0;
     else if (tx_counter == div) tx_clock <= ~tx_clock;
     else tx_clock <= 1'b0;
@@ -249,17 +238,15 @@ module uart_phy #(
       .value(rx_counter)
   );
 
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset | div_change) rx_clock <= 1'b0;
     else if (rx_counter == div[15:4]) rx_clock <= 1'b1;
     else rx_clock <= 1'b0;
   end
 
   // DEBUG
-`ifdef DEBUG
-  assign rx_data_valid_ = rx_data_valid;
-  assign tx_data_valid_ = tx_data_valid;
-  assign tx_rdy_ = tx_rdy;
-`endif
+  assign rx_data_valid_db = rx_data_valid;
+  assign tx_data_valid_db = tx_data_valid;
+  assign tx_rdy_db = tx_rdy;
 
 endmodule

@@ -1,12 +1,3 @@
-//
-//! @file   uart_rx.v
-//! @brief  Receptor da UART(majority voting 2/3 per bit)
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @date   2023-05-21
-//
-
-`include "macros.vh"
 
 module uart_rx (
     input wire clock,
@@ -181,13 +172,13 @@ module uart_rx (
   assign data_vld = ~parity_er & ~framing_er;
 
   // Transição de Estado
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) present_state <= Idle;
     else present_state <= next_state;
   end
 
   // Lógica de Saída e de Próximo Estado da FSM
-  always @(*) begin
+  always_comb begin
     data_en = 1'b0;
     sample_cnt_rst = 1'b0;
     data_cnt_rst = 1'b0;

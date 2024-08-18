@@ -1,7 +1,4 @@
 
-`include "macros.vh"
-`include "extensions.vh"
-
 module uart #(
     parameter integer LITEX_ARCH = 0,  // 0: SiFive, 1: Litex
     parameter integer FIFO_DEPTH = 8,
@@ -18,33 +15,31 @@ module uart #(
     output wire                          txd,                // dado de transmissão
     output wire [                  31:0] DAT_O,
     output wire                          interrupt,
-`ifdef DEBUG
-    output wire [                  15:0] div_,
-    output wire                          rx_pending_,
-    output wire                          tx_pending_,
-    output wire                          rx_pending_en_,
-    output wire                          tx_pending_en_,
-    output wire [$clog2(FIFO_DEPTH)-1:0] txcnt_,
-    output wire [$clog2(FIFO_DEPTH)-1:0] rxcnt_,
-    output wire                          txen_,
-    output wire                          rxen_,
-    output wire                          nstop_,
-    output wire                          rx_fifo_empty_,
-    output wire [                   7:0] rxdata_,
-    output wire                          tx_fifo_full_,
-    output wire [                   7:0] txdata_,
-    output wire [                   2:0] present_state_,
-    output wire [                   2:0] addr_,
-    output wire [                  31:0] wr_data_,
-    output wire                          rx_data_valid_,
-    output wire                          tx_data_valid_,
-    output wire                          tx_rdy_,
-    output wire [$clog2(FIFO_DEPTH)-1:0] rx_watermark_reg_,
-    output wire [$clog2(FIFO_DEPTH)-1:0] tx_watermark_reg_,
-    output wire                          tx_status_,
-    output wire                          rx_status_,
-`endif
-    output wire                          ACK_O
+    output wire                          ACK_O,
+    output wire [                  15:0] div_db,
+    output wire                          rx_pending_db,
+    output wire                          tx_pending_db,
+    output wire                          rx_pending_en_db,
+    output wire                          tx_pending_en_db,
+    output wire [$clog2(FIFO_DEPTH)-1:0] txcnt_db,
+    output wire [$clog2(FIFO_DEPTH)-1:0] rxcnt_db,
+    output wire                          txen_db,
+    output wire                          rxen_db,
+    output wire                          nstop_db,
+    output wire                          rx_fifo_empty_db,
+    output wire [                   7:0] rxdata_db,
+    output wire                          tx_fifo_full_db,
+    output wire [                   7:0] txdata_db,
+    output wire [                   2:0] present_state_db,
+    output wire [                   2:0] addr_db,
+    output wire [                  31:0] wr_data_db,
+    output wire                          rx_data_valid_db,
+    output wire                          tx_data_valid_db,
+    output wire                          tx_rdy_db,
+    output wire [$clog2(FIFO_DEPTH)-1:0] rx_watermark_reg_db,
+    output wire [$clog2(FIFO_DEPTH)-1:0] tx_watermark_reg_db,
+    output wire                          tx_status_db,
+    output wire                          rx_status_db
 );
 
   // Internal interface signals
@@ -124,17 +119,15 @@ module uart #(
       .bank_wr_en(bank_wr_en),
       .rxdata_wr_en(rxdata_wr_en),
       // DEBUG
-`ifdef DEBUG
-      .tx_pending_(tx_pending_),
-      .rx_pending_(rx_pending_),
-      .tx_pending_en_(tx_pending_en_),
-      .rx_pending_en_(rx_pending_en_),
-      .tx_status_(tx_status_),
-      .rx_status_(rx_status_),
-      .rx_fifo_empty_(rx_fifo_empty_),
-      .txdata_(txdata_),
-      .rxdata_(rxdata_),
-`endif
+      .tx_pending_db(tx_pending_db),
+      .rx_pending_db(rx_pending_db),
+      .tx_pending_en_db(tx_pending_en_db),
+      .rx_pending_en_db(rx_pending_en_db),
+      .tx_status_db(tx_status_db),
+      .rx_status_db(rx_status_db),
+      .rx_fifo_empty_db(rx_fifo_empty_db),
+      .txdata_db(txdata_db),
+      .rxdata_db(rxdata_db),
       // PHY
       .txen(txen),
       .rxen(rxen),
@@ -169,9 +162,7 @@ module uart #(
       .bank_wr_en(bank_wr_en),
       .rxdata_wr_en(rxdata_wr_en),
       // DEBUG
-`ifdef DEBUG
-      .present_state_(present_state_),
-`endif
+      .present_state_db(present_state_db),
       // PHY
       .tx_fifo_wr_en(tx_fifo_wr_en),
       .rx_fifo_rd_en(rx_fifo_rd_en)
@@ -203,30 +194,26 @@ module uart #(
       .tx_fifo_wr_en(tx_fifo_wr_en),
       .rx_fifo_rd_en(rx_fifo_rd_en),
       // DEBUG
-`ifdef DEBUG
-      .rx_data_valid_(rx_data_valid_),
-      .tx_data_valid_(tx_data_valid_),
-      .tx_rdy_(tx_rdy_),
-      .tx_watermark_reg_(tx_watermark_reg_),
-      .rx_watermark_reg_(rx_watermark_reg_),
-`endif
+      .rx_data_valid_db(rx_data_valid_db),
+      .tx_data_valid_db(tx_data_valid_db),
+      .tx_rdy_db(tx_rdy_db),
+      .tx_watermark_reg_db(tx_watermark_reg_db),
+      .rx_watermark_reg_db(rx_watermark_reg_db),
       // SERIAL
       .txd(txd),
       .rxd(rxd)
   );
 
-`ifdef DEBUG
-  assign addr_ = _addr;
-  assign wr_data_ = _wr_data;
+  assign addr_db = _addr;
+  assign wr_data_db = _wr_data;
   // BANK
-  assign div_ = div;
-  assign txcnt_ = txcnt;
-  assign rxcnt_ = rxcnt;
-  assign txen_ = txen;
-  assign rxen_ = rxen;
-  assign nstop_ = nstop;
+  assign div_db = div;
+  assign txcnt_db = txcnt;
+  assign rxcnt_db = rxcnt;
+  assign txen_db = txen;
+  assign rxen_db = rxen;
+  assign nstop_db = nstop;
   // PHY
-  assign tx_fifo_full_ = tx_fifo_full;
-`endif
+  assign tx_fifo_full_db = tx_fifo_full;
 
 endmodule

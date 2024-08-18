@@ -1,13 +1,7 @@
-//
-//! @file   uart_rx_tb.v
-//! @brief  Testbench do Receptor da UART
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @date   2023-05-22
-//
-
-`timescale 1ns / 100ps
 
 module uart_rx_tb ();
+
+  import macros_pkg::*;
 
   // sinais do DUT
   reg clock, clock_r;

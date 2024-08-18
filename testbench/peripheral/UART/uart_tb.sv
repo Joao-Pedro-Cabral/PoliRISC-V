@@ -1,23 +1,11 @@
-//
-//! @file   uart_tb.v
-//! @brief  Testbench de uma implementação de UART
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @author João Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @date   2023-05-29
-//
-
-`include "macros.vh"
-`include "extensions.vh"
 
 `define ASSERT(condition) if (!(condition)) $stop
 
 module uart_tb ();
 
-`ifdef LITEX_
-  localparam integer LitexArch = 1;
-`else
-  localparam integer LitexArch = 0;
-`endif
+  import macros_pkg::*;
+  import board_pkg::*;
+
   localparam integer FifoDepth = LitexArch ? 16 : 8;
   localparam integer AmntOfTests = 500;
   localparam integer ClockPeriod = 20;
@@ -114,10 +102,34 @@ module uart_tb ();
       .txd      (txd),       // dado de transmissão
       .DAT_O    (rd_data),
       .ACK_O    (ack_i),
-      .interrupt(interrupt)
+      .interrupt(interrupt),
+      .div_db(),
+      .rx_pending_db(),
+      .tx_pending_db(),
+      .rx_pending_en_db(),
+      .tx_pending_en_db(),
+      .txcnt_db(),
+      .rxcnt_db(),
+      .txen_db(),
+      .rxen_db(),
+      .nstop_db(),
+      .rx_fifo_empty_db(),
+      .rxdata_db(),
+      .tx_fifo_full_db(),
+      .txdata_db(),
+      .present_state_db(),
+      .addr_db(),
+      .wr_data_db(),
+      .rx_data_valid_db(),
+      .tx_data_valid_db(),
+      .tx_rdy_db(),
+      .rx_watermark_reg_db(),
+      .tx_watermark_reg_db(),
+      .tx_status_db(),
+      .rx_status_db()
   );
 
-  // Sinais da FIFO/interrupts
+  // Sinais da fifo/interrupts
   assign tx_pending = LitexArch ? tx_pending_d : (tx_watermark_reg < tx_watermark_level);
   assign rx_pending = LitexArch ? rx_pending_d : (rx_watermark_reg > rx_watermark_level);
 

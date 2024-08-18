@@ -1,12 +1,3 @@
-//
-//! @file   uart_tx.v
-//! @brief  Transmissor da UART
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @date   2023-05-21
-//
-
-`include "macros.vh"
 
 module uart_tx (
     input wire clock,
@@ -84,13 +75,13 @@ module uart_tx (
   );
 
   // Transição de Estado
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) present_state <= Idle;
     else present_state <= next_state;
   end
 
   // Lógica de Saída e de Próximo Estado da FSM
-  always @(*) begin
+  always_comb begin
     txd = 1'b1;
     tx_rdy = 1'b0;
     data_en = 1'b0;

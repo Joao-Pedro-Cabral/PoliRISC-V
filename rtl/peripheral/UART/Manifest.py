@@ -1,11 +1,11 @@
 files = [
-    "FIFO.v",
-    "uart_rx.v",
-    "uart_tx.v",
-    "uart_bank.v",
-    "uart_fsm.v",
-    "uart_phy.v",
-    "uart.v"
+    "fifo.sv",
+    "uart_rx.sv",
+    "uart_tx.sv",
+    "uart_bank.sv",
+    "uart_fsm.sv",
+    "uart_phy.sv",
+    "uart.sv"
 ]
 
 modules = {

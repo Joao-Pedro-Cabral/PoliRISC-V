@@ -1,7 +1,4 @@
 
-`include "macros.vh"
-`include "extensions.vh"
-
 module uart_bank #(
     parameter integer LITEX_ARCH = 0,
     parameter integer FIFO_DEPTH = 8,
@@ -18,18 +15,6 @@ module uart_bank #(
     input  wire                          bank_rd_en,
     input  wire                          bank_wr_en,
     input  wire                          rxdata_wr_en,
-    // DEBUG
-`ifdef DEBUG
-    output wire                          tx_pending_,
-    output wire                          rx_pending_,
-    output wire                          tx_pending_en_,
-    output wire                          rx_pending_en_,
-    output wire                          tx_status_,
-    output wire                          rx_status_,
-    output wire                          rx_fifo_empty_,
-    output wire [                   7:0] txdata_,
-    output wire [                   7:0] rxdata_,
-`endif
     // PHY
     output wire                          txen,
     output wire                          rxen,
@@ -44,7 +29,17 @@ module uart_bank #(
     input  wire                          tx_fifo_empty,
     input  wire                          rx_fifo_empty,
     input  wire                          tx_fifo_less_than_watermark,
-    input  wire                          rx_fifo_greater_than_watermark
+    input  wire                          rx_fifo_greater_than_watermark,
+  // DEBUG
+    output wire                          tx_pending_db,
+    output wire                          rx_pending_db,
+    output wire                          tx_pending_en_db,
+    output wire                          rx_pending_en_db,
+    output wire                          tx_status_db,
+    output wire                          rx_status_db,
+    output wire                          rx_fifo_empty_db,
+    output wire [                   7:0] txdata_db,
+    output wire [                   7:0] rxdata_db
 );
 
   localparam integer DivInit = CLOCK_FREQ_HZ / (115200) - 1;
@@ -148,11 +143,11 @@ module uart_bank #(
     if (LITEX_ARCH) begin : gen_litex_regs
       reg tx_fifo_full_d, rx_fifo_empty_d;
       reg [1:0] uart_pending;
-      always @(posedge clock) begin
+      always_ff @(posedge clock) begin
         tx_fifo_full_d  <= tx_fifo_full;
         rx_fifo_empty_d <= rx_fifo_empty;
       end
-      always @(posedge clock, posedge reset) begin
+      always_ff @(posedge clock, posedge reset) begin
         if (reset) uart_pending <= 2'b00;
         else if (bank_wr_en & addr_en(LITEX_ARCH, addr, Pending)) uart_pending <= wr_data[1:0];
         else begin
@@ -268,16 +263,14 @@ module uart_bank #(
   assign div = _div;
   assign interrupt = (tx_pending & tx_pending_en) | (rx_pending & rx_pending_en);
 
-`ifdef DEBUG
-  assign rx_pending_ = rx_pending;
-  assign tx_pending_ = tx_pending;
-  assign tx_pending_en_ = tx_pending_en;
-  assign rx_pending_en_ = rx_pending_en;
-  assign tx_status_ = tx_status;
-  assign rx_status_ = rx_status;
-  assign rx_fifo_empty_ = _rx_fifo_empty;
-  assign rxdata_ = _rxdata;
-  assign txdata_ = _txdata;
-`endif
+  assign rx_pending_db = rx_pending;
+  assign tx_pending_db = tx_pending;
+  assign tx_pending_en_db = tx_pending_en;
+  assign rx_pending_en_db = rx_pending_en;
+  assign tx_status_db = tx_status;
+  assign rx_status_db = rx_status;
+  assign rx_fifo_empty_db = _rx_fifo_empty;
+  assign rxdata_db = _rxdata;
+  assign txdata_db = _txdata;
 
 endmodule

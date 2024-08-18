@@ -9,6 +9,7 @@ modules = {
         "HazardUnit",
         "ImmediateExtender",
         "RegisterFile",
-        "ULA"
+        "ALU",
+        "Shifter"
     ],
 }
