@@ -1,13 +1,7 @@
-//
-//! @file   sdram_controller_tb.v
-//! @brief  Testbench do Controlador SDRAM da DE10-Lite(Single Acess), Clock: 200MHz
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @date   2023-04-29
-//
-
-`include "macros.vh"
 
 module sdram_controller_tb;
+
+  import macros_pkg::*;
 
   // Sinais do DUT
   // Processador
@@ -77,8 +71,8 @@ module sdram_controller_tb;
   end
 
   // "Memória"
-  assign dram_dq[7:0]  = rd_en & ~ldqm ? memory[rd_addr][7:0] : {{8'bz}};  // tri-state
-  assign dram_dq[15:8] = rd_en & ~udqm ? memory[rd_addr][15:8] : {{8'bz}};  // tri-state
+  assign dram_dq[7:0]  = rd_en & ~ldqm ? memory[rd_addr][7:0] : {{'bz}};  // tri-state
+  assign dram_dq[15:8] = rd_en & ~udqm ? memory[rd_addr][15:8] : {{'bz}};  // tri-state
 
   // leitura
   always @(posedge dram_clk) begin
@@ -131,9 +125,9 @@ module sdram_controller_tb;
       // Escrita
       address[0]    = (i % 2);  // oscilar entre endereços pares e ímpares
       rd_wr_size    = i / 2;  // testas todos os 4 tamanhos
-      address[25:1] = $random;  // resto do endereço: aleatório
+      address[25:1] = $urandom;  // resto do endereço: aleatório
       wr_addr       = address;  // guardando endereço de escrita
-      write_data    = {$random, $random};  // escrever dado qualquer
+      write_data    = {$urandom, $urandom};  // escrever dado qualquer
       wr_data       = write_data;  // guardando dado escrito
       wr_enable     = 1'b1;  // habilitar escrita
       wait (busy == 1'b1);
@@ -151,7 +145,7 @@ module sdram_controller_tb;
       wait (busy == 1'b0);  // Esperar fim da operação
       wait (clock == 1'b0);
       // case para determinar qual deve ser a saída devido as máscaras
-      case (rd_wr_size)
+      unique case (rd_wr_size)
         2'b00:
         if (read_data !== {56'b0, wr_data[7:0]}) begin  // byte
           $display("Error: read_data = %x, wr_data = %x, rd_wr_size = %b, address[0] = %b",
@@ -180,7 +174,7 @@ module sdram_controller_tb;
       address    = 0;  // zerando sinais de controle
       rd_wr_size = 0;
       rd_enable  = 0;
-      wait (clock == 1'b0);  // Borda de descida: nova operação       
+      wait (clock == 1'b0);  // Borda de descida: nova operação
     end
     $display("EOT!");
     $stop;

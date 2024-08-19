@@ -1,6 +1,7 @@
 modules = {
     "local": [
         "Adder",
+        "BranchDecoderUnit",
         "ControlUnit",
         "core",
         "CSR",
@@ -10,6 +11,7 @@ modules = {
         "ImmediateExtender",
         "RegisterFile",
         "ALU",
+        "MemoryUnit",
         "Shifter"
     ],
 }

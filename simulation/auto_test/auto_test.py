@@ -20,7 +20,8 @@ def find_files(root_directory: str, extension: str):
 
 # MAIN
 sys.stdout = open("../log.txt", "w")
-sim_top_array = find_files("../../testbench", "v")  # Get all testbenches files
+# Get all testbenches files
+sim_top_array = find_files("../../testbench", "sv")
 print("############## tops: " + str(sim_top_array))
 # Get mifs files for core simulation
 mif_array = find_files("../MIFs/memory/ROM/core", "mif")
@@ -31,10 +32,10 @@ write_lines(["use_mif"], ["use_mif = True"])  # Set Mifs
 
 for testbench in sim_top_array:
     if not testbench.endswith("_tb"):
-      continue
+        continue
     print(f'---------{testbench}---------')
-    write_lines(["sim_top"], [f"sim_top = \"{testbench}\""])  # Set TCL Mode
-    set_extensions(testbench)
+    write_lines(["sim_top"], [f"sim_top = \"{testbench}\""])
+    # set_extensions(testbench)
     if testbench in excluded_tops:
         print("---------PASS---------")
     elif tops_with_mifs.count(testbench) != 0:

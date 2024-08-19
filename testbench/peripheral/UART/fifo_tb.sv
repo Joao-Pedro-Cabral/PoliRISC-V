@@ -68,8 +68,8 @@ module fifo_tb ();
     @(negedge clock);
     reset = 0;
 
-    CHK_INIT: assert(!((|(DUT.rd_reg) | (DUT.wr_reg) | (DUT.watermark_reg))
-                                  | (~empty) | (full))) $display("SOT");
+    CHK_INIT: assert((|(DUT.rd_reg) | (DUT.wr_reg) | (DUT.watermark_reg))
+                        | (~empty) | (full)) $display("SOT");
 
     @(negedge clock);
     for (i = 0; i < AmntOfTests; i = i + 1) begin

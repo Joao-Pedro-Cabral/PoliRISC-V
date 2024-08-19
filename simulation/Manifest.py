@@ -1,7 +1,7 @@
 
 action = "simulation"
 sim_tool = "modelsim"
-sim_top = "uart_tx_tb"
+sim_top = "priority_encoder_tb"
 use_mif = True
 gui_mode = False
 mif_name = "m_extension64.mif"
@@ -37,6 +37,6 @@ else:
 
 modules = {
     "local": [
-        "../testbench/peripheral/UART"
+        "../testbench/"
     ],
 }
