@@ -1,12 +1,15 @@
 
+import sd_sender_pkg::*;
+import sd_controller_pkg::cmd_index_t;
+
 module sd_sender (
     input wire clock,
     input wire reset,
 
     // interface com o controlador
-    input wire [5:0] cmd_index,
+    input cmd_index_t cmd_index,
     input wire [31:0] argument,
-    input wire cmd_or_data,  // 0: cmd; 1: data
+    input sd_sender_chunk_t cmd_or_data,  // 0: cmd; 1: data
     output wire ready,
     input wire valid,
     input wire [4095:0] data,
@@ -14,7 +17,7 @@ module sd_sender (
     // interface com o cartão SD
     output wire mosi,
 
-    output wire sender_state_db,
+    output sd_sender_fsm_t sender_state_db,
     output reg [15:0] crc16_db
 );
 
@@ -25,8 +28,7 @@ module sd_sender (
   wire [12:0] bits_sent;
   wire [4103:0] cmd_reg;
 
-  localparam reg Idle = 1'b0, Sending = 1'b1;
-  reg state, new_state;
+  sd_sender_fsm_t state, new_state;
   reg sending;
 
   reg [15:0] crc16_db_;

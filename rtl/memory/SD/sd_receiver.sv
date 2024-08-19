@@ -1,12 +1,13 @@
 
+import sd_receiver_pkg::*;
+
 module sd_receiver (
     // Comum
     input wire clock,
     input wire reset,
 
     // Controlador
-    // 000: R1, 001: R3/R7, 010: data_token, 011: Data Block, 1XX: R2
-    input wire [2:0] response_type,
+    input sd_receiver_response_t response_type,
     output wire [4095:0] received_data,
     output wire ready,
     input wire valid,
@@ -15,12 +16,12 @@ module sd_receiver (
     // SD
     input wire miso,
 
-    output wire [1:0] receiver_state_db
+    output sd_receiver_fsm_t receiver_state_db
 );
 
   reg _ready;
 
-  wire [12:0] transmission_size;  // R1: 7, R3 e R7: 39, Data: 4112
+  sd_receiver_response_size_t transmission_size;  // R1: 7, R3 e R7: 39, Data: 4112
   wire [12:0] bits_received;
   wire [4095:0] data_received;
   reg [15:0] crc16;
@@ -30,10 +31,7 @@ module sd_receiver (
   reg receiving;
   reg end_transmission;
 
-  // FSM
-  localparam reg [1:0] Idle = 2'b00, WaitingSD = 2'b01, Receiving = 2'b10, WaitBusy = 2'b11;
-
-  reg [1:0] new_state, state;
+  sd_receiver_fsm_t new_state, state;
 
   // Computa quantos dados já foram recebidos
   // Delay de 1 bit
@@ -51,9 +49,16 @@ module sd_receiver (
       .value(bits_received)
   );
 
-  assign transmission_size =
-    response_type[2] ? 13'd15
-    : ((response_type == 3'b011) ? 13'd4112 : (response_type[0] ? 13'd39 : 13'd7));
+  always_comb begin
+    unique case(response_type)
+      R1: transmission_size = R1OrDataTokenSize;
+      R3OrR7: transmission_size = R3OrR7Size;
+      DataToken: transmission_size = R1OrDataTokenSize;
+      DataBlock: transmission_size = DataBlockSize;
+      R2: transmission_size = R2Size;
+      default: transmission_size = R2Size;
+    endcase
+  end
 
   // Shift Register
   register_d #(
@@ -63,7 +68,7 @@ module sd_receiver (
       .clock(clock),
       .reset(reset),
       // Paro o reg antes dele pegar o CRC16
-      .enable(receiving && !((response_type == 3'b011) && bits_received <= 16)),
+      .enable(receiving && !((response_type == DataBlock) && bits_received <= 16)),
       .D({data_received[4094:0], miso}),
       .Q(data_received)
   );
@@ -125,7 +130,7 @@ module sd_receiver (
       Receiving: begin
         if (bits_received == 13'b0) begin
           end_transmission = 1'b1;
-          if (response_type == 3'b010) new_state = WaitBusy;
+          if (response_type == DataToken) new_state = WaitBusy;
           else new_state = Idle;
         end else begin
           receiving = 1'b1;
@@ -146,7 +151,7 @@ module sd_receiver (
   end
 
   // Saídas
-  assign crc_error  = end_transmission && ((response_type == 3'b011) && (crc16 != 0));
+  assign crc_error  = end_transmission && ((response_type == DataBlock) && (crc16 != 0));
   assign ready = _ready;
   assign received_data = data_received;
 

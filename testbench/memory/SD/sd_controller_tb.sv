@@ -2,6 +2,9 @@
 module sd_controller_tb ();
 
   import macros_pkg::*;
+  import sd_receiver_pkg::*;
+  import sd_sender_pkg::*;
+  import sd_controller_pkg::*;
 
   // Parâmetros do testbench
   localparam integer AmntOfTests = 40;
@@ -83,7 +86,7 @@ module sd_controller_tb ();
     begin
       teste = 2'b01;
       // Inicialização do cartão SD
-      while (DUT.state != DUT.Idle) begin
+      while (DUT.state != sd_controller_pkg::Idle) begin
         // Checo na subida, pois o clock do sd_card é invertido
         @(posedge clock);
         // Checar se não há erro de CRC7
@@ -193,7 +196,7 @@ module sd_controller_tb ();
         ->write_data_event;
       end
       teste = 2'b00;
-      wait (DUT.state == DUT.Idle);  // Wait handshake between controller and sd card
+      wait (DUT.state == sd_controller_pkg::Idle);  // Wait handshake between controller and sd card
       @(negedge clock);
     end
 

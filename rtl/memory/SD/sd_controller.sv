@@ -1,4 +1,8 @@
 
+import sd_controller_pkg::*;
+import sd_receiver_pkg::*;
+import sd_sender_pkg::*;
+
 module sd_controller #(
   parameter integer SDSC = 0
 )(
@@ -12,9 +16,9 @@ module sd_controller #(
     output wire mosi,
 
     // DEBUG
-    output wire [4:0] sd_controller_state_db,
-    output wire [1:0] sd_receiver_state_db,
-    output wire sd_sender_state_db,
+    output sd_controller_fsm_t sd_controller_state_db,
+    output sd_receiver_fsm_t sd_receiver_state_db,
+    output sd_sender_fsm_t sd_sender_state_db,
     output reg  [7:0] check_cmd_0_db,
     output reg  [7:0] check_cmd_8_db,
     output reg  [7:0] check_cmd_55_db,
@@ -38,11 +42,11 @@ module sd_controller #(
   reg [4095:0] write_data_reg;
   reg new_ack, ack;
 
-  reg [5:0] cmd_index;
+  cmd_index_t cmd_index;
   reg [31:0] argument;
-  reg cmd_or_data;
-  reg [2:0] response_type;
-  reg [2:0] new_response_type;
+  sd_sender_chunk_t cmd_or_data;
+  sd_receiver_response_t response_type;
+  sd_receiver_response_t new_response_type;
   wire [4095:0] received_data;
   wire crc_error;
   reg new_cs;
@@ -51,36 +55,7 @@ module sd_controller #(
   reg sender_valid, receiver_valid;
   wire sender_ready, receiver_ready;
 
-  localparam reg [4:0]
-    InitBegin = 5'h0,
-    WaitSendCmd = 5'h1,
-    WaitReceiveCmd = 5'h2,
-    SendCmd0 = 5'h3,
-    CheckCmd0 = 5'h4,
-    SendCmd8 = 5'h5,
-    CheckCmd8 = 5'h6,
-    SendCmd59 = 5'h7,
-    CheckCmd59 = 5'h8,
-    SendCmd55 = 5'h9,
-    CheckCmd55 = 5'hA,
-    SendAcmd41 = 5'hB,
-    CheckAcmd41 = 5'hC,
-    SendCmd16 = 5'hD,
-    CheckCmd16 = 5'hE,
-    Idle = 5'hF,
-    SendCmd17 = 5'h10,
-    CheckCmd17 = 5'h11,
-    SendCmd24 = 5'h12,
-    CheckCmd24 = 5'h13,
-    CheckRead = 5'h14,
-    CheckWrite = 5'h15,
-    SendCmd13 = 5'h16,
-    CheckCmd13 = 5'h17,
-    CheckErrorToken = 5'h18,
-    Final = 5'h1F;
-
-  reg [4:0]
-      new_state,
+  sd_controller_fsm_t new_state,
       state = InitBegin,
       state_return = InitBegin,
       new_state_return;
@@ -132,7 +107,7 @@ module sd_controller #(
       cs    <= 1'b1;
       state <= InitBegin;
       state_return <= InitBegin;
-      response_type <= 3'b000;
+      response_type <= R1;
       ack <= 1'b0;
       check_cmd_0_db <= 8'h00;
       check_cmd_8_db <= 8'd8;
@@ -181,12 +156,12 @@ module sd_controller #(
     begin
       sck_en = 1'b1;
       new_cs = 1'b1;
-      cmd_index = 6'b000000;
+      cmd_index = Cmd0;
       argument = 32'b0;
-      cmd_or_data = 1'b0;
+      cmd_or_data = Cmd;
       sender_valid = 1'b0;
       receiver_valid = 1'b0;
-      new_response_type = 3'b000;
+      new_response_type = R1;
       new_state = InitBegin;
       new_state_return = InitBegin;
       state_return_en = 1'b0;
@@ -231,8 +206,8 @@ module sd_controller #(
       end
 
       SendCmd0: begin  // Enviar CMD0
-        cmd_index = 6'h00;
-        new_response_type = 3'b000;
+        cmd_index = Cmd0;
+        new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd0;
         state_return_en = 1'b1;
@@ -249,9 +224,9 @@ module sd_controller #(
       end
 
       SendCmd8: begin  // Enviar CMD8
-        cmd_index = 6'h08;
+        cmd_index = Cmd8;
         argument = 32'h000001AA;
-        new_response_type = 3'b001;
+        new_response_type = R3OrR7;
         response_type_en = 1'b1;
         new_state_return = CheckCmd8;
         state_return_en = 1'b1;
@@ -270,9 +245,9 @@ module sd_controller #(
       end
 
       SendCmd59: begin
-        cmd_index = 6'd59;
+        cmd_index = Cmd59;
         argument = 32'h00000001;
-        new_response_type = 3'b000;
+        new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd59;
         state_return_en = 1'b1;
@@ -289,8 +264,8 @@ module sd_controller #(
       end
 
       SendCmd55: begin  // Envia CMD55 -> Deve proceder ACMD*
-        cmd_index = 6'd55;
-        new_response_type = 3'b000;
+        cmd_index = Cmd55;
+        new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd55;
         state_return_en = 1'b1;
@@ -307,10 +282,10 @@ module sd_controller #(
       end
 
       SendAcmd41: begin  // Envia ACMD41
-        cmd_index = 6'd41;
+        cmd_index = Cmd41;
         if(SDSC) argument = 32'h00000000;
         else argument = 32'h40000000;
-        new_response_type = 3'b000;
+        new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckAcmd41;
         state_return_en = 1'b1;
@@ -326,15 +301,15 @@ module sd_controller #(
           if(SDSC) new_state = SendCmd16;
           else begin
             new_cs = 1'b0;
-            new_state = Idle;
+            new_state = sd_controller_pkg::Idle;
           end
         end else new_state = SendCmd55;
       end
 
       SendCmd16: begin
-        cmd_index = 6'd16;
+        cmd_index = Cmd16;
         argument = 32'd512;
-        new_response_type = 3'b000;
+        new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd16;
         state_return_en = 1'b1;
@@ -349,11 +324,11 @@ module sd_controller #(
         if (received_data[7:0] != 8'h00) new_state = SendCmd16;
         else begin
           new_cs = 1'b0;
-          new_state = Idle;
+          new_state = sd_controller_pkg::Idle;
         end
       end
 
-      Idle: begin  // Idle: Espera escrita ou leitura
+      sd_controller_pkg::Idle: begin  // Idle: Espera escrita ou leitura
         new_cs = 1'b0;
         if (~miso) begin
           new_state = state;
@@ -366,9 +341,9 @@ module sd_controller #(
 
       SendCmd24: begin
         clear_db = 1'b1;
-        cmd_index = 6'd24;
+        cmd_index = Cmd24;
         argument = addr_reg;
-        new_response_type = 3'b000;
+        new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd24;
         state_return_en = 1'b1;
@@ -381,8 +356,8 @@ module sd_controller #(
       CheckCmd24: begin  // Checa R1 do CMD24
         check_cmd_24_db_en = 1'b1;
         new_cs = 1'b0;
-        cmd_or_data = 1'b1;
-        new_response_type = 3'b010;
+        cmd_or_data = Data;
+        new_response_type = DataToken;
         response_type_en = 1'b1;
         new_state_return = CheckWrite;
         state_return_en = 1'b1;
@@ -399,8 +374,8 @@ module sd_controller #(
       end
 
       SendCmd13: begin
-        cmd_index = 6'd13;
-        new_response_type = 3'b100;
+        cmd_index = Cmd13;
+        new_response_type = R2;
         response_type_en = 1'b1;
         new_state_return = CheckCmd13;
         state_return_en = 1'b1;
@@ -412,13 +387,13 @@ module sd_controller #(
 
       CheckCmd13: begin // Nada a checar -> Apenas depuração
         check_cmd_13_db_en = 1'b1;
-        new_state = Idle;
+        new_state = sd_controller_pkg::Idle;
       end
 
       SendCmd17: begin  // Envia CMD17
-        cmd_index = 6'd17;
+        cmd_index = Cmd17;
         argument = addr_reg;
-        new_response_type = 3'b000;
+        new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd17;
         state_return_en = 1'b1;
@@ -434,10 +409,10 @@ module sd_controller #(
         new_cs = 1'b0;
         // R1 sem erros -> Leitura do Data Block
         if (received_data[7:0] == 8'h00) begin
-          new_response_type = 3'b011;
+          new_response_type = DataBlock;
           new_state_return = CheckRead;
         end else begin  // R1 com erros -> Error Token
-          new_response_type = 3'b000;
+          new_response_type = R1;
           new_state_return = CheckErrorToken;
         end
         response_type_en = 1'b1;
@@ -462,7 +437,7 @@ module sd_controller #(
       end
 
       Final: begin // wait for ACK falling edge
-        new_state = Idle;
+        new_state = sd_controller_pkg::Idle;
       end
 
       default: begin
@@ -474,7 +449,7 @@ module sd_controller #(
     if (wb_if_s.reset) begin
       addr_reg <= 32'h0;
       write_data_reg <= 4096'h0;
-    end else if ((state == Idle) & (rd_en | wr_en)) begin
+    end else if ((state == sd_controller_pkg::Idle) & (rd_en | wr_en)) begin
       addr_reg <= wb_if_s.addr;
       write_data_reg <= wb_if_s.dat_i_s;
     end else begin
