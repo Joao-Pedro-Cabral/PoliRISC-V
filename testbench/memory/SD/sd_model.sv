@@ -12,6 +12,9 @@ module sd_model #(
 
 );
 
+  import sd_model_pkg::*;
+  import sd_controller_pkg::*;
+
   function automatic reg [6:0] CRC7(input reg [39:0] data);
     integer i;
     reg [6:0] crc;
@@ -48,58 +51,12 @@ module sd_model #(
     end
   endfunction
 
-  localparam reg [47:0] ExpectedCmd0 = {8'h40, 32'h00000000, 8'h95};
-  localparam reg [47:0] ExpectedCmd8 = {8'h48, 32'h000001AA, 8'h87};
-  localparam reg [47:0] ExpectedCmd59 = {8'h7B, 32'h00000001, 8'h83};
-  localparam reg [47:0] ExpectedCmd55 = {8'h77, 32'h00000000, 8'h65};
-  localparam reg [47:0] ExpectedAcmd41 = {8'h69, 32'h40000000, 8'h77};
-  localparam reg [47:0] ExpectedAcmd41SDSC = {8'h69, 32'h00000000, 8'hE5};
-  localparam reg [47:0] ExpectedCmd16 = {8'h50, 32'h200, 8'h15};
-  localparam reg [47:0] ExpectedCmd13 = {8'h4D, 32'h00000000, 8'h0D};
   reg [47:0] ExpectedCmd17;
   reg [47:0] ExpectedCmd24;
   reg [15:0] crc16_calc;
 
-  localparam reg [7:0] Cmd0Response = 8'h01;
-  localparam reg [39:0] Cmd8Response = {8'h01, 4'h2, 16'h0000, 4'h1, 8'hAA};
-  localparam reg [7:0] Cmd59Response = 8'h01;
-  localparam reg [7:0] Cmd55Response = 8'h01;
-  localparam reg [7:0] Acmd41IdleResponse = 8'h01;
-  localparam reg [7:0] Acmd41Response = 8'h00;
-  localparam reg [7:0] Cmd16Response = 8'h00;
-  localparam reg [7:0] Cmd24Response = 8'h00;
-  localparam reg [7:0] Cmd13Response = 16'h0000;
-  localparam reg [7:0] Cmd17Response = 8'h00;
-  localparam reg [7:0] Cmd17ErrorResponse = {1'b0, 7'h74};
-  localparam reg [7:0] ErrorTokenResponse = 8'h0F;
-  localparam reg [7:0] WriteSuccessfulResponse = {1'b0, 2'b0, 1'b0, 3'b010, 1'b1};
-  localparam reg [7:0] WriteErrorResponse = {1'b0, 2'b0, 1'b0, 3'b101, 1'b1};
-
-  localparam reg [4:0]
-    Idle = 5'h0,
-    ReceivingCmd = 5'h1,
-    DecodeCmd = 5'h2,
-    CheckCmd = 5'h3,
-    ReturnCmd0 = 5'h4,
-    ReturnCmd8 = 5'h5,
-    ReturnCmd59 = 5'h6,
-    ReturnCmd55 = 5'h7,
-    ReturnAcmd41Idle = 5'h8,
-    ReturnAcmd41 = 5'h9,
-    ReturnCmd16 = 5'hA,
-    ReturnCmd13 = 5'hB,
-    SendDataBlock = 5'hC,
-    SendErrorToken = 5'hD,
-    ReturnCmd17 = 5'hE,
-    ReturnCmd24 = 5'hF,
-    ReceiveDataBlock = 5'h10,
-    CheckWrite = 5'h11,
-    WriteError = 5'h12,
-    WriteSuccessful = 5'h13,
-    Busy = 5'h14,
-    CmdError = 5'h1F;
-
-  reg [4:0] state = Idle, new_state = Idle, return_state = Idle, new_return_state = Idle;
+  sd_model_fsm_t state = sd_model_pkg::Idle, new_state = sd_model_pkg::Idle,
+                 return_state = sd_model_pkg::Idle, new_return_state = sd_model_pkg::Idle;
 
   reg [12:0] bit_counter = 13'd47, new_bit_counter = 13'd47;
 
@@ -150,7 +107,7 @@ module sd_model #(
 
   // Determinar Random Busy Cycles
   always_ff @(posedge sck) begin
-    if (state == CheckWrite) random_busy_cycles <= $urandom;
+    if (state == sd_model_pkg::CheckWrite) random_busy_cycles <= $urandom;
     else random_busy_cycles <= random_busy_cycles;
   end
 
@@ -199,7 +156,7 @@ module sd_model #(
     crc16_calc          = 16'b0;
 
     case (state)
-      Idle: begin
+      sd_model_pkg::Idle: begin
         if (~mosi) begin
           new_state       = ReceivingCmd;
           set_cmd         = 1'b1;
@@ -261,58 +218,58 @@ module sd_model #(
 
       ReturnCmd0: begin
         if (bit_counter) begin
-          miso_reg        = Cmd0Response[bit_counter-1];
+          miso_reg        = CmdNotInitializedResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnCmd8: begin
         if (bit_counter) begin
           miso_reg        = Cmd8Response[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnCmd59: begin
         if (bit_counter) begin
-          miso_reg        = Cmd59Response[bit_counter-1];
+          miso_reg        = CmdNotInitializedResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnCmd55: begin
         if (bit_counter) begin
-          miso_reg        = Cmd55Response[bit_counter-1];
+          miso_reg        = CmdNotInitializedResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnAcmd41Idle: begin
         if (bit_counter) begin
-          miso_reg        = Acmd41IdleResponse[bit_counter-1];
+          miso_reg        = CmdNotInitializedResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnAcmd41: begin
         if (bit_counter) begin
-          miso_reg        = Acmd41Response[bit_counter-1];
+          miso_reg        = CmdInitializedResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnCmd16: begin
         if (bit_counter) begin
-          miso_reg        = Cmd16Response[bit_counter-1];
+          miso_reg        = CmdInitializedResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnCmd13: begin
         if (bit_counter) begin
           miso_reg        = Cmd13Response[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnCmd17: begin
@@ -321,7 +278,7 @@ module sd_model #(
             miso_reg        = Cmd17ErrorResponse[bit_counter-1];
             new_bit_counter = bit_counter - 6'o01;
           end else begin
-            miso_reg        = Cmd17Response[bit_counter-1];
+            miso_reg        = CmdInitializedResponse[bit_counter-1];
             new_bit_counter = bit_counter - 6'o01;
           end
         end else begin
@@ -348,19 +305,19 @@ module sd_model #(
         end else if (bit_counter) begin
           miso_reg        = crc16[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       SendErrorToken: begin
         if (bit_counter) begin
           miso_reg        = ErrorTokenResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = Idle;
+        end else new_state = sd_model_pkg::Idle;
       end
 
       ReturnCmd24: begin
         if (bit_counter) begin
-          miso_reg        = Cmd24Response[bit_counter-1];
+          miso_reg        = CmdInitializedResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
         end else begin
           new_bit_counter = 13'd4113;
@@ -377,10 +334,10 @@ module sd_model #(
         end else if (bit_counter) begin
           receive_crc16   = 1'b1;
           new_bit_counter = bit_counter - 6'o01;
-        end else new_state = CheckWrite;
+        end else new_state = sd_model_pkg::CheckWrite;
       end
 
-      CheckWrite: begin
+      sd_model_pkg::CheckWrite: begin
         new_bit_counter = 13'd8;
         crc16_calc = CRC16(received_data_block);
         if (crc16_calc == received_crc16) new_state = WriteSuccessful;
@@ -402,24 +359,23 @@ module sd_model #(
           miso_reg        = WriteErrorResponse[bit_counter-1];
           new_bit_counter = bit_counter - 6'o01;
         end else begin
-          new_state = Idle;
+          new_state = sd_model_pkg::Idle;
         end
       end
 
       Busy: begin
         miso_reg = 1'b0;
         if (bit_counter) new_bit_counter = bit_counter - 1;
-        else new_state = Idle;
+        else new_state = sd_model_pkg::Idle;
       end
 
       CmdError: begin
-        //$display("\n\tindex: 0x%h\n\tcmd: 0x%h\n\texpected_cmd: 0x%h", index, cmd, expected_cmd);
         cmd_error = 1'b1;
         new_state = state;
       end
 
       default: begin
-        new_state = Idle;
+        new_state = sd_model_pkg::Idle;
       end
     endcase
 

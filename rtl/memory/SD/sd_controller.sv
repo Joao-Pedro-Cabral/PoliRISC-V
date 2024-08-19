@@ -43,7 +43,7 @@ module sd_controller #(
   reg new_ack, ack;
 
   cmd_index_t cmd_index;
-  reg [31:0] argument;
+  cmd_argument_t argument;
   sd_sender_chunk_t cmd_or_data;
   sd_receiver_response_t response_type;
   sd_receiver_response_t new_response_type;
@@ -157,7 +157,7 @@ module sd_controller #(
       sck_en = 1'b1;
       new_cs = 1'b1;
       cmd_index = Cmd0;
-      argument = 32'b0;
+      argument = NullCmdArgument;
       cmd_or_data = Cmd;
       sender_valid = 1'b0;
       receiver_valid = 1'b0;
@@ -219,13 +219,13 @@ module sd_controller #(
 
       CheckCmd0: begin  // Checa se cartão SD está InitBegin e sem erros
         check_cmd_0_db_en = 1'b1;
-        if (received_data[7:0] == 8'h01) new_state = SendCmd8;
+        if (received_data[7:0] == CmdNotInitializedResponse) new_state = SendCmd8;
         else new_state = SendCmd0;
       end
 
       SendCmd8: begin  // Enviar CMD8
         cmd_index = Cmd8;
-        argument = 32'h000001AA;
+        argument = Cmd8Argument;
         new_response_type = R3OrR7;
         response_type_en = 1'b1;
         new_state_return = CheckCmd8;
@@ -236,6 +236,7 @@ module sd_controller #(
         else new_state = state;
       end
 
+      // FIXME: Dar nomes pra esses received_data
       CheckCmd8: begin  // Checa check pattern e se a tensão é suportada
         check_cmd_8_db_en = 1'b1;
         if (received_data[39:32] == 8'h05) new_state = SendCmd59;
@@ -246,7 +247,7 @@ module sd_controller #(
 
       SendCmd59: begin
         cmd_index = Cmd59;
-        argument = 32'h00000001;
+        argument = Cmd59Argument;
         new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd59;
@@ -259,7 +260,7 @@ module sd_controller #(
 
       CheckCmd59: begin  // Checa se ainda está em Idle
         check_cmd_59_db_en = 1'b1;
-        if (received_data[7:0] == 8'h01) new_state = SendCmd55;
+        if (received_data[7:0] == CmdNotInitializedResponse) new_state = SendCmd55;
         else new_state = SendCmd59;
       end
 
@@ -277,14 +278,14 @@ module sd_controller #(
 
       CheckCmd55: begin  // Checa se ainda está em Idle
         check_cmd_55_db_en = 1'b1;
-        if (received_data[7:0] == 8'h01) new_state = SendAcmd41;
+        if (received_data[7:0] == CmdNotInitializedResponse) new_state = SendAcmd41;
         else new_state = SendCmd55;
       end
 
       SendAcmd41: begin  // Envia ACMD41
         cmd_index = Cmd41;
-        if(SDSC) argument = 32'h00000000;
-        else argument = 32'h40000000;
+        if(SDSC) argument = NullCmdArgument;
+        else argument = Acmd41Argument;
         new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckAcmd41;
@@ -297,7 +298,7 @@ module sd_controller #(
 
       CheckAcmd41: begin  // Checa ACMD41 -> Até sair do Idle
         check_acmd_41_db_en = 1'b1;
-        if (received_data[7:0] == 8'h00) begin
+        if (received_data[7:0] == CmdInitializedResponse) begin
           if(SDSC) new_state = SendCmd16;
           else begin
             new_cs = 1'b0;
@@ -308,7 +309,7 @@ module sd_controller #(
 
       SendCmd16: begin
         cmd_index = Cmd16;
-        argument = 32'd512;
+        argument = Cmd16Argument;
         new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd16;
@@ -321,7 +322,7 @@ module sd_controller #(
 
       CheckCmd16: begin
         check_cmd_16_db_en = 1'b1;
-        if (received_data[7:0] != 8'h00) new_state = SendCmd16;
+        if (received_data[7:0] != CmdInitializedResponse) new_state = SendCmd16;
         else begin
           new_cs = 1'b0;
           new_state = sd_controller_pkg::Idle;
@@ -342,7 +343,7 @@ module sd_controller #(
       SendCmd24: begin
         clear_db = 1'b1;
         cmd_index = Cmd24;
-        argument = addr_reg;
+        argument = cmd_argument_t'(addr_reg);
         new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd24;
@@ -392,7 +393,7 @@ module sd_controller #(
 
       SendCmd17: begin  // Envia CMD17
         cmd_index = Cmd17;
-        argument = addr_reg;
+        argument = cmd_argument_t'(addr_reg);
         new_response_type = R1;
         response_type_en = 1'b1;
         new_state_return = CheckCmd17;
@@ -408,7 +409,7 @@ module sd_controller #(
         sck_en = 1'b0;
         new_cs = 1'b0;
         // R1 sem erros -> Leitura do Data Block
-        if (received_data[7:0] == 8'h00) begin
+        if (received_data[7:0] == CmdInitializedResponse) begin
           new_response_type = DataBlock;
           new_state_return = CheckRead;
         end else begin  // R1 com erros -> Error Token
