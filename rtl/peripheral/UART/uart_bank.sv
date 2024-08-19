@@ -42,6 +42,8 @@ module uart_bank #(
     output wire [                   7:0] rxdata_db
 );
 
+  import uart_pkg::*;
+
   localparam integer DivInit = CLOCK_FREQ_HZ / (115200) - 1;
 
   // Transmit Data Register
@@ -69,36 +71,23 @@ module uart_bank #(
   // Baud Rate Divisor Register
   wire [15:0] _div;
 
-  // ADDR-TYPE
-  localparam reg [3:0] TxData = 4'h0,
-                       RxData = 4'h1,
-                       TxFull = 4'h2,
-                       TxEmpty = 4'h3,
-                       RxFull = 4'h4,
-                       RxEmpty = 4'h5,
-                       InterruptEn = 4'h6,
-                       Pending = 4'h7,
-                       Status = 4'h8,
-                       TxControl = 4'h9,
-                       RxControl = 4'hA,
-                       ClockDiv = 4'hB;
-
   function automatic addr_en(input integer litex_arch, input reg [2:0] addr,
-                             input reg [3:0] addr_type);
+                             input uart_addr_t addr_type);
     begin
       case (addr_type)
-        TxData: addr_en = (addr == 3'b000);
-        RxData: addr_en = litex_arch ? (addr == 3'b000) : (addr == 3'b001);
-        TxFull: addr_en = litex_arch ? (addr == 3'b001) : (addr == 3'b000);
-        TxEmpty: addr_en = litex_arch ? (addr == 3'b110) : 1'b0;
-        RxFull: addr_en = litex_arch ? (addr == 3'b111) : 1'b0;
-        RxEmpty: addr_en = litex_arch ? (addr == 3'b010) : (addr == 3'b001);
-        InterruptEn: addr_en = litex_arch ? (addr == 3'b101) : (addr == 3'b100);
-        Pending: addr_en = litex_arch ? (addr == 3'b100) : (addr == 3'b101);
-        Status: addr_en = litex_arch ? (addr == 3'b011) : 1'b0;
-        TxControl: addr_en = litex_arch ? 1'b0 : (addr == 3'b010);
-        RxControl: addr_en = litex_arch ? 1'b0 : (addr == 3'b011);
-        ClockDiv: addr_en = litex_arch ? 1'b0 : (addr == 3'b110);
+        TxData: addr_en = litex_arch ? (addr == LitexData) : (addr == SiFiveTxData);
+        RxData: addr_en = litex_arch ? (addr == LitexData) : (addr == SiFiveRxData);
+        TxFull: addr_en = litex_arch ? (addr == LitexTxFull) : (addr == SiFiveTxData);
+        TxEmpty: addr_en = litex_arch ? (addr == LitexTxEmpty) : 1'b0;
+        RxFull: addr_en = litex_arch ? (addr == LitexRxFull) : 1'b0;
+        RxEmpty: addr_en = litex_arch ? (addr == LitexRxEmpty) : (addr == SiFiveRxData);
+        InterruptEn: addr_en = litex_arch ? (addr == LitexInterruptEn) :
+                                            (addr == SiFiveInterruptEn);
+        Pending: addr_en = litex_arch ? (addr == LitexPending) : (addr == SiFivePending);
+        Status: addr_en = litex_arch ? (addr == LitexStatus) : 1'b0;
+        TxControl: addr_en = litex_arch ? 1'b0 : (addr == SiFiveTxControl);
+        RxControl: addr_en = litex_arch ? 1'b0 : (addr == SiFiveRxControl);
+        ClockDiv: addr_en = litex_arch ? 1'b0 : (addr == SiFiveClockDiv);
         default: addr_en = 1'b0;  // Reserved
       endcase
     end

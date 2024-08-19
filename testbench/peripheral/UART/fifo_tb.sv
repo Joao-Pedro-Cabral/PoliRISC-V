@@ -68,9 +68,8 @@ module fifo_tb ();
     @(negedge clock);
     reset = 0;
 
-    if ((|(DUT.rd_reg) | (DUT.wr_reg) | (DUT.watermark_reg)) | (~empty) | (full)) $display("SOT!");
-    else $fatal("Inicialização falhou");
-
+    CHK_INIT: assert(!((|(DUT.rd_reg) | (DUT.wr_reg) | (DUT.watermark_reg))
+                                  | (~empty) | (full))) $display("SOT");
 
     @(negedge clock);
     for (i = 0; i < AmntOfTests; i = i + 1) begin
@@ -94,44 +93,21 @@ module fifo_tb ();
       @(negedge clock);
 
       // Compara ponteiro e dado lido
-      if (rd_reg_mem !== DUT.rd_reg || local_fifo_memory[rd_reg_mem] !== rd_data) begin
-        $display("Falha na leitura da fifo (teste: %d) DUT.rd_reg = 0x%h, \
-                 rd_reg_mem = 0x%h, rd_data = 0x%h, local_fifo = 0x%h,\
-                 fifo = 0x%h, full = 0b%d, empty = 0b%d", i, DUT.rd_reg,
-                 rd_reg_mem, rd_data, local_fifo_memory[rd_reg_mem], DUT.fifo_memory[DUT.rd_reg],
-                 full, empty);
-        $stop;
-      end
+      CHk_RD_POINTER: assert(rd_reg_mem === DUT.rd_reg);
+      CHK_RD_DATA: assert(local_fifo_memory[rd_reg_mem] === rd_data);
 
       // Compara ponteiro e dado escrito
-      if (wr_reg_mem !== DUT.wr_reg
-          || local_fifo_memory[wr_reg_mem-1] !== DUT.fifo_memory[DUT.wr_reg-1]) begin
-        $display("Falha na escrita da fifo (teste: %d) DUT.wr_reg = 0x%h,\
-                 wr_reg_mem = 0x%h, wr_data = 0x%h, local_fifo = 0x%h,\
-                 fifo = 0x%h, full = 0b%d, empty = 0b%d", i, DUT.wr_reg,
-                 wr_reg_mem, wr_data, local_fifo_memory[wr_reg_mem-1],
-                 DUT.fifo_memory[DUT.wr_reg-1], full, empty);
-        $stop;
-      end
+      CHK_WR_POINTER: assert(wr_reg_mem === DUT.wr_reg);
+      CHK_WR_DATA: assert(local_fifo_memory[wr_reg_mem-1] === DUT.fifo_memory[DUT.wr_reg-1]);
 
       // Teste do watermark
-      if (watermark_reg_mem != DUT.watermark_reg) begin
-        $display("Falha no watermark (teste %d) DUT.watermark_reg = 0x%h,\
-                 watermark_reg_mem = 0x%h", i, DUT.watermark_reg,
-                 watermark_reg_mem);
-        $stop;
-      end
+      CHK_WATERMARK: assert(watermark_reg_mem === DUT.watermark_reg);
 
       // Flags testadas ao fim, com valores locais atualizados
-      if (local_empty !== empty || local_full !== full || local_less !== less_than_watermark
-      || local_greater !== greater_than_watermark) begin
-        $display(
-            "Erro nas flags (teste %d) less = 0b%d, greater = 0b%d, full = 0b%d, empty = 0b%d,\
-                local_less = 0b%d, local_greater = 0b%d, local_full = 0b%d, local_empty = 0b%d", i,
-            less_than_watermark, greater_than_watermark, full, empty, local_less, local_greater,
-            local_full, local_empty);
-        $stop;
-      end
+      CHK_FLAG_EMPTY: assert(local_empty === empty);
+      CHK_FLAG_FULL: assert(local_full === full);
+      CHK_FLAG_LESS: assert(local_less === less_than_watermark);
+      CHK_FLAG_GREATER: assert(local_greater === greater_than_watermark);
     end
     $display("EOT!");
     $stop;

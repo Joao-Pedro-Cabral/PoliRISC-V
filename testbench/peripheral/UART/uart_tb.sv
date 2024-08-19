@@ -1,10 +1,11 @@
 
-`define ASSERT(condition) if (!(condition)) $stop
-
 module uart_tb ();
 
   import macros_pkg::*;
   import board_pkg::*;
+  import uart_tb_pkg::*;
+  import uart_pkg::*;
+  import uart_phy_pkg::uart_phy_fsm_t;
 
   localparam integer FifoDepth = LitexArch ? 16 : 8;
   localparam integer AmntOfTests = 500;
@@ -73,13 +74,11 @@ module uart_tb ();
   ////
   // Tx block
   reg   [                  7:0] tx_data;
-  // Modo de Operação do Processador
-  reg   [                  2:0] proc_op;
   ////
   // Sinais dos initial blocks
-  reg   [                  2:0] processor_task;
-  reg   [                  2:0] rx_task;
-  reg   [                  2:0] tx_task;
+  processor_task_t              processor_task;
+  rx_task_t                     rx_task;
+  tx_task_t                     tx_task;
   // Sinais de fim dos testbenches
   reg                           end_proc;
   reg                           end_rx;
@@ -188,7 +187,7 @@ module uart_tb ();
     begin
       // Configurando Interrupt Enable Register
       {cyc_o, stb_o, wr_o} = 3'h7;
-      addr    = 3'b101;
+      addr    = LitexInterruptEn;
       wr_data[1:0] = 2'b11;
       @(posedge ack_i);
       {cyc_o, stb_o, wr_o} = 3'h0;
@@ -199,31 +198,31 @@ module uart_tb ();
     begin
       // Configurando Receive Control Register
       {cyc_o, stb_o, wr_o} = 3'h7;
-      addr                 = 3'b011;
+      addr                 = SiFiveRxControl;
       wr_data[18:16]       = $urandom(Seed);
       rx_watermark_level   = wr_data[18:16];
       wr_data[0]           = 1'b1;
       @(posedge ack_i);
 
       // Configurando Transmit Control Register
-      addr               = 3'b010;
+      addr               = SiFiveTxControl;
       wr_data[18:16]     = $urandom;
       tx_watermark_level = wr_data[18:16];
       wr_data[1:0]       = {Nstop, 1'b1};
       @(posedge ack_i);
 
       // Configurando Interrupt Enable Register
-      addr    = 3'b100;
+      addr    = SiFiveInterruptEn;
       wr_data[1:0] = 2'b11;
       @(posedge ack_i);
 
       // Configurando baud rate
-      addr          = 3'b110;
+      addr          = SiFiveClockDiv;
       wr_data[15:0] = $urandom;
       @(posedge ack_i);
 
       // Configurando baud rate
-      addr          = 3'b110;
+      addr          = SiFiveClockDiv;
       wr_data[15:0] = 16'h001F;
       @(posedge ack_i);
       {cyc_o, stb_o, wr_o} = 3'h0;
@@ -233,28 +232,27 @@ module uart_tb ();
   // Tasks para checar a interação UART <-> Processador
   task automatic InterruptCheck;
     begin
-      processor_task = 3'b000;
       // Don't read interrupt during Fifo Operations
-      wait ((rx_task !== 3'b101) && (tx_task !== 3'b001));
+      wait ((rx_task !== RxTaskEnd) && (tx_task !== TxTaskStart));
       // Ler Interrupt Pending Register
       {cyc_o, stb_o, wr_o} = 3'h6;
-      addr = (LitexArch ? 3'b100 : 3'b101);
+      addr = (LitexArch ? LitexPending : SiFivePending);
       @(posedge clock);
       @(negedge clock);
       {cyc_o, stb_o, wr_o} = 3'h0;
       @(posedge ack_i);
       @(negedge clock);
 
-      `ASSERT(rd_data[0] === tx_pending);
+      CHK_INTERRUPT_TX_PENDING: assert(rd_data[0] === tx_pending);
 
-      `ASSERT(rd_data[1] === rx_pending);
+      CHK_INTERRUPT_RX_PENDING: assert(rd_data[1] === rx_pending);
 
       if (LitexArch) begin
         // Limpar Interrupção
         @(negedge clock);
         {cyc_o, stb_o, wr_o} = 3'h7;
         wr_data = 0;
-        addr = 3'b100;
+        addr = LitexPending;
         @(negedge clock);
         clear_irq = 1'b1;
         {cyc_o, stb_o, wr_o} = 3'h0;
@@ -267,32 +265,30 @@ module uart_tb ();
 
   task automatic StatusCheck;
     begin
-      processor_task = 3'b001;
       // Don't read status during Fifo Operations
-      wait ((rx_task !== 3'b101) && (tx_task !== 3'b001));
+      wait ((rx_task !== RxTaskEnd) && (tx_task !== TxTaskStart));
       // Read Status
       {cyc_o, stb_o, wr_o} = 3'h7;  // Tento "escrever"
-      addr = 3'b011;
+      addr = LitexStatus;
       @(posedge clock);
       @(negedge clock);
       {cyc_o, stb_o, wr_o} = 3'h0;
       @(posedge ack_i);
       @(negedge clock);
-      `ASSERT(rd_data[0] === !tx_full);
-      `ASSERT(rd_data[1] === !rx_empty);
-      `ASSERT(interrupt === (tx_pending || rx_pending));
+      CHK_STATUS_TX_FULL: assert(rd_data[0] === !tx_full);
+      CHK_STATUS_RX_EMPTY: assert(rd_data[1] === !rx_empty);
+      CHK_STATUS_INTERRUPT: assert(interrupt === (tx_pending || rx_pending));
     end
   endtask
 
   task automatic ReadOp;
     begin
-      processor_task = 3'b010;
-      wait (rx_task !== 3'b101);  // Don't read during writing in Rx Fifo
+      wait (rx_task !== RxTaskEnd);  // Don't read during writing in Rx Fifo
       // Operação de leitura:
       //  checa por empty antes
       //  Lê (aleatório)
       {cyc_o, stb_o, wr_o} = 3'h6;
-      addr = LitexArch ? 3'b010 : 3'b001;
+      addr = LitexArch ? LitexRxEmpty : SiFiveRxData;
       @(posedge clock);
       @(negedge clock);
       {cyc_o, stb_o, wr_o} = 3'h0;
@@ -304,10 +300,10 @@ module uart_tb ();
       rd_rx_empty = LitexArch ? rd_data[0] : rd_data[31];
 
       if (LitexArch) begin  // More 1 access to get the rx data
-        wait (rx_task !== 3'b101);
+        wait (rx_task !== RxTaskEnd);
         @(negedge clock);
         {cyc_o, stb_o, wr_o} = 3'h6;
-        addr = 3'b000;
+        addr = LitexData;
         @(negedge clock);
         {cyc_o, stb_o, wr_o} = 3'h0;
         @(posedge ack_i);
@@ -319,23 +315,22 @@ module uart_tb ();
         rx_watermark_reg = rx_watermark_reg - 1'b1;
       end
 
-      `ASSERT(expected_rx_empty === rd_rx_empty);
-      `ASSERT(rx_fifo[rx_read_ptr] === rd_data[7:0]);
-      `ASSERT(rx_read_ptr === DUT.PHY.rx_fifo.rd_reg);
-      `ASSERT(rx_watermark_reg === DUT.PHY.rx_fifo.watermark_reg);
+      CHK_RD_OP_RX_EMPTY: assert(expected_rx_empty === rd_rx_empty);
+      CHK_RD_OP_RX_DATA: assert(rx_fifo[rx_read_ptr] === rd_data[7:0]);
+      CHK_RD_OP_RX_PTR: assert(rx_read_ptr === DUT.PHY.rx_fifo.rd_reg);
+      CHK_RD_OP_RX_WATERMARK: assert(rx_watermark_reg === DUT.PHY.rx_fifo.watermark_reg);
 
     end
   endtask
 
   task automatic WriteOp;
     begin
-      processor_task = 3'b011;
-      wait (tx_task !== 3'b001);  // Don't read during reading in Tx Fifo
+      wait (tx_task !== TxTaskStart);  // Don't read during reading in Tx Fifo
       // Operação de escrita:
       //  checa por full antes
       //  escreve (aleatório)
       {cyc_o, stb_o, wr_o} = 3'h7;
-      addr = LitexArch ? 3'b001 : 3'b000;
+      addr = LitexArch ? LitexTxFull : SiFiveTxData;
       @(posedge clock);
       @(negedge clock);
       {cyc_o, stb_o, wr_o} = 3'h0;
@@ -349,7 +344,7 @@ module uart_tb ();
       if (LitexArch && !tx_full) begin
         @(negedge clock);
         {cyc_o, stb_o, wr_o} = 3'h7;
-        addr = 3'b000;
+        addr = LitexData;
         @(negedge clock);
         {cyc_o, stb_o, wr_o} = 3'h0;
         @(posedge ack_i);
@@ -362,40 +357,40 @@ module uart_tb ();
         tx_watermark_reg = tx_watermark_reg + 1'b1;
       end
 
-      `ASSERT((LitexArch ? expected_tx_full : (tx_watermark_reg === FifoDepth - 1)) === rd_tx_full);
-      `ASSERT(tx_write_ptr === DUT.PHY.tx_fifo.wr_reg);
-      `ASSERT(tx_watermark_reg === DUT.PHY.tx_fifo.watermark_reg);
-      `ASSERT(tx_fifo[tx_write_ptr-1] === DUT.PHY.tx_fifo.fifo_memory[DUT.PHY.tx_fifo.wr_reg-1]);
+      CHK_WR_OP_TX_FULL: assert((LitexArch ? expected_tx_full :
+                                (tx_watermark_reg === FifoDepth - 1)) === rd_tx_full);
+      CHK_WR_OP_TX_PTR: assert(tx_write_ptr === DUT.PHY.tx_fifo.wr_reg);
+      CHK_WR_OP_TX_WATERMARK: assert(tx_watermark_reg === DUT.PHY.tx_fifo.watermark_reg);
+      CHK_WR_OP_TX_DATA: assert(tx_fifo[tx_write_ptr-1] ===
+                                DUT.PHY.tx_fifo.fifo_memory[DUT.PHY.tx_fifo.wr_reg-1]);
     end
   endtask
 
   task automatic TxEmptyCheck;
     begin
-      processor_task = 3'b100;
       {cyc_o, stb_o, wr_o} = 3'h7;  // Tento "escrever"
-      addr = 3'b110;
+      addr = LitexTxEmpty;
       @(posedge clock);
       @(negedge clock);
       {cyc_o, stb_o, wr_o} = 3'h0;
       @(posedge ack_i);
       @(negedge clock);
 
-      `ASSERT((tx_watermark_reg == 0) === rd_data[0]);
+      CHK_TX_EMPTY: assert((tx_watermark_reg == 0) === rd_data[0]);
     end
   endtask
 
   task automatic RxFullCheck;
     begin
-      processor_task = 3'b101;
       {cyc_o, stb_o, wr_o} = 3'h7;  // Tento "escrever"
-      addr = 3'b111;
+      addr = LitexRxFull;
       @(posedge clock);
       @(negedge clock);
       {cyc_o, stb_o, wr_o} = 3'h0;
       @(posedge ack_i);
       @(negedge clock);
 
-      `ASSERT((rx_watermark_reg == FifoDepth - 1) === rd_data[0]);
+      CHK_RX_FULL: assert((rx_watermark_reg == FifoDepth - 1) === rd_data[0]);
     end
   endtask
 
@@ -405,7 +400,7 @@ module uart_tb ();
   initial begin
     // Inicializando
     {clock, reset, cyc_o, stb_o, wr_o, addr, wr_data, tx_watermark_level, clear_irq,
-    tx_watermark_reg, rx_watermark_level, rx_watermark_reg, tx_write_ptr, proc_op} = 0;
+    tx_watermark_reg, rx_watermark_level, rx_watermark_reg, tx_write_ptr} = 0;
     rx_read_ptr = FifoDepth - 1;
     end_proc = 1'b0;
 
@@ -430,16 +425,16 @@ module uart_tb ();
 
     @(negedge clock);
     for (i1 = 0; i1 < 25 * AmntOfTests; i1 = i1 + 1) begin
-      proc_op = $urandom;
+      processor_task = processor_task_t'($urandom);
       wr_data = $urandom;
 
-      if (proc_op === 3'b000) ReadOp();
-      else if (proc_op === 3'b001) WriteOp();
-      else if (proc_op === 3'b010) InterruptCheck();
-      else if ((proc_op === 3'b011) && LitexArch) StatusCheck();
-      else if ((proc_op === 3'b100) && LitexArch) TxEmptyCheck();
-      else if ((proc_op === 3'b101) && LitexArch) RxFullCheck();
-      processor_task = 3'b000;
+      if (processor_task === ProcessorReadOp) ReadOp();
+      else if (processor_task === ProcessorWriteOp) WriteOp();
+      else if (processor_task === ProcessorInterruptCheck) InterruptCheck();
+      else if ((processor_task === ProcessorStatusCheck) && LitexArch) StatusCheck();
+      else if ((processor_task === ProcessorTxEmptyCheck) && LitexArch) TxEmptyCheck();
+      else if ((processor_task === ProcessorRxFullCheck) && LitexArch) RxFullCheck();
+      processor_task = ProcessorIdle;
       // Atraso a execução do loop
       @(posedge rx_clock);
       @(posedge rx_clock);
@@ -454,12 +449,12 @@ module uart_tb ();
   // Tasks para checar a interação UART <-> Serial RX
   task automatic RxStart;
     begin
-      rx_task = 3'b001;
+      rx_task = RxTaskStart;
 
       rxd = 0;
       @(negedge tx_clock);
 
-      `ASSERT(DUT.PHY.rx.present_state === DUT.PHY.rx.Start);
+      CHK_RX_START: assert(DUT.PHY.rx.present_state === uart_phy_pkg::Start);
 
     end
   endtask
@@ -467,59 +462,59 @@ module uart_tb ();
   task automatic RxData;
     integer j;
     begin
-      rx_task = 3'b010;
+      rx_task = RxTaskData;
 
       for (j = 0; j < 8; j = j + 1) begin
         rxd = rx_data[j];
         @(negedge tx_clock);
-        `ASSERT(DUT.PHY.rx.present_state === DUT.PHY.rx.Data);
+        CHK_RX_STATE_DATA: assert(DUT.PHY.rx.present_state === uart_phy_pkg::Data);
       end
     end
   endtask
 
   task automatic RxStop1;
     begin
-      rx_task = 3'b011;
+      rx_task = RxTaskStop1;
 
       rxd = 1'b1;
       @(negedge tx_clock);
 
-      `ASSERT(DUT.PHY.rx.present_state === DUT.PHY.rx.Stop1);
+      CHK_RX_STATE_STOP1: assert(DUT.PHY.rx.present_state === uart_phy_pkg::Stop1);
 
     end
   endtask
 
   task automatic RxStop2;
     begin
-      rx_task = 3'b100;
+      rx_task = RxTaskStop2;
       rxd = 1'b1;
       @(negedge tx_clock);
 
-      `ASSERT(DUT.PHY.rx.present_state === DUT.PHY.rx.Stop2);
+      CHK_RX_STATE_STOP2: assert(DUT.PHY.rx.present_state === uart_phy_pkg::Stop2);
 
     end
   endtask
 
   task automatic EndRx;
     begin
-      rx_task = 3'b101;
+      rx_task = RxTaskEnd;
       @(negedge tx_clock);
 
       rx_fifo[rx_write_ptr] = rx_data;
       rx_write_ptr = rx_write_ptr + 1'b1;
       rx_watermark_reg = rx_watermark_reg + 1'b1;
 
-      `ASSERT(
-          rx_fifo[rx_write_ptr-1'b1] === DUT.PHY.rx_fifo.fifo_memory[DUT.PHY.rx_fifo.wr_reg-1'b1]);
-      `ASSERT(rx_write_ptr === DUT.PHY.rx_fifo.wr_reg);
-      `ASSERT(rx_watermark_reg === DUT.PHY.rx_fifo.watermark_reg);
+      CHK_RX_DATA_END: assert(rx_fifo[rx_write_ptr-1'b1] ===
+                              DUT.PHY.rx_fifo.fifo_memory[DUT.PHY.rx_fifo.wr_reg-1'b1]);
+      CHK_RX_PTR_END: assert(rx_write_ptr === DUT.PHY.rx_fifo.wr_reg);
+      CHK_RX_WATERMARK_END: assert(rx_watermark_reg === DUT.PHY.rx_fifo.watermark_reg);
     end
   endtask
 
   // Rx's Initial Block
   initial begin
     rxd = 1'b1;
-    rx_task = 3'b000;
+    rx_task = RxTaskInit;
     rx_write_ptr = 0;
     end_rx = 1'b0;
 
@@ -538,7 +533,7 @@ module uart_tb ();
 
       if (~rx_full) EndRx();
       else begin
-        rx_task = 3'b110;
+        rx_task = RxTaskSyncTx;
         @(negedge tx_clock);
       end
     end
@@ -549,7 +544,7 @@ module uart_tb ();
   // Tasks para checar a interação UART <-> Serial TX
   task automatic TxStart;
     begin
-      tx_task = 3'b001;
+      tx_task = TxTaskStart;
       @(posedge clock);
       tx_read_ptr = tx_read_ptr + 1;
       tx_data = tx_fifo[tx_read_ptr];
@@ -558,7 +553,7 @@ module uart_tb ();
       @(negedge clock);
       @(negedge tx_clock);
 
-      `ASSERT(txd === 1'b0);
+      CHK_TX_START: assert(txd === 1'b0);
 
     end
   endtask
@@ -566,11 +561,11 @@ module uart_tb ();
   task automatic TxData;
     integer k;
     begin
-      tx_task = 3'b010;
+      tx_task = TxTaskData;
       @(negedge tx_clock);
 
       for (k = 0; k < 8; k = k + 1) begin
-        `ASSERT(txd === tx_data[k]);
+        CHK_TX_DATA: assert(txd === tx_data[k]);
         @(negedge tx_clock);
       end
 
@@ -579,33 +574,33 @@ module uart_tb ();
 
   task automatic TxStop1;
     begin
-      tx_task = 3'b011;
+      tx_task = TxTaskStop1;
 
       @(negedge tx_clock);
-      `ASSERT(txd === 1'b1);
+      CHK_TX_STOP1: assert(txd === 1'b1);
 
     end
   endtask
 
   task automatic TxStop2;
     begin
-      tx_task = 3'b100;
+      tx_task = TxTaskStop2;
       @(negedge tx_clock);
 
-      `ASSERT(txd === 1'b1);
+      CHK_TX_STOP2: assert(txd === 1'b1);
 
     end
   endtask
 
   // Tx's Initial Block
   initial begin
-    tx_task = 3'b000;
+    tx_task = TxTaskInit;
     tx_read_ptr = -1;
     end_tx = 1'b0;
 
     @(init);
     for (i3 = 0; (i3 < AmntOfTests) || !tx_empty; i3 = i3 + 1) begin
-      tx_task = 3'b000;
+      tx_task = TxTaskInit;
       if (~tx_empty) begin
 
         TxStart();
@@ -623,7 +618,7 @@ module uart_tb ();
   end
 
   // End testbench
-  always @(*) begin
+  always_comb begin
     if (end_proc && end_rx && end_tx) begin
       $display("[%0t] EOT Sucess!", $time);
       $stop;

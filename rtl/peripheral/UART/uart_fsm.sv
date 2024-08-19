@@ -21,24 +21,23 @@ module uart_fsm #(
     output wire [2:0] present_state_db
 );
 
+  import uart_pkg::*;
+
   reg _rd_en, _wr_en;
   reg end_wr, end_rd;
 
   // FSM
-  reg [2:0] present_state, next_state;  // Estado da transmissão
-
-  // Estados possíveis
-  localparam reg [2:0] Idle = 3'b000, Read = 3'b001, Write = 3'b010, EndOp = 3'b011, Final = 3'b100;
+  uart_fsm_t present_state, next_state;  // Estado da transmissão
 
   function automatic is_txdata_addr(input integer litex_arch, input reg [2:0] addr);
     begin
-      is_txdata_addr = (addr == 3'b000);
+      is_txdata_addr = litex_arch ? (addr == LitexData) : (addr == SiFiveTxData);
     end
   endfunction
 
   function automatic is_rxdata_addr(input integer litex_arch, input reg [2:0] addr);
     begin
-      is_rxdata_addr = litex_arch ? (addr == 3'b000) : (addr == 3'b001);
+      is_rxdata_addr = litex_arch ? (addr == LitexData) : (addr == SiFiveRxData);
     end
   endfunction
 

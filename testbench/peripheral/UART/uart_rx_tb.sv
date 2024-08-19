@@ -2,6 +2,7 @@
 module uart_rx_tb ();
 
   import macros_pkg::*;
+  import uart_phy_pkg::*;
 
   // sinais do DUT
   reg clock, clock_r;
@@ -24,10 +25,6 @@ module uart_rx_tb ();
   wire end_of_receive;  // Indicação do RX que a recepção acabou
   integer amount_of_tests = 1000;
   integer i, j;
-
-  // Estados possíveis
-  localparam reg [2:0] Idle = 3'h0, Start = 3'h1, Data = 3'h2,
-    Parity = 3'h3, Stop1 = 3'h4, Stop2 = 3'h5;
 
   // DUT
   uart_rx DUT (
@@ -64,15 +61,7 @@ module uart_rx_tb ();
     reset = 1'b1;
     @(negedge clock);
     reset = 1'b0;
-    if (end_of_receive !== 1'b0 || DUT.present_state !== Idle)
-      $fatal(
-          "Reset Error! data_valid = %b, frame_error = %b, parity_error = %b, state = %h",
-          data_valid,
-          frame_error,
-          parity_error,
-          DUT.present_state
-      );
-    else $display("SOT!");
+    CHK_INIT: assert(end_of_receive === 1'b0 || DUT.present_state === Idle) $display("SOT!");
 
     @(negedge clock);
     for (i = 0; i < amount_of_tests; i = i + 1) begin
@@ -82,27 +71,15 @@ module uart_rx_tb ();
       // Começo de recepção de novo dado
       if (rx_en && (~rxd)) begin
         data_in = $urandom;
-        if (end_of_receive !== 1'b0 || DUT.present_state !== Start)
-          $fatal(
-              "Error Start! data_valid = %b, frame_error = %b, parity_error = %b, state = %h",
-              data_valid,
-              frame_error,
-              parity_error,
-              DUT.present_state
-          );
+        CHK_END_RECEIVE_START: assert(end_of_receive === 1'b0);
+        CHK_STATE_START: assert(DUT.present_state === Start);
         // Recebe 8 bits de dado
         for (j = 0; j < 8; j = j + 1) begin
           rx_en = $urandom;  // verifico se abaixar o rx_en afeta na transmissão
           rxd   = data_in[j];
           @(negedge clock);
-          if (end_of_receive !== 1'b0 || DUT.present_state !== Data)
-            $fatal(
-                "Error Data! data_valid = %b, frame_error = %b, parity_error = %b, state = %h",
-                data_valid,
-                frame_error,
-                parity_error,
-                DUT.present_state
-            );
+          CHK_END_RECEIVE_DATA: assert(end_of_receive === 1'b0);
+          CHK_STATE_DATA: assert(DUT.present_state === Data);
         end
         // Envio da paridade(se há)
         if (parity_type[1]) begin
@@ -112,14 +89,8 @@ module uart_rx_tb ();
           if (correct_parity) rxd = parity;
           else rxd = ~parity;
           @(negedge clock);
-          if (end_of_receive !== 1'b0 || DUT.present_state !== Parity)
-            $fatal(
-                "Error Parity! data_valid = %b, frame_error = %b, parity_error = %b, state = %h",
-                data_valid,
-                frame_error,
-                parity_error,
-                DUT.present_state
-            );
+          CHK_END_RECEIVE_PARITY: assert(end_of_receive === 1'b0);
+          CHK_STATE_PARITY: assert(DUT.present_state === Parity);
         end else correct_parity = 1'b1;
         // 2 Stop bits
         if (nstop) begin
@@ -130,14 +101,8 @@ module uart_rx_tb ();
           if (correct_stop[0]) rxd = 1'b1;
           else rxd = 1'b0;
           @(negedge clock);
-          if (end_of_receive !== 1'b0 || DUT.present_state !== Stop1)
-            $fatal(
-                "Error Stop1! data_valid = %b, frame_error = %b, parity_error = %b, state = %h",
-                data_valid,
-                frame_error,
-                parity_error,
-                DUT.present_state
-            );
+          CHK_END_RECEIVE_STOP1: assert(end_of_receive === 1'b0);
+          CHK_STATE_STOP1: assert(DUT.present_state === Stop1);
           // Stop bit 2
           rx_en = $urandom;
           correct_stop[1] = $urandom;
@@ -145,14 +110,8 @@ module uart_rx_tb ();
           if (correct_stop[1]) rxd = 1'b1;
           else rxd = 1'b0;
           @(negedge clock);
-          if (end_of_receive !== 1'b0 || DUT.present_state !== Stop2)
-            $fatal(
-                "Error Stop2! data_valid = %b, frame_error = %b, parity_error = %b, state = %h",
-                data_valid,
-                frame_error,
-                parity_error,
-                DUT.present_state
-            );
+          CHK_END_RECEIVE_STOP2: assert(end_of_receive === 1'b0);
+          CHK_STATE_STOP2: assert(DUT.present_state === Stop2);
           // 1 stop bit
         end else begin
           // Stop bit 1
@@ -163,45 +122,26 @@ module uart_rx_tb ();
           if (correct_stop[0]) rxd = 1'b1;
           else rxd = 1'b0;
           @(negedge clock);
-          if (end_of_receive !== 1'b0 || DUT.present_state !== Stop1)
-            $fatal(
-                "Error Stop1! data_valid = %b, frame_error = %b, parity_error = %b, state = %h",
-                data_valid,
-                frame_error,
-                parity_error,
-                DUT.present_state
-            );
+          CHK_END_RECEIVE_STOP1_2: assert(end_of_receive === 1'b0);
+          CHK_STATE_STOP1_2: assert(DUT.present_state === Stop1);
         end
         rxd = 1'b1;
         rx_en = 1'b0;
         // dado válido, se não houve erros na transmissão
         data_valid_ = (&correct_stop) & correct_parity;
         @(negedge clock);
-        if (data_in !== data_out || data_valid !== data_valid_ || parity_error !== ~correct_parity
-            || frame_error !== ~(&correct_stop) || DUT.present_state !== Idle)
-          $fatal(
-              "Error Idle! data_valid = %b, frame_error = %b, parity_error = %b, state = %h, \
-              data_in = 0x%h, data_out = 0x%h",
-              data_valid,
-              frame_error,
-              parity_error,
-              DUT.present_state,
-              data_in,
-              data_out
-          );
-      end else if (data_in !== data_out || data_valid !== data_valid_ ||
-                    parity_error !== ~correct_parity || frame_error !== ~(&correct_stop) ||
-                    DUT.present_state !== Idle)
-        $fatal(
-            "Error Idle! data_valid = %b, frame_error = %b, parity_error = %b, state = %h, \
-              data_in = 0x%h, data_out = 0x%h",
-            data_valid,
-            frame_error,
-            parity_error,
-            DUT.present_state,
-            data_in,
-            data_out
-        );
+        CHK_DATA_OUT_END: assert(data_in === data_out);
+        CHK_DATA_VALID_END: assert(data_valid === data_valid_);
+        CHK_PARITY_ERRORR_END: assert(parity_error === ~correct_parity);
+        CHK_FRAME_ERROR_END: assert(frame_error === ~(&correct_stop));
+        CHK_STATE_IDLE_END: assert(DUT.present_state === Idle);
+      end else begin
+        CHK_DATA_OUT_IDLE: assert(data_in === data_out);
+        CHK_DATA_VALID_IDLE: assert(data_valid === data_valid_);
+        CHK_PARITY_ERRORR_IDLE: assert(parity_error === ~correct_parity);
+        CHK_FRAME_ERROR_IDLE: assert(frame_error === ~(&correct_stop));
+        CHK_STATE_IDLE_IDLE: assert(DUT.present_state === Idle);
+      end
     end
     $display("EOT!");
     $stop;

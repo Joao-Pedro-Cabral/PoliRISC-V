@@ -2,6 +2,7 @@
 module uart_tx_tb ();
 
   import macros_pkg::*;
+  import uart_phy_pkg::*;
 
   // sinais do DUT
   reg clock;
@@ -18,10 +19,6 @@ module uart_tx_tb ();
   wire parity;
   integer amount_of_tests = 1000;
   integer i, j;
-
-  // Estados possíveis
-  localparam reg [2:0] Idle = 3'h0, Start = 3'h1, Data = 3'h2,
-    Parity = 3'h3, Stop1 = 3'h4, Stop2 = 3'h5;
 
   // DUT
   uart_tx DUT (
@@ -50,9 +47,7 @@ module uart_tx_tb ();
     reset = 1'b1;
     @(negedge clock);
     reset = 1'b0;
-    if (txd !== 1'b1 || tx_rdy !== 1'b1 || DUT.present_state !== Idle)
-      $fatal("Reset Error! txd = %b, tx_rdy = %b, state = %h", txd, tx_rdy, DUT.present_state);
-    else $display("SOT!");
+    CHK_INIT: assert(txd && tx_rdy && DUT.present_state === Idle) $display("SOT!");
 
     @(negedge clock);
     for (i = 0; i < amount_of_tests; i = i + 1) begin
@@ -62,37 +57,43 @@ module uart_tx_tb ();
       // Começo de envio de novo dado
       if (tx_en && data_valid) begin
         data_valid = 1'b0;  // data_valid normalmente só fica 1 ciclo em alto
-        if (txd !== 1'b0 || tx_rdy !== 1'b0 || DUT.present_state !== Start)
-          $fatal("Erro Start! txd = %b, tx_rdy = %b, state = %h", txd, tx_rdy, DUT.present_state);
+        CHK_START_TXD: assert(txd === 1'b0);
+        CHK_START_TX_RDY: assert(tx_rdy === 1'b0);
+        CHK_START_STATE: assert(DUT.present_state === Start);
         @(negedge clock);
         // Envio dos 8 bits de dado
         for (j = 0; j < 8; j = j + 1) begin
           tx_en = $urandom;  // verifico se abaixar o tx_en afeta na transmissão
-          if (txd !== data_in[j] || tx_rdy !== 1'b0 || DUT.present_state !== Data)
-            $fatal("Erro Data! txd = %b, tx_rdy = %b, state = %h", txd, tx_rdy, DUT.present_state);
+          CHK_DATA_TXD: assert(txd === data_in[j]);
+          CHK_DATA_TX_RDY: assert(tx_rdy === 1'b0);
+          CHK_DATA_STATE: assert(DUT.present_state === Data);
           @(negedge clock);
         end
         tx_en = $urandom;
         // Envio da paridade(se há)
         if (parity_type[1]) begin
-          if (txd !== parity || tx_rdy !== 1'b0 || DUT.present_state !== Parity)
-            $fatal(
-                "Erro Parity! txd = %b, tx_rdy = %b, state = %h", txd, tx_rdy, DUT.present_state
-            );
+          CHK_PARITY_TXD: assert(txd === parity);
+          CHK_PARITY_TX_RDY: assert(tx_rdy === 1'b0);
+          CHK_PARITY_STATE: assert(DUT.present_state === Parity);
           @(negedge clock);
         end
         // Stop bit 1
-        if (txd !== 1'b1 || tx_rdy !== 1'b0 || DUT.present_state !== Stop1)
-          $fatal("Erro Stop1! txd = %b, tx_rdy = %b, state = %h", txd, tx_rdy, DUT.present_state);
+          CHK_STOP1_TXD: assert(txd === 1'b1);
+          CHK_STOP1_TX_RDY: assert(tx_rdy === 1'b0);
+          CHK_STOP1_STATE: assert(DUT.present_state === Stop1);
         @(negedge clock);
         if (nstop) begin
           // Stop bit 2
-          if (txd !== 1'b1 || tx_rdy !== 1'b0 || DUT.present_state !== Stop2)
-            $fatal("Erro Stop2! txd = %b, tx_rdy = %b, state = %h", txd, tx_rdy, DUT.present_state);
+          CHK_STOP2_TXD: assert(txd === 1'b1);
+          CHK_STOP2_TX_RDY: assert(tx_rdy === 1'b0);
+          CHK_STOP2_STATE: assert(DUT.present_state === Stop2);
           @(negedge clock);
         end
-      end else if (txd !== 1'b1 || tx_rdy !== 1'b1 || DUT.present_state !== Idle)
-        $fatal("Erro Idle! txd = %b, tx_rdy = %b, state = %h", txd, tx_rdy, DUT.present_state);
+      end else begin
+          CHK_IDLE_TXD: assert(txd === 1'b1);
+          CHK_IDLE_TX_RDY: assert(tx_rdy === 1'b1);
+          CHK_IDLE_STATE: assert(DUT.present_state === Idle);
+      end
     end
     $display("EOT!");
     $stop;

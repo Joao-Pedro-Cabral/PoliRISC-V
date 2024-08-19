@@ -14,11 +14,9 @@ module uart_tx (
     output reg tx_rdy  // 1: tx está pronto para receber um dado
 );
 
-  reg [2:0] present_state, next_state;  // Estado da transmissão
+  import uart_phy_pkg::*;
 
-  // Estados possíveis
-  localparam reg [2:0] Idle = 3'h0, Start = 3'h1, Data = 3'h2,
-    Parity = 3'h3, Stop1 = 3'h4, Stop2 = 3'h5;
+  uart_phy_fsm_t present_state, next_state;  // Estado da transmissão
 
   // Registrador Paralelo-Serial
   wire [7:0] mux_data;  // data_reg << 1 ou data_in

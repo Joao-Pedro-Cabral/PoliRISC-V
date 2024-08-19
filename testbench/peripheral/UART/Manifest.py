@@ -2,6 +2,7 @@ files = [
     "fifo_tb.sv",
     "uart_rx_tb.sv",
     "uart_tb.sv",
+    "uart_tb_pkg.sv",
     "uart_tx_tb.sv"
 ]
 

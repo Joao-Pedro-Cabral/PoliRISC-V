@@ -106,7 +106,7 @@ module uart #(
       .LITEX_ARCH(LITEX_ARCH),
       .FIFO_DEPTH(FIFO_DEPTH),
       .CLOCK_FREQ_HZ(CLOCK_FREQ_HZ)
-  ) BANK (
+  ) bank (
       // COMMON
       .clock(CLK_I),
       .reset(RST_I),
