@@ -1,13 +1,3 @@
-//
-//! @file   sd_sender.v
-//! @brief  Implementação de um expedidor SPI para um controlador de SD
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-07-08
-//
-
-`include "macros.vh"
-`include "extensions.vh"
 
 module sd_sender (
     input wire clock,
@@ -22,14 +12,10 @@ module sd_sender (
     input wire [4095:0] data,
 
     // interface com o cartão SD
-    output wire mosi
+    output wire mosi,
 
-`ifdef DEBUG
-    ,
-    output wire sender_state,
-    output reg [15:0] crc16_dbg
-`endif
-
+    output wire sender_state_db,
+    output reg [15:0] crc16_db
 );
 
   reg cmd_or_data_reg;
@@ -42,6 +28,8 @@ module sd_sender (
   localparam reg Idle = 1'b0, Sending = 1'b1;
   reg state, new_state;
   reg sending;
+
+  reg [15:0] crc16_db_;
 
   sync_parallel_counter #(
       .size(13),
@@ -70,7 +58,7 @@ module sd_sender (
       .Q(cmd_reg)
   );
 
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) begin
       state <= Idle;
       cmd_or_data_reg <= 1'b0;
@@ -87,7 +75,7 @@ module sd_sender (
     end
   endtask
 
-  always @* begin
+  always_comb begin
     reset_signals;
 
     case (state)
@@ -117,7 +105,7 @@ module sd_sender (
     cmd_or_data_reg ? (bits_sent <= 13'd16 && sending) : (bits_sent <= 13'd8 && sending);
 
   // CRC16 com LFSR
-  always @(posedge clock) begin
+  always_ff @(posedge clock) begin
     // Limpa quando enviar o start token
     if (bits_sent == 13'd4113) begin
       crc16 <= 16'b0;
@@ -179,19 +167,19 @@ module sd_sender (
   assign ready = _ready;
   assign _mosi = crc_complete ? (cmd_or_data_reg ? crc16[15] : crc7[6]) : cmd_reg[4103];
   assign mosi  = _mosi;
-`ifdef DEBUG
-  assign sender_state = state;
-  always @(posedge clock, posedge reset) begin
+
+  assign sender_state_db = state;
+  assign crc16_db = crc16_db_;
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) begin
-      crc16_dbg <= 16'b0;
+      crc16_db_ <= 16'b0;
     end else begin
       if (cmd_or_data_reg && crc_complete && (bits_sent == 13'd16)) begin
-        crc16_dbg <= crc16;
+        crc16_db_ <= crc16;
       end else begin
-        crc16_dbg <= crc16_dbg;
+        crc16_db_ <= crc16_db_;
       end
     end
   end
-`endif
 
 endmodule

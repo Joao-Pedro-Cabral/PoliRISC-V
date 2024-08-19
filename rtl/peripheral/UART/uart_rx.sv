@@ -183,7 +183,7 @@ module uart_rx (
     check_parity = 1'b0;
     check_framing = 1'b0;
     transmit_end_en = 1'b0;
-    case (present_state)
+    unique case (present_state)
       Idle: begin
         // Caso RX habilitado e um 0 seja detectado -> Start
         sample_cnt_rst = 1'b1;

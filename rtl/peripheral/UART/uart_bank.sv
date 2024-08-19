@@ -74,7 +74,7 @@ module uart_bank #(
   function automatic addr_en(input integer litex_arch, input reg [2:0] addr,
                              input uart_addr_t addr_type);
     begin
-      case (addr_type)
+      unique case (addr_type)
         TxData: addr_en = litex_arch ? (addr == LitexData) : (addr == SiFiveTxData);
         RxData: addr_en = litex_arch ? (addr == LitexData) : (addr == SiFiveRxData);
         TxFull: addr_en = litex_arch ? (addr == LitexTxFull) : (addr == SiFiveTxData);

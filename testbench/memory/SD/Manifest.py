@@ -1,10 +1,11 @@
 files = [
-    "sd_controller_tb.v",
-    "sd_model.v"
+    "sd_controller_tb.sv",
+    "sd_model.sv"
 ]
 
 modules = {
-    "local" : [
-        "../../../rtl/memory/SD"
+    "local": [
+        "../../../rtl/memory/SD",
+        "../../../utils/globals"
     ]
 }

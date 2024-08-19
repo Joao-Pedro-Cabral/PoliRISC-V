@@ -85,7 +85,7 @@ module uart_tx (
     data_en = 1'b0;
     parity_en = 1'b0;
     data_cnt_rst = 1'b0;
-    case (present_state)
+    unique case (present_state)
       Idle: begin
         tx_rdy = 1'b1;  // Transmissor pronto para receber
         if (tx_en && data_valid) next_state = Start;

@@ -1,13 +1,3 @@
-//
-//! @file   sd_receiver.v
-//! @brief  Implementação de um recebedor SPI para um controlador de SD
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-07-09
-//
-
-`include "macros.vh"
-`include "extensions.vh"
 
 module sd_receiver (
     // Comum
@@ -23,12 +13,9 @@ module sd_receiver (
     output wire crc_error,
 
     // SD
-    input wire miso
+    input wire miso,
 
-`ifdef DEBUG
-    ,
-    output wire [1:0] receiver_state
-`endif
+    output wire [1:0] receiver_state_db
 );
 
   reg _ready;
@@ -82,7 +69,7 @@ module sd_receiver (
   );
 
   // CRC16 com LFSR
-  always @(posedge clock) begin
+  always_ff @(posedge clock) begin
     if (reset | init_transmission) begin
       crc16 <= 16'b0;
     end else if (receiving) begin
@@ -96,7 +83,7 @@ module sd_receiver (
   end
 
   // FSM
-  always @(posedge clock, posedge reset) begin
+  always_ff @(posedge clock, posedge reset) begin
     if (reset) state <= Idle;
     else state <= new_state;
   end
@@ -110,7 +97,7 @@ module sd_receiver (
     end
   endtask
 
-  always @* begin
+  always_comb begin
     reset_signals;
     new_state = Idle;
 
@@ -162,8 +149,7 @@ module sd_receiver (
   assign crc_error  = end_transmission && ((response_type == 3'b011) && (crc16 != 0));
   assign ready = _ready;
   assign received_data = data_received;
-`ifdef DEBUG
-  assign receiver_state = state;
-`endif
+
+  assign receiver_state_db = state;
 
 endmodule

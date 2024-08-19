@@ -1,9 +1,7 @@
 
-`include "macros.vh"
-
-`define ASSERT(condition) if (!(condition)) $stop
-
 module sd_controller_tb ();
+
+  import macros_pkg::*;
 
   // Parâmetros do testbench
   localparam integer AmntOfTests = 40;
@@ -23,6 +21,7 @@ module sd_controller_tb ();
   wire sck;
   wire mosi;
   wire ack;
+  wishbone_if #(.DATA_SIZE(4096), .BYTE_SIZE(8), .ADDR_SIZE(32)) wb_if (.*);
   // Sinais do modelo do cartão
   wire cmd_error;
   // Sinais auxiliares
@@ -34,19 +33,28 @@ module sd_controller_tb ();
   sd_controller #(
       .SDSC(SDSC)
   ) DUT (
-      .CLK_I(clock),
-      .RST_I(reset),
-      .CYC_I(cyc),
-      .STB_I(stb),
-      .WE_I(wr),
-      .ADR_I(addr),
-      .DAT_I(write_data),
-      .DAT_O(read_data),
+      .wb_if_s(wb_if),
       .miso(miso),
       .cs(cs),
       .sck(sck),
       .mosi(mosi),
-      .ACK_O(ack)
+      .sd_controller_state_db(),
+      .sd_receiver_state_db(),
+      .sd_sender_state_db(),
+      .check_cmd_0_db(),
+      .check_cmd_8_db(),
+      .check_cmd_55_db(),
+      .check_cmd_59_db(),
+      .check_acmd_41_db(),
+      .check_cmd_16_db(),
+      .check_cmd_24_db(),
+      .check_write_db(),
+      .check_cmd_13_db(),
+      .check_cmd_17_db(),
+      .check_read_db(),
+      .check_error_token_db(),
+      .crc_error_db(),
+      .crc16_db()
   );
 
   sd_model #(
@@ -60,6 +68,15 @@ module sd_controller_tb ();
       .cmd_error(cmd_error)
   );
 
+  // Wishbone
+  assign wb_if.cyc = cyc;
+  assign wb_if.stb = stb;
+  assign wb_if.we = wr;
+  assign wb_if.addr = addr;
+  assign wb_if.dat_o_p = write_data;
+  assign read_data = wb_if.dat_i_p;
+  assign ack = wb_if.ack;
+
   always #(Clock50MPeriod / 2) clock = ~clock;
 
   task automatic CheckInitialization;
@@ -70,7 +87,7 @@ module sd_controller_tb ();
         // Checo na subida, pois o clock do sd_card é invertido
         @(posedge clock);
         // Checar se não há erro de CRC7
-        `ASSERT(cmd_error === 1'b0);
+        CHK_CMD_ERROR_INIT: assert(cmd_error === 1'b0);
         @(negedge clock);
       end
     end
@@ -83,7 +100,7 @@ module sd_controller_tb ();
         // Checo na subida, pois o clock do sd_card é invertido
         @(posedge clock);
         // Checar se não há erro
-        `ASSERT(cmd_error === 1'b0);
+        CHK_CMD_ERROR_READ: assert(cmd_error === 1'b0);
         // Confiro ack na borda de descida
         @(negedge clock);
         // Enables não são mais relevantes
@@ -95,9 +112,9 @@ module sd_controller_tb ();
       stb = 1'b0;
       wr  = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
-      `ASSERT(cmd_error === 1'b0);
-      if (!sd_card.random_error_flag) `ASSERT(read_data === sd_card.data_block);
-      $display(" Leu: [%0t]", $time);
+      CHK_CMD_ERROR_READ_END: assert(cmd_error === 1'b0);
+      if (!sd_card.random_error_flag)
+        CHK_READ_DATA_READ_END: assert(read_data === sd_card.data_block);
     end
   endtask
 
@@ -115,7 +132,7 @@ module sd_controller_tb ();
       while (!ack) begin
         @(posedge clock);
         // Checar se não há erro
-        `ASSERT(cmd_error === 1'b0);
+        CHK_CMD_ERROR_WRITE: assert(cmd_error === 1'b0);
         // Confiro ack na borda de descida
         @(negedge clock);
         // Enables não são mais relevantes
@@ -127,9 +144,9 @@ module sd_controller_tb ();
       stb = 1'b1;
       wr  = 1'b0;
       // Após leitura checa o dado lido e se houve algum erro
-      `ASSERT(cmd_error === 1'b0);
-      if (!sd_card.random_error_flag) `ASSERT(write_data === sd_card.received_data_block);
-      $display(" Escreveu: [%0t]", $time);
+      CHK_CMD_ERROR_WRITE_END: assert(cmd_error === 1'b0);
+      if (!sd_card.random_error_flag)
+        CHK_WRITE_DATA_WRITE_END: assert(write_data === sd_card.received_data_block);
     end
   endtask
 

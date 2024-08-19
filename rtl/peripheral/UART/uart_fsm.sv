@@ -49,7 +49,7 @@ module uart_fsm #(
   // Lógica de Transição de Estado
   always_comb begin
     next_state = Idle;
-    case (present_state)
+    unique case (present_state)
       Idle: begin
         if (rd_en) next_state = Read;
         else if (wr_en) next_state = Write;
@@ -77,7 +77,7 @@ module uart_fsm #(
     end_wr <= 1'b0;
     if (reset) begin
     end else begin
-      case (next_state)
+      unique case (next_state)
         Read: begin
           op     <= 1'b1;
           _rd_en <= 1'b1;

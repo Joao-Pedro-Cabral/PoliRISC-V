@@ -1,7 +1,9 @@
 files = [
-    "sd_controller.v",
-    "sd_receiver.v",
-    "sd_sender.v"
+    "sd_controller.sv",
+    "sd_receiver.sv",
+    "sd_sender.sv",
+    "sd_receiver_pkg.sv",
+    "sd_sender_pkg.sv"
 ]
 
 modules = {

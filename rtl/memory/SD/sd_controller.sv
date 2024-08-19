@@ -1,28 +1,9 @@
-//
-//! @file   sd_controller.v
-//! @brief  Implementação de um controlador de SD
-//! @author João Pedro Cabral Miranda(miranda.jp@usp.br)
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2023-07-10
-//
-
-`include "macros.vh"
-`include "extensions.vh"
 
 module sd_controller #(
   parameter integer SDSC = 0
 )(
-    // sinais de sistema
-    input wire CLK_I,
-    input wire RST_I,
-
-    // interface com a pseudocache
-    input wire CYC_I,
-    input wire STB_I,
-    input wire WE_I,
-    input wire [31:0] ADR_I,
-    input wire [4095:0] DAT_I,
-    output wire [4095:0] DAT_O,
+    // Wishbone
+    wishbone_if.secondary wb_if_s,
 
     // interface com o cartão SD
     input wire miso,
@@ -30,32 +11,28 @@ module sd_controller #(
     output wire sck,
     output wire mosi,
 
-    // sinal de status
-    output wire ACK_O
-`ifdef DEBUG
-    ,
-    output wire [4:0] sd_controller_state,
-    output wire [1:0] sd_receiver_state,
-    output wire sd_sender_state,
-    output reg  [7:0] check_cmd_0_dbg,
-    output reg  [7:0] check_cmd_8_dbg,
-    output reg  [7:0] check_cmd_55_dbg,
-    output reg  [7:0] check_cmd_59_dbg,
-    output reg  [7:0] check_acmd_41_dbg,
-    output reg  [7:0] check_cmd_16_dbg,
-    output reg  [7:0] check_cmd_24_dbg,
-    output reg  [7:0] check_write_dbg,
-    output reg  [15:0] check_cmd_13_dbg,
-    output reg  [7:0] check_cmd_17_dbg,
-    output reg  [7:0] check_read_dbg,
-    output reg  [7:0] check_error_token_dbg,
-    output wire crc_error_dbg,
-    output wire [15:0] crc16_dbg
-`endif
+    // DEBUG
+    output wire [4:0] sd_controller_state_db,
+    output wire [1:0] sd_receiver_state_db,
+    output wire sd_sender_state_db,
+    output reg  [7:0] check_cmd_0_db,
+    output reg  [7:0] check_cmd_8_db,
+    output reg  [7:0] check_cmd_55_db,
+    output reg  [7:0] check_cmd_59_db,
+    output reg  [7:0] check_acmd_41_db,
+    output reg  [7:0] check_cmd_16_db,
+    output reg  [7:0] check_cmd_24_db,
+    output reg  [7:0] check_write_db,
+    output reg  [15:0] check_cmd_13_db,
+    output reg  [7:0] check_cmd_17_db,
+    output reg  [7:0] check_read_db,
+    output reg  [7:0] check_error_token_db,
+    output wire crc_error_db,
+    output wire [15:0] crc16_db
 );
 
-  wire wr_en = CYC_I & STB_I & WE_I;
-  wire rd_en = CYC_I & STB_I & ~WE_I;
+  wire wr_en = wb_if_s.cyc & wb_if_s.stb & wb_if_s.we;
+  wire rd_en = wb_if_s.cyc & wb_if_s.stb & ~wb_if_s.we;
 
   reg [31:0] addr_reg;
   reg [4095:0] write_data_reg;
@@ -110,75 +87,65 @@ module sd_controller #(
   reg state_return_en, response_type_en;
 
   sd_sender sender (
-      .clock(CLK_I),
-      .reset(RST_I),
+      .clock(wb_if_s.clock),
+      .reset(wb_if_s.reset),
       .cmd_index(cmd_index),
       .argument(argument),
       .cmd_or_data(cmd_or_data),
       .ready(sender_ready),
       .valid(sender_valid),
       .data(write_data_reg),
-      .mosi(mosi)
-`ifdef DEBUG
-      ,
-      .sender_state(sd_sender_state),
-      .crc16_dbg(crc16_dbg)
-`endif
+      .mosi(mosi),
+      .sender_state_db(sd_sender_state_db),
+      .crc16_db(crc16_db)
   );
 
   sd_receiver receiver (
-      .clock(CLK_I),
-      .reset(RST_I),
+      .clock(wb_if_s.clock),
+      .reset(wb_if_s.reset),
       .response_type((state != CheckCmd17) ? response_type : new_response_type),
       .received_data(received_data),
       .ready(receiver_ready),
       .valid(receiver_valid),
       .crc_error(crc_error),
-      .miso(miso)
-`ifdef DEBUG
-      ,
-      .receiver_state(sd_receiver_state)
-`endif
+      .miso(miso),
+      .receiver_state_db(sd_receiver_state_db)
   );
 
-`ifdef DEBUG
   reg
-      check_cmd_0_dbg_en,
-      check_cmd_8_dbg_en,
-      check_cmd_55_dbg_en,
-      check_cmd_59_dbg_en,
-      check_acmd_41_dbg_en,
-      check_cmd_16_dbg_en,
-      check_cmd_24_dbg_en,
-      check_write_dbg_en,
-      check_cmd_13_dbg_en,
-      check_cmd_17_dbg_en,
-      check_read_dbg_en,
-      check_error_token_dbg_en,
-      clear_dbg;
-`endif
+      check_cmd_0_db_en,
+      check_cmd_8_db_en,
+      check_cmd_55_db_en,
+      check_cmd_59_db_en,
+      check_acmd_41_db_en,
+      check_cmd_16_db_en,
+      check_cmd_24_db_en,
+      check_write_db_en,
+      check_cmd_13_db_en,
+      check_cmd_17_db_en,
+      check_read_db_en,
+      check_error_token_db_en,
+      clear_db;
 
-  always @(posedge CLK_I, posedge RST_I) begin
-    if (RST_I) begin
+  always_ff @(posedge wb_if_s.clock, posedge wb_if_s.reset) begin
+    if (wb_if_s.reset) begin
       cs    <= 1'b1;
       state <= InitBegin;
       state_return <= InitBegin;
       response_type <= 3'b000;
       ack <= 1'b0;
-`ifdef DEBUG
-      check_cmd_0_dbg <= 8'h00;
-      check_cmd_8_dbg <= 8'd8;
-      check_cmd_55_dbg <= 8'd55;
-      check_cmd_59_dbg <= 8'd59;
-      check_acmd_41_dbg <= 8'd41;
-      check_cmd_16_dbg <= 8'd16;
-      check_cmd_24_dbg <= 8'd24;
-      check_write_dbg <= 8'd10;
-      check_cmd_13_dbg <= 16'd13;
-      check_cmd_17_dbg <= 8'd17;
-      check_read_dbg <= 8'b11110000;
-      check_error_token_dbg <= 8'b10101010;
-`endif
+      check_cmd_0_db <= 8'h00;
+      check_cmd_8_db <= 8'd8;
+      check_cmd_55_db <= 8'd55;
+      check_cmd_59_db <= 8'd59;
+      check_acmd_41_db <= 8'd41;
+      check_cmd_16_db <= 8'd16;
+      check_cmd_24_db <= 8'd24;
+      check_write_db <= 8'd10;
+      check_cmd_13_db <= 16'd13;
+      check_cmd_17_db <= 8'd17;
+      check_read_db <= 8'b11110000;
+      check_error_token_db <= 8'b10101010;
     end else begin
       cs    <= new_cs;
       state <= new_state;
@@ -189,30 +156,28 @@ module sd_controller #(
       if (ack) ack <= 1'b0;
       else if (new_ack) ack <= 1'b1;
       else ack <= ack;
-`ifdef DEBUG
-      if (check_cmd_0_dbg_en) check_cmd_0_dbg <= received_data[7:0];
-      if (check_cmd_8_dbg_en) check_cmd_8_dbg <= received_data[39:32];
-      if (check_cmd_55_dbg_en) check_cmd_55_dbg <= received_data[7:0];
-      if (check_cmd_59_dbg_en) check_cmd_59_dbg <= received_data[7:0];
-      if (check_acmd_41_dbg_en) check_acmd_41_dbg <= received_data[7:0];
-      if (check_cmd_16_dbg_en) check_cmd_16_dbg <= received_data[7:0];
-      if (check_cmd_24_dbg_en) check_cmd_24_dbg <= received_data[7:0];
-      else if (clear_dbg) check_cmd_24_dbg <= 8'd24;
-      if (check_write_dbg_en) check_write_dbg <= received_data[7:0];
-      else if (clear_dbg) check_write_dbg <= 8'd10;
-      if (check_cmd_13_dbg_en) check_cmd_13_dbg <= received_data[15:0];
-      else if (clear_dbg) check_cmd_13_dbg <= 16'd13;
-      if (check_cmd_17_dbg_en) check_cmd_17_dbg <= received_data[7:0];
-      else if (clear_dbg) check_cmd_17_dbg <= 8'd17;
-      if (check_read_dbg_en) check_read_dbg <= {7'b0, crc_error};
-      else if (clear_dbg) check_read_dbg <= 8'b11110000;
-      if (check_error_token_dbg_en) check_error_token_dbg <= received_data[7:0];
-      else if (clear_dbg) check_error_token_dbg <= 8'b10101010;
-`endif
+      if (check_cmd_0_db_en) check_cmd_0_db <= received_data[7:0];
+      if (check_cmd_8_db_en) check_cmd_8_db <= received_data[39:32];
+      if (check_cmd_55_db_en) check_cmd_55_db <= received_data[7:0];
+      if (check_cmd_59_db_en) check_cmd_59_db <= received_data[7:0];
+      if (check_acmd_41_db_en) check_acmd_41_db <= received_data[7:0];
+      if (check_cmd_16_db_en) check_cmd_16_db <= received_data[7:0];
+      if (check_cmd_24_db_en) check_cmd_24_db <= received_data[7:0];
+      else if (clear_db) check_cmd_24_db <= 8'd24;
+      if (check_write_db_en) check_write_db <= received_data[7:0];
+      else if (clear_db) check_write_db <= 8'd10;
+      if (check_cmd_13_db_en) check_cmd_13_db <= received_data[15:0];
+      else if (clear_db) check_cmd_13_db <= 16'd13;
+      if (check_cmd_17_db_en) check_cmd_17_db <= received_data[7:0];
+      else if (clear_db) check_cmd_17_db <= 8'd17;
+      if (check_read_db_en) check_read_db <= {7'b0, crc_error};
+      else if (clear_db) check_read_db <= 8'b11110000;
+      if (check_error_token_db_en) check_error_token_db <= received_data[7:0];
+      else if (clear_db) check_error_token_db <= 8'b10101010;
     end
   end
 
-  task reset_signals;
+  task automatic reset_signals;
     begin
       sck_en = 1'b1;
       new_cs = 1'b1;
@@ -227,25 +192,23 @@ module sd_controller #(
       state_return_en = 1'b0;
       response_type_en = 1'b0;
       new_ack = 1'b0;
-`ifdef DEBUG
-      check_cmd_0_dbg_en = 1'b0;
-      check_cmd_8_dbg_en = 1'b0;
-      check_cmd_55_dbg_en = 1'b0;
-      check_cmd_59_dbg_en = 1'b0;
-      check_acmd_41_dbg_en = 1'b0;
-      check_cmd_16_dbg_en = 1'b0;
-      check_cmd_24_dbg_en = 1'b0;
-      check_write_dbg_en = 1'b0;
-      check_cmd_13_dbg_en = 1'b0;
-      check_cmd_17_dbg_en = 1'b0;
-      check_read_dbg_en = 1'b0;
-      check_error_token_dbg_en = 1'b0;
-      clear_dbg = 1'b0;
-`endif
+      check_cmd_0_db_en = 1'b0;
+      check_cmd_8_db_en = 1'b0;
+      check_cmd_55_db_en = 1'b0;
+      check_cmd_59_db_en = 1'b0;
+      check_acmd_41_db_en = 1'b0;
+      check_cmd_16_db_en = 1'b0;
+      check_cmd_24_db_en = 1'b0;
+      check_write_db_en = 1'b0;
+      check_cmd_13_db_en = 1'b0;
+      check_cmd_17_db_en = 1'b0;
+      check_read_db_en = 1'b0;
+      check_error_token_db_en = 1'b0;
+      clear_db = 1'b0;
     end
   endtask
 
-  always @(*) begin
+  always_comb begin
     reset_signals;
     case(state)
       InitBegin: begin
@@ -280,9 +243,7 @@ module sd_controller #(
       end
 
       CheckCmd0: begin  // Checa se cartão SD está InitBegin e sem erros
-`ifdef DEBUG
-        check_cmd_0_dbg_en = 1'b1;
-`endif
+        check_cmd_0_db_en = 1'b1;
         if (received_data[7:0] == 8'h01) new_state = SendCmd8;
         else new_state = SendCmd0;
       end
@@ -301,9 +262,7 @@ module sd_controller #(
       end
 
       CheckCmd8: begin  // Checa check pattern e se a tensão é suportada
-`ifdef DEBUG
-        check_cmd_8_dbg_en = 1'b1;
-`endif
+        check_cmd_8_db_en = 1'b1;
         if (received_data[39:32] == 8'h05) new_state = SendCmd59;
         else if (received_data[7:0] != 8'hAA) new_state = SendCmd8;
         else if (received_data[11:8] != 4'h1) new_state = InitBegin;
@@ -324,9 +283,7 @@ module sd_controller #(
       end
 
       CheckCmd59: begin  // Checa se ainda está em Idle
-`ifdef DEBUG
-        check_cmd_59_dbg_en = 1'b1;
-`endif
+        check_cmd_59_db_en = 1'b1;
         if (received_data[7:0] == 8'h01) new_state = SendCmd55;
         else new_state = SendCmd59;
       end
@@ -344,9 +301,7 @@ module sd_controller #(
       end
 
       CheckCmd55: begin  // Checa se ainda está em Idle
-`ifdef DEBUG
-        check_cmd_55_dbg_en = 1'b1;
-`endif
+        check_cmd_55_db_en = 1'b1;
         if (received_data[7:0] == 8'h01) new_state = SendAcmd41;
         else new_state = SendCmd55;
       end
@@ -366,9 +321,7 @@ module sd_controller #(
       end
 
       CheckAcmd41: begin  // Checa ACMD41 -> Até sair do Idle
-`ifdef DEBUG
-        check_acmd_41_dbg_en = 1'b1;
-`endif
+        check_acmd_41_db_en = 1'b1;
         if (received_data[7:0] == 8'h00) begin
           if(SDSC) new_state = SendCmd16;
           else begin
@@ -392,9 +345,7 @@ module sd_controller #(
       end
 
       CheckCmd16: begin
-  `ifdef DEBUG
-        check_cmd_16_dbg_en = 1'b1;
-  `endif
+        check_cmd_16_db_en = 1'b1;
         if (received_data[7:0] != 8'h00) new_state = SendCmd16;
         else begin
           new_cs = 1'b0;
@@ -414,9 +365,7 @@ module sd_controller #(
       end
 
       SendCmd24: begin
-      `ifdef DEBUG
-        clear_dbg = 1'b1;
-      `endif
+        clear_db = 1'b1;
         cmd_index = 6'd24;
         argument = addr_reg;
         new_response_type = 3'b000;
@@ -430,9 +379,7 @@ module sd_controller #(
       end
 
       CheckCmd24: begin  // Checa R1 do CMD24
-`ifdef DEBUG
-        check_cmd_24_dbg_en = 1'b1;
-`endif
+        check_cmd_24_db_en = 1'b1;
         new_cs = 1'b0;
         cmd_or_data = 1'b1;
         new_response_type = 3'b010;
@@ -445,9 +392,7 @@ module sd_controller #(
       end
 
       CheckWrite: begin  // Checa escrita de dado
-`ifdef DEBUG
-        check_write_dbg_en = 1'b1;
-`endif
+        check_write_db_en = 1'b1;
         new_cs = 1'b0;
         new_ack = 1'b1;
         new_state = SendCmd13;
@@ -466,9 +411,7 @@ module sd_controller #(
       end
 
       CheckCmd13: begin // Nada a checar -> Apenas depuração
-`ifdef DEBUG
-        check_cmd_13_dbg_en = 1'b1;
-`endif
+        check_cmd_13_db_en = 1'b1;
         new_state = Idle;
       end
 
@@ -486,9 +429,7 @@ module sd_controller #(
       end
 
       CheckCmd17: begin  // Checa R1 do CMD17
-`ifdef DEBUG
-        check_cmd_17_dbg_en = 1'b1;
-`endif
+        check_cmd_17_db_en = 1'b1;
         sck_en = 1'b0;
         new_cs = 1'b0;
         // R1 sem erros -> Leitura do Data Block
@@ -507,18 +448,14 @@ module sd_controller #(
       end
 
       CheckRead: begin  // Checa dado lido
-`ifdef DEBUG
-        check_read_dbg_en = 1'b1;
-`endif
+        check_read_db_en = 1'b1;
         new_cs = 1'b0;
         new_ack = 1'b1;
         new_state = Final;
       end
 
       CheckErrorToken: begin
-`ifdef DEBUG
-        check_error_token_dbg_en = 1'b1;
-`endif
+        check_error_token_db_en = 1'b1;
         new_cs = 1'b0;
         new_ack = 1'b1;
         new_state = Final;
@@ -533,27 +470,25 @@ module sd_controller #(
     endcase
   end
 
-  always @(posedge CLK_I, posedge RST_I) begin
-    if (RST_I) begin
+  always_ff @(posedge wb_if_s.clock, posedge wb_if_s.reset) begin
+    if (wb_if_s.reset) begin
       addr_reg <= 32'h0;
       write_data_reg <= 4096'h0;
     end else if ((state == Idle) & (rd_en | wr_en)) begin
-      addr_reg <= ADR_I;
-      write_data_reg <= DAT_I;
+      addr_reg <= wb_if_s.addr;
+      write_data_reg <= wb_if_s.dat_i_s;
     end else begin
       addr_reg <= addr_reg;
       write_data_reg <= write_data_reg;
     end
   end
 
-`ifdef DEBUG
-  assign sd_controller_state = state;
-  assign crc_error_dbg = crc_error;
-`endif
+  assign sd_controller_state_db = state;
+  assign crc_error_db = crc_error;
 
-  assign DAT_O = received_data;
-  assign ACK_O = ack;
+  assign wb_if_s.dat_o_s = received_data;
+  assign wb_if_s.ack = ack;
 
-  assign sck   = sck_en & ~CLK_I;
+  assign sck   = sck_en & ~wb_if_s.clock;
 
 endmodule

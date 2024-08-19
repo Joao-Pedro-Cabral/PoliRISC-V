@@ -1,6 +1,4 @@
 
-`include "macros.vh"
-
 module sd_model #(
     parameter integer SDSC = 0
 ) (
@@ -122,7 +120,7 @@ module sd_model #(
   wire [31:0] argument = cmd[39:8];
   wire [6:0] crc7 = cmd[7:1];
 
-  always @(posedge sck) begin
+  always_ff @(posedge sck) begin
     if (~cs) begin
       state        <= new_state;
       return_state <= new_return_state;
@@ -138,27 +136,27 @@ module sd_model #(
   end
 
   // Determinar ACMD41 Idle Flag
-  always @(posedge sck) begin
+  always_ff @(posedge sck) begin
     if (acmd41_idle_flag == 1'b0 && state == ReturnAcmd41Idle) acmd41_idle_flag <= 1'b1;
     else acmd41_idle_flag <= acmd41_idle_flag;
   end
 
   // Determinar Random Error Flag
-  always @(posedge sck) begin
+  always_ff @(posedge sck) begin
     if ((state == DecodeCmd && (index == 6'o21 || index == 6'o30)))
       random_error_flag <= $urandom & $urandom;
     else random_error_flag <= random_error_flag;
   end
 
   // Determinar Random Busy Cycles
-  always @(posedge sck) begin
+  always_ff @(posedge sck) begin
     if (state == CheckWrite) random_busy_cycles <= $urandom;
     else random_busy_cycles <= random_busy_cycles;
   end
 
   // Determinar data block
   integer j;
-  always @(posedge sck) begin
+  always_ff @(posedge sck) begin
     if (state == ReturnCmd17 && bit_counter == 0 && random_error_flag == 1'b0) begin
       for (j = 0; j < 128; j = j + 1) begin
         data_block[32*j+:32] <= $urandom;
@@ -171,18 +169,18 @@ module sd_model #(
   end
 
   // Atualizar crc no ciclo seguinte a atualização do data block
-  always @(posedge sck) begin
+  always_ff @(posedge sck) begin
     if (change_crc) crc16 <= CRC16(data_block);
     else crc16 <= crc16;
   end
 
   // recebe dados ou crc16 do comando de escrita
-  always @(posedge sck) begin
+  always_ff @(posedge sck) begin
     if (receive_data_block) received_data_block[bit_counter-17] <= mosi;
     if (receive_crc16) received_crc16[bit_counter-1] <= mosi;
   end
 
-  always @(*) begin
+  always_comb begin
     miso_reg            = 1'b1;
     cmd_error           = 1'b0;
     set_cmd             = 1'b0;
@@ -415,7 +413,7 @@ module sd_model #(
       end
 
       CmdError: begin
-        $display("\n\tindex: 0x%h\n\tcmd: 0x%h\n\texpected_cmd: 0x%h", index, cmd, expected_cmd);
+        //$display("\n\tindex: 0x%h\n\tcmd: 0x%h\n\texpected_cmd: 0x%h", index, cmd, expected_cmd);
         cmd_error = 1'b1;
         new_state = state;
       end
