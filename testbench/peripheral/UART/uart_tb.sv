@@ -20,6 +20,7 @@ module uart_tb ();
   event                         initClocks;
 
   // Sinais do DUT
+  wishbone_if #(.DATA_SIZE(32), .BYTE_SIZE(8), .ADDR_SIZE(3)) wb_if (.*);
   reg                           clock;
   reg                           rx_clock;
   reg                           tx_clock;
@@ -90,17 +91,9 @@ module uart_tb ();
       .FIFO_DEPTH(FifoDepth),
       .CLOCK_FREQ_HZ(115200 * 32)
   ) DUT (
-      .CLK_I    (clock),
-      .RST_I    (reset),
-      .CYC_I    (cyc_o),
-      .STB_I    (stb_o),
-      .WE_I     (wr_o),
-      .ADR_I    (addr),      // 0x00 a 0x18
+      .wb_if_s  (wb_if),
       .rxd      (rxd),       // dado serial
-      .DAT_I    (wr_data),
       .txd      (txd),       // dado de transmissão
-      .DAT_O    (rd_data),
-      .ACK_O    (ack_i),
       .interrupt(interrupt),
       .div_db(),
       .rx_pending_db(),
@@ -127,6 +120,17 @@ module uart_tb ();
       .tx_status_db(),
       .rx_status_db()
   );
+
+  // Wishbone
+  assign wb_if.clock = clock;
+  assign wb_if.reset = reset;
+  assign wb_if.cyc = cyc_o;
+  assign wb_if.stb = stb_o;
+  assign wb_if.we = wr_o;
+  assign wb_if.addr = addr;
+  assign wb_if.dat_o_p = wr_data;
+  assign rd_data = wb_if.dat_o_s;
+  assign ack_i = wb_if.ack;
 
   // Sinais da fifo/interrupts
   assign tx_pending = LitexArch ? tx_pending_d : (tx_watermark_reg < tx_watermark_level);

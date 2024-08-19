@@ -4,18 +4,10 @@ module uart #(
     parameter integer FIFO_DEPTH = 8,
     parameter integer CLOCK_FREQ_HZ = 10000000
 ) (
-    input  wire                          CLK_I,
-    input  wire                          RST_I,
-    input  wire                          CYC_I,
-    input  wire                          STB_I,
-    input  wire                          WE_I,
-    input  wire [                   2:0] ADR_I,              // 0x00 a 0x18
+    wishbone_if.secondary                wb_if_s,
     input  wire                          rxd,                // dado serial
-    input  wire [                  31:0] DAT_I,
     output wire                          txd,                // dado de transmissão
-    output wire [                  31:0] DAT_O,
     output wire                          interrupt,
-    output wire                          ACK_O,
     output wire [                  15:0] div_db,
     output wire                          rx_pending_db,
     output wire                          tx_pending_db,
@@ -75,18 +67,18 @@ module uart #(
 
   // WISHBONE
   // Determinando o comportamento da UART pelas entradas
-  assign wr_en = CYC_I & STB_I & WE_I;
-  assign rd_en = CYC_I & STB_I & ~WE_I;
+  assign wr_en = wb_if_s.cyc & wb_if_s.stb & wb_if_s.we;
+  assign rd_en = wb_if_s.cyc & wb_if_s.stb & ~wb_if_s.we;
 
   // Bufferizando entradas
   register_d #(
       .N(3),
       .reset_value(0)
   ) addr_reg (
-      .clock(CLK_I),
-      .reset(RST_I),
+      .clock(wb_if_s.clock),
+      .reset(wb_if_s.reset),
       .enable((rd_en | wr_en) && !op),
-      .D(ADR_I),
+      .D(wb_if_s.addr),
       .Q(_addr)
   );
 
@@ -94,10 +86,10 @@ module uart #(
       .N(32),
       .reset_value(0)
   ) wr_data_reg (
-      .clock(CLK_I),
-      .reset(RST_I),
+      .clock(wb_if_s.clock),
+      .reset(wb_if_s.reset),
       .enable(wr_en && !op),
-      .D(DAT_I),
+      .D(wb_if_s.dat_i_s),
       .Q(_wr_data)
   );
 
@@ -108,11 +100,11 @@ module uart #(
       .CLOCK_FREQ_HZ(CLOCK_FREQ_HZ)
   ) bank (
       // COMMON
-      .clock(CLK_I),
-      .reset(RST_I),
+      .clock(wb_if_s.clock),
+      .reset(wb_if_s.reset),
       .addr(_addr),
       .wr_data(_wr_data),
-      .rd_data(DAT_O),
+      .rd_data(wb_if_s.dat_o_s),
       .interrupt(interrupt),
       // FSM
       .bank_rd_en(bank_rd_en),
@@ -150,13 +142,13 @@ module uart #(
       .LITEX_ARCH(LITEX_ARCH)
   ) FSM (
       // COMMON
-      .clock(CLK_I),
-      .reset(RST_I),
+      .clock(wb_if_s.clock),
+      .reset(wb_if_s.reset),
       .rd_en(rd_en),
       .wr_en(wr_en),
       .addr(_addr),
       .op(op),
-      .ack(ACK_O),
+      .ack(wb_if_s.ack),
       // BANK
       .bank_rd_en(bank_rd_en),
       .bank_wr_en(bank_wr_en),
@@ -173,8 +165,8 @@ module uart #(
       .FIFO_DEPTH(FIFO_DEPTH)
   ) PHY (
       // COMMON
-      .clock(CLK_I),
-      .reset(RST_I),
+      .clock(wb_if_s.clock),
+      .reset(wb_if_s.reset),
       // BANK
       .txen(txen),
       .rxen(rxen),

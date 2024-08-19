@@ -15,7 +15,7 @@ module core_tb ();
   localparam integer InstDataSize = 32;
   localparam integer HasRV64I = (DataSize == 64);
   localparam integer CacheDataSize = 128;
-  localparam integer ProcAddrSize = 32;
+  localparam integer ProcAddrSize = (DataSize == 64);
   localparam integer MemoryAddrSize = 16;
   localparam integer PeriphAddrSize = 7;
   localparam integer ByteSize = 8;
