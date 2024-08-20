@@ -1,5 +1,6 @@
 files = [
-    "core_tb.sv"
+    "core_tb.sv",
+    "core_litex_nexys4ddr_tb.sv"
 ]
 
 modules = {

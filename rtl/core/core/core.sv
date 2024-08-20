@@ -131,7 +131,7 @@ module core #(
   ///////////////////////////////////
   dataflow #(
     .DATA_SIZE(DATA_SIZE)
-  ) DUT (
+  ) data_flow (
     .clock,
     .reset,
     .mem_unit_en,
