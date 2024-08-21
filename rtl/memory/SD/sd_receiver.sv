@@ -89,7 +89,7 @@ module sd_receiver (
 
   // FSM
   always_ff @(posedge clock, posedge reset) begin
-    if (reset) state <= Idle;
+    if (reset) state <= sd_receiver_pkg::Idle;
     else state <= new_state;
   end
 
@@ -104,10 +104,10 @@ module sd_receiver (
 
   always_comb begin
     reset_signals;
-    new_state = Idle;
+    new_state = sd_receiver_pkg::Idle;
 
     case (state)
-      Idle: begin
+      sd_receiver_pkg::Idle: begin
         _ready = 1'b1;
         end_transmission = 1'b1;
         if (valid) begin
@@ -131,7 +131,7 @@ module sd_receiver (
         if (bits_received == 13'b0) begin
           end_transmission = 1'b1;
           if (response_type == DataToken) new_state = WaitBusy;
-          else new_state = Idle;
+          else new_state = sd_receiver_pkg::Idle;
         end else begin
           receiving = 1'b1;
           new_state = state;
@@ -140,12 +140,12 @@ module sd_receiver (
 
       WaitBusy: begin
         end_transmission = 1'b1;
-        if (miso) new_state = Idle;
+        if (miso) new_state = sd_receiver_pkg::Idle;
         else new_state = state;
       end
 
       default: begin
-        new_state = Idle;
+        new_state = sd_receiver_pkg::Idle;
       end
     endcase
   end

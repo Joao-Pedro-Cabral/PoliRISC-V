@@ -1,5 +1,4 @@
 
-// FIXME: Move to inside MemoryController directory
 interface wishbone_if #(
     parameter integer DATA_SIZE = 32,
     parameter integer BYTE_SIZE = 8,

@@ -1,11 +1,13 @@
 files = [
-    "sd_controller_top.v",
-    "sd_controller_test_driver.v"
+    "sd_controller_top.sv",
+    "sd_controller_test_driver.sv",
+    "sd_controller_test_driver_pkg.sv"
 ]
 
 modules = {
-    "local" : [
+    "local": [
         "../../../rtl/memory/SD",
         "../../../utils/components",
+        "../../../utils/globals",
     ]
 }
