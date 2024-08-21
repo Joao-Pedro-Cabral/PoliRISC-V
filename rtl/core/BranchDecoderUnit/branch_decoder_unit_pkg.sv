@@ -10,7 +10,7 @@ package branch_decoder_unit_pkg;
   typedef enum logic [2:0] {
     Beq,
     Bne,
-    Blt,
+    Blt = 3'b100,
     Bge,
     Bltu,
     Bgeu

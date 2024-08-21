@@ -216,6 +216,7 @@ module core_litex_nexys4ddr_tb ();
   end
 
   always @(posedge wish_csr_clint.cyc) begin
+    @(negedge clock);
     if (wish_proc1.addr == UartAddress && wish_csr_clint.we) begin
       $write("%s", wish_proc1.dat_o_p[7:0]);
     end
