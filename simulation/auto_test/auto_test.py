@@ -29,13 +29,16 @@ print("############## mifs: " + str(mif_array))
 
 write_lines(["gui_mode"], ["gui_mode = False"])  # Set TCL Mode
 write_lines(["use_mif"], ["use_mif = True"])  # Set Mifs
+# No support for RV64I
+write_lines(["lista_de_extensoes"], ["lista_de_extensoes = []"])
+# Nexys4 with Litex
+write_lines(["board_list"], ["board_list = [\"LITEX\", \"NEXYS4\"]"])
 
 for testbench in sim_top_array:
     if not testbench.endswith("_tb"):
         continue
     print(f'---------{testbench}---------')
     write_lines(["sim_top"], [f"sim_top = \"{testbench}\""])
-    # set_extensions(testbench)
     if testbench in excluded_tops:
         print("---------PASS---------")
     elif tops_with_mifs.count(testbench) != 0:

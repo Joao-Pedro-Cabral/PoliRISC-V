@@ -1,5 +1,4 @@
 import subprocess
-from defines import extensions_map
 
 
 def write_lines(search_string: list[str], new_content: list[str]) -> None:
@@ -24,13 +23,6 @@ def write_lines(search_string: list[str], new_content: list[str]) -> None:
                 file.writelines(lines)
         else:
             print(f"String '{search_string[j]}' not found in the file.")
-
-
-def set_extensions(testbench: str) -> None:
-    extensions_list: str = extensions_map.get(testbench, "")
-    if extensions_list != "":  # testbench needs extensions
-        write_lines(["lista_de_extensoes"],
-                    [f"lista_de_extensoes = {str(extensions_list)}"])
 
 
 def run_simulation() -> None:

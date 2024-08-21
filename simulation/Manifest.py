@@ -8,7 +8,7 @@ mif_name = "m_extension64.mif"
 rom_mif_path = "./MIFs/memory/ROM/core/" + mif_name
 ram_mif_path = "./MIFs/memory/RAM/core.mif"
 lista_de_extensoes = []
-placa = "LITEX_"
+board_list = ["LITEX", "NEXYS4"]
 vsim_args = " -do vsim_gui.do -voptargs=+acc " if gui_mode else " -c -do vsim_tcl.do "
 
 # gerar arquivo de extensões
@@ -19,7 +19,8 @@ extension_file.close()
 
 # gerar arquivo da placa
 board_file = open("board.vh", 'w')
-board_file.write("`define " + placa + '\n')
+for item in board_list:
+    board_file.write("`define " + item + '\n')
 board_file.close()
 
 vlog_opt = " -define default_nettype=none"

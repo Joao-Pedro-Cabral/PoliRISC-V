@@ -1,5 +1,5 @@
 
-module core_litex_nexys4ddr_tb ();
+module core_litex_de10nano_tb ();
 
   import extensions_pkg::*;
   import csr_pkg::*;
@@ -12,13 +12,12 @@ module core_litex_nexys4ddr_tb ();
   localparam integer RomAddrSize = 16;
   localparam integer SramAddrSize = 13;
   localparam integer RamAddrSize = 27;
-  localparam integer EthAddrSize = 13;
   localparam integer CsrClintAddrSize = 17;
   localparam integer ByteSize = 8;
 
   localparam integer UartAddress = 32'hf0001000;
 
-  // Common
+  // sinais do DUT
   reg clock;
   reg reset;
   // PLIC
@@ -72,13 +71,6 @@ module core_litex_nexys4ddr_tb ();
   wishbone_if #(
       .DATA_SIZE(DataSize),
       .BYTE_SIZE(ByteSize),
-      .ADDR_SIZE(EthAddrSize)
-  ) wish_eth (
-      .*
-  );
-  wishbone_if #(
-      .DATA_SIZE(DataSize),
-      .BYTE_SIZE(ByteSize),
       .ADDR_SIZE(CsrClintAddrSize)
   ) wish_csr_clint (
       .*
@@ -98,7 +90,7 @@ module core_litex_nexys4ddr_tb ();
 
   // ROM
   single_port_ram #(
-      .RAM_INIT_FILE("./MIFs/memory/ROM/bios/nexys4ddr_bios.mif"),
+      .RAM_INIT_FILE("./MIFs/memory/ROM/bios/de10nano_bios.mif"),
       .BUSY_CYCLES(2)
   ) memory_rom (
       .wb_if_s(wish_rom)
@@ -118,14 +110,6 @@ module core_litex_nexys4ddr_tb ();
       .BUSY_CYCLES(2)
   ) memory_ram (
       .wb_if_s(wish_ram)
-  );
-
-  // ETHMAC
-  single_port_ram #(
-      .RAM_INIT_FILE("./MIFs/memory/ROM/zeros.mif"),
-      .BUSY_CYCLES(2)
-  ) memory_eth (
-      .wb_if_s(wish_eth)
   );
 
   // CSR + CLINT
@@ -160,7 +144,7 @@ module core_litex_nexys4ddr_tb ();
   assign wish_rom.addr = sel_rom ? wish_proc1.addr : wish_proc0.addr;
   assign wish_rom.dat_o_p = sel_rom ? wish_proc1.dat_o_p : wish_proc0.dat_o_p;
   // SRAM
-  assign wish_sram.cyc = (wish_proc1.addr[31:13] == 19'h08000) & wish_proc1.stb;
+  assign wish_sram.cyc = (wish_proc1.addr[31:12] == 20'h10000) & wish_proc1.stb;
   assign wish_sram.stb = wish_sram.cyc;
   assign wish_sram.we = wish_sram.cyc & wish_proc1.we;
   assign wish_sram.sel = wish_proc1.sel;
@@ -173,13 +157,6 @@ module core_litex_nexys4ddr_tb ();
   assign wish_ram.sel = wish_proc1.sel;
   assign wish_ram.addr = wish_proc1.addr;
   assign wish_ram.dat_o_p = wish_proc1.dat_o_p;
-  // ETHMAC
-  assign wish_eth.cyc = (wish_proc1.addr[31:13] == 19'h40000) & wish_proc1.stb;
-  assign wish_eth.stb = wish_eth.cyc;
-  assign wish_eth.we = wish_eth.cyc & wish_proc1.we;
-  assign wish_eth.sel = wish_proc1.sel;
-  assign wish_eth.addr = wish_proc1.addr;
-  assign wish_eth.dat_o_p = wish_proc1.dat_o_p;
   // CSR + CLINT
   assign wish_csr_clint.cyc = (wish_proc1.addr[31:17] == 15'h7800) & wish_proc1.stb;
   assign wish_csr_clint.stb = wish_csr_clint.cyc;
@@ -192,17 +169,15 @@ module core_litex_nexys4ddr_tb ();
   // Proc0
   assign wish_proc0.dat_o_s = wish_rom.dat_o_s;
   assign wish_proc0.ack = wish_rom.ack & !sel_rom;
-  // Proc1
+  // Controller
   assign wish_proc1.dat_o_s = (wish_rom.cyc & sel_rom)   ? wish_rom.dat_o_s       :
                               wish_sram.cyc              ? wish_sram.dat_o_s      :
                               wish_ram.cyc               ? wish_ram.dat_o_s       :
-                              wish_eth.cyc               ? wish_eth.dat_o_s       :
                               wish_csr_clint.cyc         ? wish_csr_clint.dat_o_s :
                               plic_cyc                   ? plic_dat               : 0;
   assign wish_proc1.ack = (wish_rom.cyc & sel_rom)       ? wish_rom.ack           :
                           wish_sram.cyc                  ? wish_sram.ack          :
                           wish_ram.cyc                   ? wish_ram.ack           :
-                          wish_eth.cyc                   ? wish_eth.ack           :
                           wish_csr_clint.cyc             ? wish_csr_clint.ack     :
                           plic_cyc                       ? plic_ack               : 1'b0;
   // geração do clock
