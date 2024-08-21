@@ -458,7 +458,6 @@ module dataflow #(
       ex_mem_reg.wr_reg_en <= id_ex_reg.wr_reg_en;
       ex_mem_reg.forwarding_type <= id_ex_reg.forwarding_type;
       ex_mem_reg.csr_op <= id_ex_reg.csr_op;
-      ex_mem_reg.csr_imm <= id_ex_reg.csr_imm;
       ex_mem_reg.csr_wr_data <= csr_wr_data;
       ex_mem_reg.inst <= id_ex_reg.inst;
     end
@@ -527,7 +526,6 @@ endgenerate
       mem_wb_reg.wr_reg_src <= ex_mem_reg.wr_reg_src;
       mem_wb_reg.wr_reg_en <= ex_mem_reg.wr_reg_en;
       mem_wb_reg.csr_op <= ex_mem_reg.csr_op;
-      mem_wb_reg.csr_imm <= ex_mem_reg.csr_imm;
       mem_wb_reg.csr_wr_data <= ex_mem_reg.csr_wr_data;
       mem_wb_reg.inst <= ex_mem_reg.inst;
     end

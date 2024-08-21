@@ -1,7 +1,7 @@
 files = [
-    "litex_core_top.v",
+    "litex_core_top.sv",
     "litedram_core.v",
-    "csr_and_clint.v"
+    "csr_and_clint.sv"
 ]
 
 modules = {
