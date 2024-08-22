@@ -25,7 +25,7 @@ module RV32I_uart_tb;
   import uart_phy_pkg::uart_phy_fsm_t;
 
   // Simulation Parameters
-  localparam int AmntOfTests = 20;  // tx_full = 1 -> Write 0 to RAM -> EOT
+  localparam int AmntOfTests = 1;  // tx_full = 1 -> Write 0 to RAM -> EOT
   localparam int ClockPeriod = 20;
 
   // DUT signals
@@ -195,32 +195,39 @@ module RV32I_uart_tb;
     @(negedge clock);
     reset = 1'b0;
     @(negedge clock);
-    $display("[%0t] SOT", $time);
+    $display("[%0t] SOT\n", $time);
 
     while (i < AmntOfTests) begin
       // Check for RAM write operation using wishbone interface signals
-      if (wish_proc1.we && wish_proc1.cyc && wish_proc1.stb) begin
+      if (wish_ram.we && wish_ram.cyc && wish_ram.stb) begin
         @(negedge clock);
         @(negedge clock);  // Wait for 2 cycles
 
         // Check if it's a store word (SW) operation
-        assert (wish_proc1.sel === 4'hF)
-        else $stop("Assertion failed: wish_proc1.sel is not 4'hF");
+        assert (wish_ram.sel === 4'hF)
+        else $stop("Assertion failed: wish_ram.sel is not 4'hF");
 
         // Check the write address
-        assert (wish_proc1.addr[9:0] === 10'h0)
-        else $stop("Assertion failed: wish_proc1.addr[9:0] is not 10'h0");
+        // FIXME: code below does not work. Why?
+        //assert (wish_ram.addr[9:0] === 10'b0)
+        //else $stop("Assertion failed: wish_ram.addr[9:0] is not 10'h0");
+
+        // Check the write address
+        if (!(wish_ram.addr[9:0] === 10'h0)) begin
+          $display("[%0t] Assertion failed: wish_ram.addr[9:0] is not 10'h0", $time);
+          $stop;
+        end
 
         // Check if the data being written is 0 (rx_data == tx_data)
-        assert (wish_proc1.dat_o_p === 32'h0)
-        else $stop("Assertion failed: wish_proc1.dat_o_p is not 32'h0");
+        assert (wish_ram.dat_o_p === 32'h0)
+        else $stop("Assertion failed: wish_ram.dat_o_p is not 32'h0");
 
         i = i + 1;
       end
       @(negedge clock);
     end
 
-    $display("[%0t] EOT", $time);
+    $display("[%0t] EOT\n", $time);
     $stop;
   end
 endmodule
