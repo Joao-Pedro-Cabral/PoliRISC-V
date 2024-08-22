@@ -19,7 +19,7 @@ module core_tb ();
   localparam integer MemoryAddrSize = 16;
   localparam integer PeriphAddrSize = 7;
   localparam integer ByteSize = 8;
-  localparam integer ByteNum = DataSize/ByteSize;
+  localparam integer ByteNum = DataSize / ByteSize;
   // Memory Address
   localparam reg [63:0] RomAddr = 64'h0000000000000000;
   localparam reg [63:0] RomAddrMask = 64'hFFFFFFFFFF000000;
@@ -121,14 +121,15 @@ module core_tb ();
   //////// Simulator Signals ////////
   ///////////////////////////////////
   // variáveis
-  integer limit = 1000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
+  integer
+      limit = 1000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
   // Address
-  localparam integer FinalAddress = 16781308; // Final execution address
-  localparam integer ExternalInterruptAddress = 16781320; // Active/Desactive External Interrupt
+  localparam integer FinalAddress = 16781308;  // Final execution address
+  localparam integer ExternalInterruptAddress = 16781320;  // Active/Desactive External Interrupt
 
   // DUT
   core #(
-    .DATA_SIZE(DataSize)
+      .DATA_SIZE(DataSize)
   ) DUT (
       .clock,
       .reset,
@@ -146,25 +147,25 @@ module core_tb ();
   // Instruction Cache
   cache #(
       .CACHE_SIZE(CacheSize),
-      .SET_SIZE(SetSize)
+      .SET_SIZE  (SetSize)
   ) instruction_cache (
-    .wb_if_ctrl(wish_cache_inst0),
-    .wb_if_mem(wish_cache_inst1)
+      .wb_if_ctrl(wish_cache_inst0),
+      .wb_if_mem (wish_cache_inst1)
   );
 
   // Data Cache
   cache #(
       .CACHE_SIZE(CacheSize),
-      .SET_SIZE(SetSize)
+      .SET_SIZE  (SetSize)
   ) data_cache (
-    .wb_if_ctrl(wish_cache_data0),
-    .wb_if_mem(wish_cache_data1)
+      .wb_if_ctrl(wish_cache_data0),
+      .wb_if_mem (wish_cache_data1)
   );
 
   // Instruction Memory
   rom #(
       .ROM_INIT_FILE("./ROM.mif"),
-      .BUSY_CYCLES(4)
+      .BUSY_CYCLES  (4)
   ) instruction_memory (
       .wb_if_s(wish_rom)
   );
@@ -172,15 +173,15 @@ module core_tb ();
   // Data Memory
   single_port_ram #(
       .RAM_INIT_FILE("./RAM.mif"),
-      .BUSY_CYCLES(4)
+      .BUSY_CYCLES  (4)
   ) data_memory (
       .wb_if_s(wish_ram)
   );
 
   // Registradores em memória do CSR
   csr_mem #(
-    .DATA_SIZE(DataSize),
-    .CLOCK_CYCLES(ClockCycles)
+      .DATA_SIZE(DataSize),
+      .CLOCK_CYCLES(ClockCycles)
   ) mem_csr (
       .wb_if_s(wish_csr),
       .msip(msip),
@@ -224,7 +225,7 @@ module core_tb ();
   ///////////////////////////////////
   // Always to finish the simulation
   always @(posedge wish_proc1.we) begin
-    if(wish_proc1.addr == FinalAddress) begin // Final write addr
+    if (wish_proc1.addr == FinalAddress) begin  // Final write addr
       $display("End of program!");
       $display("Write data: 0x%x", wish_proc1.dat_o_p);
       $display("Number of Cycles: %d", i);
@@ -234,8 +235,8 @@ module core_tb ();
 
   // Always to set/reset external_interrupt
   always @(posedge clock, posedge reset) begin
-    if(reset) external_interrupt = 1'b0;
-    else if(wish_proc1.addr == ExternalInterruptAddress && wish_proc1.we)
+    if (reset) external_interrupt = 1'b0;
+    else if (wish_proc1.addr == ExternalInterruptAddress && wish_proc1.we)
       external_interrupt = |wish_proc1.dat_o_p;
   end
 
@@ -248,9 +249,9 @@ module core_tb ();
     @(posedge clock);
     @(negedge clock);
     reset = 1'b0;
-    repeat(limit) begin
+    repeat (limit) begin
       @(posedge clock);
-      i ++;
+      i++;
     end
     $stop;
   end

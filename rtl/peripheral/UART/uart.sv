@@ -4,34 +4,34 @@ module uart #(
     parameter integer FIFO_DEPTH = 8,
     parameter integer CLOCK_FREQ_HZ = 10000000
 ) (
-    wishbone_if.secondary                wb_if_s,
-    input  wire                          rxd,                // dado serial
-    output wire                          txd,                // dado de transmissão
-    output wire                          interrupt,
-    output wire [                  15:0] div_db,
-    output wire                          rx_pending_db,
-    output wire                          tx_pending_db,
-    output wire                          rx_pending_en_db,
-    output wire                          tx_pending_en_db,
+    wishbone_if.secondary wb_if_s,
+    input wire rxd,  // dado serial
+    output wire txd,  // dado de transmissão
+    output wire interrupt,
+    output wire [15:0] div_db,
+    output wire rx_pending_db,
+    output wire tx_pending_db,
+    output wire rx_pending_en_db,
+    output wire tx_pending_en_db,
     output wire [$clog2(FIFO_DEPTH)-1:0] txcnt_db,
     output wire [$clog2(FIFO_DEPTH)-1:0] rxcnt_db,
-    output wire                          txen_db,
-    output wire                          rxen_db,
-    output wire                          nstop_db,
-    output wire                          rx_fifo_empty_db,
-    output wire [                   7:0] rxdata_db,
-    output wire                          tx_fifo_full_db,
-    output wire [                   7:0] txdata_db,
-    output wire [                   2:0] present_state_db,
-    output wire [                   2:0] addr_db,
-    output wire [                  31:0] wr_data_db,
-    output wire                          rx_data_valid_db,
-    output wire                          tx_data_valid_db,
-    output wire                          tx_rdy_db,
+    output wire txen_db,
+    output wire rxen_db,
+    output wire nstop_db,
+    output wire rx_fifo_empty_db,
+    output wire [7:0] rxdata_db,
+    output wire tx_fifo_full_db,
+    output wire [7:0] txdata_db,
+    output wire [2:0] present_state_db,
+    output wire [2:0] addr_db,
+    output wire [31:0] wr_data_db,
+    output wire rx_data_valid_db,
+    output wire tx_data_valid_db,
+    output wire tx_rdy_db,
     output wire [$clog2(FIFO_DEPTH)-1:0] rx_watermark_reg_db,
     output wire [$clog2(FIFO_DEPTH)-1:0] tx_watermark_reg_db,
-    output wire                          tx_status_db,
-    output wire                          rx_status_db
+    output wire tx_status_db,
+    output wire rx_status_db
 );
 
   // Internal interface signals

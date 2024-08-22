@@ -1,7 +1,7 @@
 
 action = "simulation"
 sim_tool = "modelsim"
-sim_top = "priority_encoder_tb"
+sim_top = "RV32I_uart_tb"
 use_mif = True
 gui_mode = False
 mif_name = "m_extension64.mif"
