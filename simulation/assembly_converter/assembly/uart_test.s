@@ -1,6 +1,6 @@
-lui  sp,4096     ; ram base address 
-lui  s0,65555    ; uart_0 base address
-lui  x28,112     ; receive watermark level
+lui  sp,0x1000   ; ram base address (0x1000000 >> 12)
+lui  s0,0x10013  ; uart_0 base address (0x10013000 >> 12)
+lui  x28,0x70    ; receive watermark level
 ori  x28,x28,1   ; rxen
 sw   x28,12(s0)  ; configuring receive control register
 andi x28,x28,-3  ; {nstop,txen}

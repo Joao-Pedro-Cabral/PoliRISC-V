@@ -1,12 +1,12 @@
-00110111 // lui  sp,4096     ; ram base address 
+00110111 // lui  sp,0x1000   ; ram base address (0x1000000 >> 12)
 00000001
 00000000
 00000001
-00110111 // lui  s0,65555    ; uart_0 base address
+00110111 // lui  s0,0x10013  ; uart_0 base address (0x10013000 >> 12)
 00110100
 00000001
 00010000
-00110111 // lui  x28,112     ; receive watermark level
+00110111 // lui  x28,0x70    ; receive watermark level
 00001110
 00000111
 00000000

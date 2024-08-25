@@ -28,113 +28,215 @@ module RV32I_uart_tb;
   localparam int AmntOfTests = 1;  // tx_full = 1 -> Write 0 to RAM -> EOT
   localparam int ClockPeriod = 20;
 
-  // DUT signals
-  logic        clock;
-  logic        reset;
+  ///////////////////////////////////
+  ///////////// Imports /////////////
+  ///////////////////////////////////
+  import extensions_pkg::*;
+
+  ///////////////////////////////////
+  //////////// Parameters ///////////
+  ///////////////////////////////////
+  // Wishbone
+  localparam integer CacheSize = 8192;
+  localparam integer SetSize = 1;
+  localparam integer InstDataSize = 32;
+  localparam integer HasRV64I = (DataSize == 64);
+  localparam integer CacheDataSize = 128;
+  localparam integer ProcAddrSize = 32;
+  localparam integer MemoryAddrSize = 16;
+  localparam integer PeriphAddrSize = 7;
+  localparam integer ByteSize = 8;
+  localparam integer ByteNum = DataSize / ByteSize;
+  // Memory Address
+  localparam reg [63:0] RomAddr = 64'h0000000000000000;
+  localparam reg [63:0] RomAddrMask = 64'hFFFFFFFFFF000000;
+  localparam reg [63:0] RamAddr = 64'h0000000001000000;
+  localparam reg [63:0] RamAddrMask = 64'hFFFFFFFFFF000000;
+  localparam reg [63:0] UartAddr = 64'h0000000010013000;
+  localparam reg [63:0] UartAddrMask = 64'hFFFFFFFFFFFFF000;
+  localparam reg [63:0] CsrAddr = 64'h000000003FFFF000;
+  localparam reg [63:0] CsrAddrMask = 64'hFFFFFFFFFFFFFFC0;
+  // MTIME
+  localparam integer ClockCycles = 100;
+
+  ///////////////////////////////////
+  /////////// DUT Signals ///////////
+  ///////////////////////////////////
+  logic clock;
+  logic reset;
   // Interrupts from Memory
-  logic        external_interrupt;
-  logic [31:0] msip;
+  logic external_interrupt;
+  logic [DataSize-1:0] msip;
   logic [63:0] mtime;
   logic [63:0] mtimecmp;
-  // UART
-  logic        uart_0_txd;
-  logic        uart_0_rxd;
 
-  // Wishbone Interfaces
+  ///////////////////////////////////
+  /////////// Interfaces ////////////
+  ///////////////////////////////////
   wishbone_if #(
-      .DATA_SIZE(32),
-      .BYTE_SIZE(8),
-      .ADDR_SIZE(32)
+      .DATA_SIZE(InstDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
   ) wish_proc0 (
       .*
   );
-
   wishbone_if #(
-      .DATA_SIZE(32),
-      .BYTE_SIZE(8),
-      .ADDR_SIZE(32)
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
   ) wish_proc1 (
       .*
   );
-
   wishbone_if #(
-      .DATA_SIZE(32),
-      .BYTE_SIZE(8),
-      .ADDR_SIZE(32)
-  ) wish_cache_inst (
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_cache_inst0 (
       .*
   );
-
   wishbone_if #(
-      .DATA_SIZE(32),
-      .BYTE_SIZE(8),
-      .ADDR_SIZE(32)
-  ) wish_cache_data (
+      .DATA_SIZE(CacheDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_cache_inst1 (
       .*
   );
-
   wishbone_if #(
-      .DATA_SIZE(128),
-      .BYTE_SIZE(8),
-      .ADDR_SIZE(16)
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_cache_data0 (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(CacheDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(ProcAddrSize)
+  ) wish_cache_data1 (
+      .*
+  );
+  wishbone_if #(
+      .DATA_SIZE(CacheDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(MemoryAddrSize)
   ) wish_rom (
       .*
   );
-
   wishbone_if #(
-      .DATA_SIZE(128),
-      .BYTE_SIZE(8),
-      .ADDR_SIZE(16)
+      .DATA_SIZE(CacheDataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(MemoryAddrSize)
   ) wish_ram (
       .*
   );
-
   wishbone_if #(
-      .DATA_SIZE(32),
-      .BYTE_SIZE(8),
-      .ADDR_SIZE(3)
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(PeriphAddrSize - 4)
   ) wish_uart (
       .*
   );
-
   wishbone_if #(
-      .DATA_SIZE(32),
-      .BYTE_SIZE(8),
-      .ADDR_SIZE(7)
+      .DATA_SIZE(DataSize),
+      .BYTE_SIZE(ByteSize),
+      .ADDR_SIZE(PeriphAddrSize)
   ) wish_csr (
       .*
   );
 
-  int i;  // iteration variable
+  ///////////////////////////////////
+  //////// Simulator Signals ////////
+  ///////////////////////////////////
+  // variáveis
+  integer
+      limit = 1000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
+  // Address
+  localparam integer FinalAddress = 16781308;  // Final execution address
+  localparam integer ExternalInterruptAddress = 16781320;  // Active/Desactive External Interrupt
 
   // DUT
   core #(
-      .DATA_SIZE(32)
+      .DATA_SIZE(DataSize)
   ) DUT (
-      .clock(clock),
-      .reset(reset),
-      .wish_proc0(wish_proc0),
-      .wish_proc1(wish_proc1),
-      .external_interrupt(external_interrupt),
+      .clock,
+      .reset,
+      .wish_proc0,
+      .wish_proc1,
+      .external_interrupt,
+      .msip,
+      .mtime,
+      .mtimecmp
+  );
+
+  ///////////////////////////////////
+  //////// Mem Components ///////////
+  ///////////////////////////////////
+  // Instruction Cache
+  cache #(
+      .CACHE_SIZE(CacheSize),
+      .SET_SIZE  (SetSize)
+  ) instruction_cache (
+      .wb_if_ctrl(wish_cache_inst0),
+      .wb_if_mem (wish_cache_inst1)
+  );
+
+  // Data Cache
+  cache #(
+      .CACHE_SIZE(CacheSize),
+      .SET_SIZE  (SetSize)
+  ) data_cache (
+      .wb_if_ctrl(wish_cache_data0),
+      .wb_if_mem (wish_cache_data1)
+  );
+
+  // Instruction Memory
+  rom #(
+      .ROM_INIT_FILE("./ROM.mif"),
+      .BUSY_CYCLES  (4)
+  ) instruction_memory (
+      .wb_if_s(wish_rom)
+  );
+
+  // Data Memory
+  single_port_ram #(
+      .RAM_INIT_FILE("./RAM.mif"),
+      .BUSY_CYCLES  (4)
+  ) data_memory (
+      .wb_if_s(wish_ram)
+  );
+
+  // Registradores em memória do CSR
+  csr_mem #(
+      .DATA_SIZE(DataSize),
+      .CLOCK_CYCLES(ClockCycles)
+  ) mem_csr (
+      .wb_if_s(wish_csr),
       .msip(msip),
       .mtime(mtime),
       .mtimecmp(mtimecmp)
   );
 
-  // Instruction Memory (ROM)
-  rom #(
-      .ROM_INIT_FILE("./MIFs/memory/ROM/uart_tx_full_test.mif"),
-      .BUSY_CYCLES  (2)
-  ) Instruction_Memory (
-      .wb_if_s(wish_rom)
-  );
-
-  // Data Memory (RAM)
-  single_port_ram #(
-      .RAM_INIT_FILE("./MIFs/memory/RAM/core.mif"),
-      .BUSY_CYCLES  (3)
-  ) Data_Memory (
-      .wb_if_s(wish_ram)
+  // Instanciação do barramento
+  memory_controller #(
+      .ROM_ADDR(RomAddr),
+      .RAM_ADDR(RamAddr),
+      .UART_ADDR(UartAddr),
+      .CSR_ADDR(CsrAddr),
+      .ROM_ADDR_MASK(RomAddrMask),
+      .RAM_ADDR_MASK(RamAddrMask),
+      .UART_ADDR_MASK(UartAddrMask),
+      .CSR_ADDR_MASK(CsrAddrMask)
+  ) controller (
+      .wish_s_proc0(wish_proc0),
+      .wish_s_proc1(wish_proc1),
+      .wish_s_cache_inst(wish_cache_inst1),
+      .wish_s_cache_data(wish_cache_data1),
+      .wish_p_rom(wish_rom),
+      .wish_p_ram(wish_ram),
+      .wish_p_cache_inst(wish_cache_inst0),
+      .wish_p_cache_data(wish_cache_data0),
+      .wish_p_uart(wish_uart),
+      .wish_p_csr(wish_csr)
   );
 
   // UART
@@ -143,42 +245,39 @@ module RV32I_uart_tb;
       .FIFO_DEPTH(8),
       .CLOCK_FREQ_HZ(115200 * 32)
   ) uart_0 (
-      .wb_if_s  (wish_uart),
-      .rxd      (uart_0_rxd),  // TX always high to simulate no data
-      .txd      (uart_0_txd),
-      .interrupt()
-  );
-
-  // CSR (Assuming a CSR module is present)
-  // Assuming there's some form of CSR interface connected
-  // CSR module would go here
-
-  // Updated Memory Controller Instantiation
-  memory_controller #(
-      .ROM_ADDR(64'h0000000000000000),
-      .ROM_ADDR_MASK(64'hFFFFFFFFC0000000),
-      .RAM_ADDR(64'h0000000080000000),
-      .RAM_ADDR_MASK(64'hFFFFFFFFC0000000),
-      .UART_ADDR(64'h00000000C0000000),
-      .UART_ADDR_MASK(64'hFFFFFFFFE0000000),
-      .CSR_ADDR(64'h00000000B0000000),
-      .CSR_ADDR_MASK(64'hFFFFFFFFE0000000)
-  ) BUS (
-      .wish_s_proc0(wish_proc0),
-      .wish_s_proc1(wish_proc1),
-      .wish_s_cache_inst(wish_cache_inst),
-      .wish_s_cache_data(wish_cache_data),
-      .wish_p_rom(wish_rom),
-      .wish_p_ram(wish_ram),
-      .wish_p_cache_inst(wish_cache_inst),
-      .wish_p_cache_data(wish_cache_data),
-      .wish_p_uart(wish_uart),
-      .wish_p_csr(wish_csr)
+      .wb_if_s            (wish_uart),
+      .rxd                (uart_0_rxd),  // TX always high to simulate no data
+      .txd                (uart_0_txd),
+      .interrupt          (),
+      .div_db             (),
+      .rx_pending_db      (),
+      .tx_pending_db      (),
+      .rx_pending_en_db   (),
+      .tx_pending_en_db   (),
+      .txcnt_db           (),
+      .rxcnt_db           (),
+      .txen_db            (),
+      .rxen_db            (),
+      .nstop_db           (),
+      .rx_fifo_empty_db   (),
+      .rxdata_db          (),
+      .tx_fifo_full_db    (),
+      .txdata_db          (),
+      .present_state_db   (),
+      .addr_db            (),
+      .wr_data_db         (),
+      .rx_data_valid_db   (),
+      .tx_data_valid_db   (),
+      .tx_rdy_db          (),
+      .rx_watermark_reg_db(),
+      .tx_watermark_reg_db(),
+      .tx_status_db       (),
+      .rx_status_db       ()
   );
 
   // curto circuito da serial da UART
-  //assign uart_0_rxd = uart_0_txd;  // modo echo
-  assign uart_0_rxd = 1'b1;  // checar tx_full
+  assign uart_0_rxd = uart_0_txd;  // modo echo
+  //assign uart_0_rxd = 1'b1;  // checar tx_full
 
   // Clock generation
   always #(ClockPeriod / 2) clock = ~clock;
@@ -186,9 +285,6 @@ module RV32I_uart_tb;
   // Testbench
   initial begin
     {i, clock, reset} = 0;
-    msip = 0;
-    mtime = 0;
-    mtimecmp = 0;
 
     @(negedge clock);
     reset = 1'b1;
