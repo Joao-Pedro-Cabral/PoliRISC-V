@@ -295,28 +295,32 @@ module RV32I_uart_tb;
 
     while (i < AmntOfTests) begin
       // Check for RAM write operation using wishbone interface signals
-      if (wish_ram.we && wish_ram.cyc && wish_ram.stb) begin
+      if (wish_cache_data0.we && wish_cache_data0.cyc && wish_cache_data0.stb) begin
         @(negedge clock);
         @(negedge clock);  // Wait for 2 cycles
 
         // Check if it's a store word (SW) operation
-        assert (wish_ram.sel === 4'hF)
-        else $stop("Assertion failed: wish_ram.sel is not 4'hF");
+        assert (wish_cache_data0.sel === 4'hF)
+        else $stop("Assertion failed: wish_cache_data0.sel is not 4'hF");
 
         // Check the write address
         // FIXME: code below does not work. Why?
-        //assert (wish_ram.addr[9:0] === 10'b0)
-        //else $stop("Assertion failed: wish_ram.addr[9:0] is not 10'h0");
+        // assert (wish_cache_data0.addr[9:0] === 10'b0)
+        // else $stop("Assertion failed: wish_cache_data0.addr[9:0] is not 10'h0");
+        // Check if the data being written is 0 (rx_data == tx_data)
+        // assert (wish_cache_data0.dat_o_p === 32'h0)
+        // else $stop("Assertion failed: wish_cache_data0.dat_o_p is not 32'h0");
 
         // Check the write address
-        if (!(wish_ram.addr[9:0] === 10'h0)) begin
-          $display("[%0t] Assertion failed: wish_ram.addr[9:0] is not 10'h0", $time);
+        if (!(wish_cache_data0.addr[9:0] === 10'h0)) begin
+          $display("[%0t] Assertion failed: wish_cache_data0.addr[9:0] is not 10'h0", $time);
           $stop;
         end
 
-        // Check if the data being written is 0 (rx_data == tx_data)
-        assert (wish_ram.dat_o_p === 32'h0)
-        else $stop("Assertion failed: wish_ram.dat_o_p is not 32'h0");
+        if (!(wish_cache_data0.dat_o_p === 32'h0)) begin
+          $display("[%0t] Assertion failed: wish_cache_data0.dat_o_p is not 32'h0", $time);
+          $stop;
+        end
 
         i = i + 1;
       end

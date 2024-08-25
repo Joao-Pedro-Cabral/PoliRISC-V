@@ -1,12 +1,40 @@
 # PoliRISC-V
 
+<!--toc:start-->
+- [PoliRISC-V](#polirisc-v)
+  - [Description](#description)
+  - [Basic Usage](#basic-usage)
+    - [Pre-requisites](#pre-requisites)
+    - [Simulation](#simulation)
+  - [Directory Structure](#directory-structure)
+  - [License](#license)
+  - [Authors](#authors)
+  - [Acknowledgments](#acknowledgments)
+<!--toc:end-->
+
 ## Description
 
-This project hosts the Verilog description of a RISC-V processor developed at the Polytechnic School of the University of São Paulo. The following extensions are implemented:
+This project hosts the Verilog/SystemVerilog description of a RISC-V processor developed at the Polytechnic School of the University of São Paulo. The following extensions are implemented:
 
-- RV32I
-- RV64I
+- RV{32,64}I
 - Zicsr
+- RV{32,64}M
+
+
+
+## Basic Usage
+
+### Pre-requisites
+
+- [Hdlmake](https://hdlmake.readthedocs.io/en/master/): HDLMake is an open-source tool that automates the generation of FPGA project files and their dependencies, streamlining the build process for hardware description languages (HDLs) like VHDL, Verilog and SystemVerilog.
+
+- [Modelsim](https://www.intel.com/content/www/us/en/software-kit/750666/modelsim-intel-fpgas-standard-edition-software-version-20-1-1.html?): Simulation software (if you wish to simulate the project).
+
+- [Quartus](https://www.intel.com/content/www/us/en/software-kit/785086/intel-quartus-prime-lite-edition-design-software-version-22-1-2-for-windows.html?)/[Vivado](https://www.xilinx.com/support/download.html): Synthesis software (if you wish to synthesize the project).
+
+### Simulation
+
+Edit the sim_top and mif_name variables of the file simulation/Manifest.py to configure the testbench.
 
 ## Directory Structure
 
@@ -33,20 +61,6 @@ Each directory hosts the following resources:
 - testbench: Verilog testbenches for the processor's components;
 - toplevel: toplevel Verilog descriptions for synthesis;
 - utils: project-wide utilities
-
-## Basic Usage
-
-### Pre-requisites
-
-- [Hdlmake](https://hdlmake.readthedocs.io/en/master/): Framework for organizing the repository.
-
-- [Modelsim](https://www.intel.com/content/www/us/en/software-kit/750666/modelsim-intel-fpgas-standard-edition-software-version-20-1-1.html?): Simulation software.
-
-- [Quartus](https://www.intel.com/content/www/us/en/software-kit/785086/intel-quartus-prime-lite-edition-design-software-version-22-1-2-for-windows.html?)/[Vivado](https://www.xilinx.com/support/download.html): Synthesis software.
-
-### Simulation
-
-Edit the sim_top and mif_name variables of the file simulation/Manifest.py for configure the testbench.
 
 ## License
 
