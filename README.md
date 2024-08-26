@@ -3,25 +3,46 @@
 <!--toc:start-->
 - [PoliRISC-V](#polirisc-v)
   - [Description](#description)
+  - [Directory Structure](#directory-structure)
   - [Basic Usage](#basic-usage)
     - [Pre-requisites](#pre-requisites)
     - [Simulation](#simulation)
-  - [Directory Structure](#directory-structure)
-  - [License](#license)
+    - [Synthesis](#synthesis)
   - [Authors](#authors)
   - [Acknowledgments](#acknowledgments)
 <!--toc:end-->
 
 ## Description
 
-This project hosts the Verilog/SystemVerilog description of a RISC-V processor developed at the Polytechnic School of the University of São Paulo. The following extensions are implemented:
+This project hosts the SystemVerilog description of a RISC-V processor developed at the Polytechnic School of the University of São Paulo. The following extensions are implemented:
 
 - RV{32,64}I
 - Zicsr
 - TrapReturn
 - RV{32,64}M
 
+## Directory Structure
 
+The repository's main structure is organized as follows:
+```
+.
+├── README.md
+├── rtl/
+├── simulation/
+├── synthesis/
+├── testbench/
+├── toplevel/
+└── utils/
+```
+
+Each directory hosts the following resources:
+
+- rtl: SystemVerilog descriptions of the processor's components;
+- simulation: simulation files and scripts;
+- synthesis: synthesis files and scripts;
+- testbench: SystemVerilog testbenches for the processor's components;
+- toplevel: toplevel SystemVerilog descriptions for synthesis;
+- utils: project-wide utilities
 
 ## Basic Usage
 
@@ -35,35 +56,15 @@ This project hosts the Verilog/SystemVerilog description of a RISC-V processor d
 
 ### Simulation
 
-Edit the sim_top and mif_name variables of the file simulation/Manifest.py to configure the testbench.
+Edit the `sim_top` and `mif_name` variables of the file simulation/Manifest.py to configure the testbench. After that, proceed with the usual `hdlmake` and `make` commands. If you want, you can alter the `gui_mode` variable in order to run Modelsim with GUI (waveform) or on terminal mode.
 
-## Directory Structure
+Simulations run automatic assert-based tests. In general, You can find out if the test was successful by reading the log messages on the terminal.
 
-The repository's structure is organized as follows:
-```
-.
-├── docs/
-├── README.md
-├── rtl/
-├── simulation/
-├── synthesis/
-├── testbench/
-├── toplevel/
-├── utils/
-└── verible.filelist
-```
+### Synthesis
 
-Each directory hosts the following resources:
+Inside the `synthesis/` directory, you will find directories for synthesizing the project on different FPGA vendors. Choose the correspondent vendor and modify the Manifest.py accordingly. You can change the path inside the `module` variable's `local` key to choose which toplevel you wish to synthesize. In case the synthesis tool does not recognize types and variables defined inside packages, you will need to change compilation order for package (pkg) files to be compiled before the rest of the project.
 
-- docs: documentation for the project;
-- rtl: Verilog descriptions of the processor's components;
-- simulation: simulation files and scripts;
-- synthesis: synthesis files and scripts;
-- testbench: Verilog testbenches for the processor's components;
-- toplevel: toplevel Verilog descriptions for synthesis;
-- utils: project-wide utilities
-
-## License
+The toplevels available for synthesis can be found inside the `toplevel/` directory.
 
 ## Authors
 
