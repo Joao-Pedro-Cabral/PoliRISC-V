@@ -2,7 +2,7 @@ files = [
     "core_tb.sv",
     "core_litex_de10nano_tb.sv",
     "core_litex_nexys4ddr_tb.sv",
-    "RV32I_uart_tb.sv"
+    "core_uart_tb.sv"
 ]
 
 modules = {

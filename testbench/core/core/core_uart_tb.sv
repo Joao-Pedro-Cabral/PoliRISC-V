@@ -1,10 +1,3 @@
-//
-//! @file   RV32I_uart_tb.sv
-//! @brief  Testbench for RV32I with UART without FENCE, ECALL, and EBREAK
-//! @author Joao Pedro Cabral Miranda (miranda.jp@usp.br)
-//! @author Igor Pontes Tresolavy (tresolavy@usp.br)
-//! @date   2024-08-22
-//
 
 // 2 TBs in 1
 // First TB (uart_test.mif)
@@ -17,21 +10,14 @@
 // Observe how the processor sees tx_full
 
 
-module RV32I_uart_tb;
+module core_uart_tb;
 
   import macros_pkg::*;
-  import board_pkg::*;
-  import uart_pkg::*;
-  import uart_phy_pkg::uart_phy_fsm_t;
+  import extensions_pkg::*;
 
   // Simulation Parameters
   localparam int AmntOfTests = 1;  // tx_full = 1 -> Write 0 to RAM -> EOT
   localparam int ClockPeriod = 20;
-
-  ///////////////////////////////////
-  ///////////// Imports /////////////
-  ///////////////////////////////////
-  import extensions_pkg::*;
 
   ///////////////////////////////////
   //////////// Parameters ///////////
@@ -44,7 +30,8 @@ module RV32I_uart_tb;
   localparam integer CacheDataSize = 128;
   localparam integer ProcAddrSize = 32;
   localparam integer MemoryAddrSize = 16;
-  localparam integer PeriphAddrSize = 7;
+  localparam integer UartAddrSize = 5;
+  localparam integer CsrAddrSize = 7;
   localparam integer ByteSize = 8;
   localparam integer ByteNum = DataSize / ByteSize;
   // Memory Address
@@ -65,7 +52,7 @@ module RV32I_uart_tb;
   logic clock;
   logic reset;
   // Interrupts from Memory
-  logic external_interrupt;
+  logic external_interrupt = 1'b0;
   logic [DataSize-1:0] msip;
   logic [63:0] mtime;
   logic [63:0] mtimecmp;
@@ -132,14 +119,14 @@ module RV32I_uart_tb;
   wishbone_if #(
       .DATA_SIZE(DataSize),
       .BYTE_SIZE(ByteSize),
-      .ADDR_SIZE(PeriphAddrSize - 4)
+      .ADDR_SIZE(UartAddrSize)
   ) wish_uart (
       .*
   );
   wishbone_if #(
       .DATA_SIZE(DataSize),
       .BYTE_SIZE(ByteSize),
-      .ADDR_SIZE(PeriphAddrSize)
+      .ADDR_SIZE(CsrAddrSize)
   ) wish_csr (
       .*
   );
@@ -148,11 +135,7 @@ module RV32I_uart_tb;
   //////// Simulator Signals ////////
   ///////////////////////////////////
   // variáveis
-  integer
-      limit = 1000, i = 0;  // número máximo de iterações a serem feitas (evitar loop infinito)
-  // Address
-  localparam integer FinalAddress = 16781308;  // Final execution address
-  localparam integer ExternalInterruptAddress = 16781320;  // Active/Desactive External Interrupt
+  integer i = 0;
 
   // DUT
   core #(
@@ -284,14 +267,14 @@ module RV32I_uart_tb;
 
   // Testbench
   initial begin
-    {i, clock, reset} = 0;
+    {clock, reset} = 0;
 
     @(negedge clock);
     reset = 1'b1;
     @(negedge clock);
     reset = 1'b0;
     @(negedge clock);
-    $display("[%0t] SOT\n", $time);
+    $display("[%0t] SOT", $time);
 
     while (i < AmntOfTests) begin
       // Check for RAM write operation using wishbone interface signals
@@ -300,34 +283,21 @@ module RV32I_uart_tb;
         @(negedge clock);  // Wait for 2 cycles
 
         // Check if it's a store word (SW) operation
-        assert (wish_cache_data0.sel === 4'hF)
-        else $stop("Assertion failed: wish_cache_data0.sel is not 4'hF");
+        CHK_UART_SEL: assert (wish_cache_data0.sel === 4'hF)
+        else $error("Assertion failed: wish_cache_data0.sel is not 4'hF");
 
         // Check the write address
-        // FIXME: code below does not work. Why?
-        // assert (wish_cache_data0.addr[9:0] === 10'b0)
-        // else $stop("Assertion failed: wish_cache_data0.addr[9:0] is not 10'h0");
+        CHK_UART_ADDR: assert (wish_cache_data0.addr[9:0] === 10'b0)
+        else $error("Assertion failed: wish_cache_data0.addr[9:0] is not 10'h0");
         // Check if the data being written is 0 (rx_data == tx_data)
-        // assert (wish_cache_data0.dat_o_p === 32'h0)
-        // else $stop("Assertion failed: wish_cache_data0.dat_o_p is not 32'h0");
-
-        // Check the write address
-        if (!(wish_cache_data0.addr[9:0] === 10'h0)) begin
-          $display("[%0t] Assertion failed: wish_cache_data0.addr[9:0] is not 10'h0", $time);
-          $stop;
-        end
-
-        if (!(wish_cache_data0.dat_o_p === 32'h0)) begin
-          $display("[%0t] Assertion failed: wish_cache_data0.dat_o_p is not 32'h0", $time);
-          $stop;
-        end
-
-        i = i + 1;
+        CHK_UART_DATA: assert (wish_cache_data0.dat_o_p === 32'h0)
+        else $error("Assertion failed: wish_cache_data0.dat_o_p is not 32'h0");
+        i ++;
       end
       @(negedge clock);
     end
 
-    $display("[%0t] EOT\n", $time);
+    $display("[%0t] EOT", $time);
     $stop;
   end
 endmodule

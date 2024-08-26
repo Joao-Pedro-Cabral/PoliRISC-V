@@ -78,7 +78,7 @@ module uart #(
       .clock(wb_if_s.clock),
       .reset(wb_if_s.reset),
       .enable((rd_en | wr_en) && !op),
-      .D(wb_if_s.addr),
+      .D(wb_if_s.addr[4:2]),
       .Q(_addr)
   );
 

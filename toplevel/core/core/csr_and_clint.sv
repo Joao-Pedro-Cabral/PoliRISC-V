@@ -60,7 +60,7 @@ module csr_and_clint (
 
   wire [31:0] _uart_wr_data;
   wire _uart_ack;
-  wishbone_if #(.DATA_SIZE(32), .ADDR_SIZE(3), .BYTE_SIZE(8)) wb_if_uart
+  wishbone_if #(.DATA_SIZE(32), .ADDR_SIZE(5), .BYTE_SIZE(8)) wb_if_uart
                (.clock(wb_if_s.clock), .reset(wb_if_s.reset));
 
   uart #(
@@ -76,7 +76,7 @@ module csr_and_clint (
   assign wb_if_uart.cyc = wb_if_s.cyc & adr_i_is_base(UartBase, wb_if_s.addr);
   assign wb_if_uart.stb = wb_if_s.stb & adr_i_is_base(UartBase, wb_if_s.addr);
   assign wb_if_uart.we = wb_if_s.we & adr_i_is_base(UartBase, wb_if_s.addr);
-  assign wb_if_uart.addr = wb_if_s.addr[4:2];
+  assign wb_if_uart.addr = wb_if_s.addr;
   assign wb_if_uart.tgd = wb_if_s.tgd;
   assign wb_if_uart.sel = wb_if_s.sel;
   assign wb_if_uart.dat_o_p = wb_if_s.dat_i_s;

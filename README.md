@@ -18,6 +18,7 @@ This project hosts the Verilog/SystemVerilog description of a RISC-V processor d
 
 - RV{32,64}I
 - Zicsr
+- TrapReturn
 - RV{32,64}M
 
 

@@ -34,7 +34,7 @@ module uart_tb ();
   wire  [                 31:0] rd_data;
   wire                          ack_i;
   wire                          interrupt;
-  wishbone_if #(.DATA_SIZE(32), .BYTE_SIZE(8), .ADDR_SIZE(3)) wb_if (.*);
+  wishbone_if #(.DATA_SIZE(32), .BYTE_SIZE(8), .ADDR_SIZE(5)) wb_if (.*);
   ////
 
   // Sinais Auxiliares
@@ -125,7 +125,7 @@ module uart_tb ();
   assign wb_if.cyc = cyc_o;
   assign wb_if.stb = stb_o;
   assign wb_if.we = wr_o;
-  assign wb_if.addr = addr;
+  assign wb_if.addr = {addr, 2'b00};
   assign wb_if.dat_o_p = wr_data;
   assign rd_data = wb_if.dat_i_p;
   assign ack_i = wb_if.ack;

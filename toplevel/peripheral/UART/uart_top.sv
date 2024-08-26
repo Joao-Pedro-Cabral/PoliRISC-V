@@ -19,7 +19,7 @@ module uart_top (
   localparam reg Nstop = 1'b0;  // Numero de stop bits
 
   // Sinais para controlar o DUT
-  wishbone_if #(.DATA_SIZE(32), .BYTE_SIZE(8), .ADDR_SIZE(3)) wb_if (.*);
+  wishbone_if #(.DATA_SIZE(32), .BYTE_SIZE(8), .ADDR_SIZE(5)) wb_if (.*);
   reg                          rd_en;
   reg                          wr_en;
   reg  [                  2:0] addr;
@@ -105,7 +105,7 @@ module uart_top (
       wb_if.stb = 1'b1;
     end
   end
-  assign wb_if.addr = addr;
+  assign wb_if.addr = {addr, 2'b00};
   assign wb_if.dat_o_p = wr_data;
   assign rd_data = wb_if.dat_i_p;
   assign ack = wb_if.ack;
